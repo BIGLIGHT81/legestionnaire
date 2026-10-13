@@ -405,8 +405,11 @@ function pageHome(v) {
   v.innerHTML = `${!S().school ? `<div class="card setup-note"><div><b>مرحبا بك!</b> ابدأ بإدخال معطيات مؤسستك (الاسم، المدير، المديرية) وتحميل رأسية المؤسسة، ثم استورد لائحة الموظفين من ملف <b dir="ltr">agent</b> المحمل من موقع تبليغ (<span dir="ltr">Téléchargement de données → Source DRH</span>).</div>
       <button class="btn pri" data-go2="settings">${ic('gear')} الإعدادات</button><button class="btn" data-go2="employees">${ic('users')} الموظفون</button></div>` : ''}
     <div class="page-h" style="margin-bottom:12px"><h1>لوحة القيادة</h1><span class="sub">${sy ? 'الموسم الدراسي ' + esc(sy.replace('/', '-')) : ''}</span><span class="sp"></span>
+      <div class="search h-search" title="بحث في كل البرنامج (Ctrl+K)">${ic('search')}<input class="inp" id="hSearchQ" placeholder="بحث: خانة، وثيقة، موظف، تلميذ..." autocomplete="off"></div>
       <button class="btn pri" id="hSearch" title="بحث في كل البرنامج (Ctrl+K)">${ic('search')} بحث</button>
       <button class="btn" id="hPrintAll" title="طبع أو حفظ PDF لكل وثائق الخانات دفعة واحدة">${ic('print')} الطبع الشامل</button>
+      <button class="btn" data-go2="settings" title="معطيات المؤسسة، الرأسية، الحماية، النسخ الاحتياطية">${ic('gear')} الإعدادات</button>
+      <button class="btn" data-go2="employees" title="لائحة الموظفين">${ic('users')} الموظفون</button>
       <span class="muted">${new Date().toLocaleDateString('ar-MA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
     <div class="card hello">
       <img src="assets/emblem.png" style="width:58px">
@@ -482,7 +485,9 @@ function pageHome(v) {
     </div>`;
   $$('[data-doc]', v).forEach(b => b.onclick = () => go('editor', { type: b.dataset.doc }));
   $$('[data-go2]', v).forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.go2); });
-  if ($('#hSearch')) $('#hSearch').onclick = () => window.Tools && Tools.openSearch();
+  if ($('#hSearch')) $('#hSearch').onclick = () => window.Tools && Tools.openSearch($('#hSearchQ') ? $('#hSearchQ').value : '');
+  // 1.9.4: typing in the search box of the dashboard opens the search with the typed words
+  if ($('#hSearchQ')) { const q = $('#hSearchQ'); q.oninput = () => { if (q.value.trim() && window.Tools) { const t = q.value; q.value = ''; Tools.openSearch(t); } }; q.onkeydown = e => { if (e.key === 'Enter' && window.Tools) Tools.openSearch(q.value); }; }
   if ($('#hPrintAll')) $('#hPrintAll').onclick = () => go('printAll');
   $$('[data-hol]', v).forEach(b => b.onclick = () => Holidays.openManager());
 }

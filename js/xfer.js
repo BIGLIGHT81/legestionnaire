@@ -1,5 +1,5 @@
 'use strict';
-/* نقل البيانات بين حاسوبين بواسطة USB (1.9.2) — shown in the settings page when the key activates two computers.
+/* نقل البيانات بين حاسوبين بواسطة USB (1.9.2; 1.9.4: between any two activated computers, file encrypted with the program's own key).
    Export: an encrypted .lgx file holding all the data. Import: merge the new data (records are matched by their id,
    the newer one wins) or replace this computer's data entirely. */
 (function () {
@@ -44,14 +44,14 @@
   };
 
   function card(box, st) {
-    const two = (st.maxPc || 1) > 1;
+    const on = !!(st && st.active);
     box.innerHTML = `<div class="card-h"><h3>نقل البيانات بين حاسوبين (USB)</h3></div><div class="card-b">
-      <p class="muted" style="margin-top:0;font-size:12.8px;line-height:1.9">${two
-        ? 'إذا فعّلت البرنامج على حاسوبين فقط (محمول ومكتبي) فيمكنك نقل المعطيات الجديدة بينهما بمفتاح USB: <b>1)</b> على الحاسوب الذي أدخلت فيه المعطيات الجديدة اضغط «تصدير إلى USB» واحفظ الملف على المفتاح. <b>2)</b> على الحاسوب الآخر اضغط «استيراد من USB» واختر الملف، ثم اختر «دمج المعطيات الجديدة» (تُضاف المعطيات الجديدة وتُحدَّث الأحدث دون مسح ما عندك) أو «استبدال» (تصبح بيانات هذا الحاسوب نسخة طبق الأصل من الملف).<br>الملف مشفر ولا يفتحه إلا حاسوب مفعّل بنفس مفتاح التفعيل، ولا يمر عبر الإنترنت. تُحفظ تلقائيا نسخة احتياطية من بياناتك قبل كل استيراد.'
-        : 'هذه الميزة متاحة في النسخة المفعلة لحاسوبين (الإصدار 1.9.2 فما فوق) لمن يشتغل على حاسوب محمول وآخر مكتبي. نسختك الحالية مرخصة لحاسوب واحد.'}</p>
-      ${two ? `<div class="btn-row"><button class="btn" id="xfOut">${ic('up')} تصدير إلى USB</button><button class="btn" id="xfIn">${ic('down')} استيراد من USB</button></div>` : ''}</div>`;
-    if (!two) return;
-    const need = r => toast(r.error === 'inactive' ? 'فعّل البرنامج أولا لاستعمال نقل البيانات' : r.error === 'single' ? 'هذه الميزة خاصة بالنسخة المفعلة لحاسوبين' : r.error === 'key' ? 'هذا الملف لا يخص حاسوبيك: لا يمكن فتحه إلا بنفس مفتاح التفعيل' : 'ملف غير صالح', true);
+      <p class="muted" style="margin-top:0;font-size:12.8px;line-height:1.9">انقل المعطيات من حاسوب مفعَّل إلى أي حاسوب مفعَّل آخر (بنفس مفتاح التفعيل أو بمفتاح مختلف) دون إنترنت، بمفتاح USB مثلا:
+        <b>1)</b> على الحاسوب الذي فيه المعطيات اضغط «تصدير إلى USB» واحفظ الملف. <b>2)</b> على الحاسوب الآخر اضغط «استيراد من USB» واختر الملف، ثم «دمج المعطيات الجديدة» (تُضاف الجديدة وتُحدَّث الأحدث دون مسح ما عندك) أو «استبدال» (تصبح بيانات هذا الحاسوب نسخة طبق الأصل من الملف).<br>
+        الملف مشفّر ولا يُفتح إلا داخل البرنامج على حاسوب مفعَّل، ولا يمر عبر الإنترنت. تُحفظ تلقائيا نسخة احتياطية من بياناتك قبل كل استيراد.</p>
+      ${on ? '' : '<p style="color:var(--red);font-size:12.8px;margin:0 0 8px">فعّل البرنامج أولا لاستعمال نقل البيانات.</p>'}
+      <div class="btn-row"><button class="btn" id="xfOut" ${on ? '' : 'disabled'}>${ic('up')} تصدير إلى USB</button><button class="btn" id="xfIn" ${on ? '' : 'disabled'}>${ic('down')} استيراد من USB</button></div></div>`;
+    const need = r => toast(r.error === 'inactive' ? 'فعّل البرنامج أولا لاستعمال نقل البيانات' : r.error === 'key' ? 'تعذر فتح الملف: ملف تالف أو ليس ملف نقل بيانات من هذا البرنامج' : 'ملف غير صالح', true);
     $('#xfOut', box).onclick = async () => {
       await persist(true);
       const r = await window.api.xferExport(DB);

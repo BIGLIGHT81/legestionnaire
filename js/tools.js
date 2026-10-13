@@ -9,21 +9,23 @@
   /* ================= search ================= */
   function index() {
     const out = [];
+    const safe = f => { try { f(); } catch (e) { console.error('search index', e); } };
     const push = (kind, label, sub, go2, icon) => out.push({ kind, label, sub: sub || '', go: go2, icon: icon || '', key: nh(label + ' ' + (sub || '')) + ' ' + String(tr(label) + ' ' + tr(sub || '')).toLowerCase() });
     // sections and tabs
-    (typeof NAV !== 'undefined' ? NAV : []).forEach(g => (typeof visibleTabs === 'function' ? visibleTabs(g) : g.tabs()).forEach(t => push('tab', t.l, g.label, () => go(t.r, t.a), '📂')));
+    safe(() => (typeof NAV !== 'undefined' ? NAV : []).forEach(g => safe(() => (typeof visibleTabs === 'function' ? visibleTabs(g) : g.tabs()).forEach(t => push('tab', t.l, g.label, () => go(t.r, t.a), '📂')))));
     // documents of «الوثائق»
-    Object.entries(Dx.TYPES || {}).forEach(([k, t]) => { if (!t.hidden) push('doc', t.title, (t.desc || '') + ' — الوثائق', () => go('editor', { type: k }), t.icon || '📄'); });
+    safe(() => Object.entries(Dx.TYPES || {}).forEach(([k, t]) => { if (!t.hidden) push('doc', t.title, (t.desc || '') + ' — الوثائق', () => go('editor', { type: k }), t.icon || '📄'); }));
     // documents of every module (documents centres)
-    ((window.K && K.centers) || []).forEach(c => (c.docs() || []).forEach(d => push('doc', String(typeof d.t === 'function' ? d.t() : d.t), c.title, () => go(c.route, { kind: d.k }), c.icon || '📄')));
+    ((window.K && K.centers) || []).forEach(c => safe(() => (c.docs() || []).forEach(d => safe(() => push('doc', String(typeof d.t === 'function' ? d.t() : d.t), c.title, () => go(c.route, { kind: d.k }), c.icon || '📄')))));
     // employees
-    (DB.employees || []).forEach(e => push('emp', fullName(e), [e.ppr, e.cadre, e.cin].filter(Boolean).join(' — '), () => (typeof empProfile === 'function' ? (go('employees'), empProfile(e)) : go('employees')), '👤'));
+    safe(() => (DB.employees || []).forEach(e => push('emp', fullName(e), [e.ppr, e.cadre, e.cin].filter(Boolean).join(' — '), () => (typeof empProfile === 'function' ? (go('employees'), empProfile(e)) : go('employees')), '👤')));
     // pupils of the current year
     try { (window.Pupils ? Pupils.current(MK.curSy()) : []).forEach(p => push('pupil', `${p.last || ''} ${p.first || ''}`.trim(), [p.code, p.cls, p.unit].filter(Boolean).join(' — '), () => go('pupils', { tab: 'list', q: p.code }), '🎒')); } catch (_) {}
     return out;
   }
   const KIND = { tab: 'خانة', doc: 'وثيقة', emp: 'موظف(ة)', pupil: 'تلميذ(ة)' };
-  function openSearch() {
+  function openSearch(q0) {
+    if (typeof DB === 'undefined' || !DB) return;
     const I = index();
     const body = document.createElement('div');
     body.innerHTML = `<input class="inp" id="gsQ" placeholder="ابحث عن خانة، وثيقة، موظف(ة) أو تلميذ(ة)..." autocomplete="off" style="font-size:15px;padding:10px 12px">
@@ -48,9 +50,10 @@
       if (e.key === 'Enter') pick(sel);
     };
     $$('#gsK button', body).forEach(b => b.onclick = () => { kind = b.dataset.k; $$('#gsK button', body).forEach(x => x.classList.toggle('on', x === b)); draw(); $('#gsQ', body).focus(); });
-    draw(); setTimeout(() => $('#gsQ', body).focus(), 30);
+    if (q0) $('#gsQ', body).value = String(q0);
+    draw(); setTimeout(() => { const i = $('#gsQ', body); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 30);
   }
-  document.addEventListener('keydown', e => { if (e.ctrlKey && (e.key === 'k' || e.key === 'K' || e.key === 'f' || e.key === 'F') && !document.querySelector('.modal-bg') && window.DB) { e.preventDefault(); openSearch(); } });
+  document.addEventListener('keydown', e => { if (e.ctrlKey && (e.key === 'k' || e.key === 'K' || e.key === 'f' || e.key === 'F') && !document.querySelector('.modal-bg') && typeof DB !== 'undefined' && DB) { e.preventDefault(); openSearch(); } });
 
   /* ================= print everything ================= */
   const pst = { sel: null, sy: '' };
@@ -109,7 +112,7 @@
   const css = document.createElement('style');
   css.textContent = `.gs-it{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}.gs-it:hover,.gs-it.on{background:#eef6f3;border-color:#bfe0d4}
     .gs-ic{font-size:20px;width:28px;text-align:center}.gs-sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .pa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px 12px}.pa-it{font-size:13px}`;
+    .h-search{width:260px;max-width:100%}.pa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px 12px}.pa-it{font-size:13px}`;
   document.head.appendChild(css);
   window.Tools = { openSearch, index };
   window.pagePrintAll = v => pagePrintAll(v);

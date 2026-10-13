@@ -3916,7 +3916,10 @@ window.I18N_FR = {
 "مكتسب": "Acquis",
 "غير مكتسب": "Non acquis",
 "كفايات رائز المستوى الأول": "Compétences du test de 1re année",
-"كفايات مسار الافتراضية": "Compétences Massar par défaut"
+"كفايات مسار الافتراضية": "Compétences Massar par défaut",
+"بحث: خانة، وثيقة، موظف، تلميذ...": "Rechercher : section, document, employé, élève...",
+"معطيات المؤسسة، الرأسية، الحماية، النسخ الاحتياطية": "Données de l'établissement, en-tête, protection, sauvegardes",
+"فعّل البرنامج أولا لاستعمال نقل البيانات.": "Activez d'abord le programme pour utiliser le transfert de données."
 };
 window.I18N_FR_PAT = {
 "({0}) إلى {1}؟": "({0}) à {1} ?",
