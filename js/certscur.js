@@ -85,12 +85,11 @@
         ${fullFr(p) || f.fr === 'yes' ? `<p class="cs-l" dir="ltr" style="text-align:left"><span class="k">Nom et Prénom :</span> ${v(fullFr(p), 60)}</p>` : ''}
         <p class="cs-l">${F ? 'المولودة' : 'المولود'} في : ${v(p.place, 30)} &nbsp; بتاريخ : ${nm(p.birth) ? `<b dir="ltr">${esc(dmy(p.birth))}</b>` : v('', 25)}</p>
         <p class="cs-l">رمز ${F ? 'التلميذة' : 'التلميذ'} (مسار) : ${nm(p.code) ? `<b dir="ltr">${esc(p.code)}</b>` : v('', 30)}</p>
-        <p class="cs-l cs-st">${statusText(f.status, p)}</p>
-        <p class="cs-l">${levelLine(f.status, p)} : <b>(${esc(slashSy(sy))}) - ${esc(lv || '')}</b>${nm(p.cls) && f.cls2 !== 'no' ? ` &nbsp; القسم : <b dir="ltr">${esc(p.cls)}</b>` : ''}</p>
+        <p class="cs-l cs-st">${statusText(f.status, p)} ${levelLine(f.status, p)} : <b>${esc(lv || '')}</b>${nm(p.cls) && f.cls2 !== 'no' ? ` &nbsp; القسم : <b dir="ltr">${esc(p.cls)}</b>` : ''} &nbsp; خلال الموسم الدراسي : <b dir="ltr">${esc(slashSy(sy))}</b></p>
         <p class="cs-l"><span class="k">ملاحظات :</span> ${esc(noteOf(f, p))}</p>
       </div>
       <div class="cs-date"><span>حرر ب : ${v(f.city || s.city, 30)}</span><span>في : ${f.date ? `<b dir="ltr">${esc(dmyS(f.date))}</b>` : v('', 25)}</span></div>
-      <div class="cs-sig">${f.guard === 'no' ? '<div></div>' : '<div>خاتم وتوقيع الحارس العام / الناظر المسؤول عن المعلومات الواردة في الشهادة</div>'}<div>خاتم وتوقيع رئيس المؤسسة</div></div>
+      <div class="cs-sig"${(() => { try { const c = window.Stamp && Stamp.cfg(); return c && c.on ? ` style="min-height:${(c.h + 6).toFixed(1)}mm"` : ''; } catch (_) { return ''; } })()}>${f.guard === 'no' ? '<div></div>' : '<div>خاتم وتوقيع الحارس العام / الناظر المسؤول عن المعلومات الواردة في الشهادة</div>'}<div>خاتم وتوقيع رئيس المؤسسة</div></div>
     </div>`;
   }
 
@@ -202,7 +201,7 @@
   .cs-title>span:first-child{text-decoration:underline;text-underline-offset:1.2mm}.cs-no{font-size:12pt}
   .cs-body{position:relative;flex:1}.cs-l{margin:.35mm 0}.cs-st{font-weight:700;margin-top:1.6mm}
   .cs-photo{position:absolute;left:0;top:0;width:26mm;height:32mm;border:1px solid #000;display:flex;align-items:center;justify-content:center;color:#888;font-size:8.5pt}
-  .cs-body .cs-l:not(.cs-st){padding-left:30mm}
+  .cs-body .cs-l{padding-left:30mm}
   .cs-date{display:flex;justify-content:space-between;margin-top:1mm;font-weight:700}
   .cs-sig{display:flex;justify-content:space-between;gap:10mm;margin-top:.5mm;font-weight:700;font-size:10pt;min-height:18mm;flex:none}.cs-sig>div{max-width:60%}.cs-sig>div:last-child{text-align:center}
   .cs-cut{text-align:left;border-top:1.2px dashed #555;margin:2.2mm 0;line-height:0;font-size:12pt}

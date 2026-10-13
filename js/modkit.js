@@ -148,9 +148,10 @@
   function flowPages(o) {
     const land = o.page === 'a4l';
     const M = measurer(), d = M.doc;
-    const blocks = (o.blocks || []).filter(b => b !== '' && b != null).map(b => typeof b === 'string' ? { html: b } : b);
+    // 1.9.4: a block without content prints nothing (never the word «undefined»)
+    const blocks = (o.blocks || []).filter(b => b !== '' && b != null).map(b => typeof b === 'string' ? { html: b } : b).map(b => (b.table || b.html != null ? b : Object.assign({}, b, { html: '' })));
     const tblHtml = (b, rows) => `${b.before || ''}<table class="tbl ${b.table.cls || ''}">${b.table.colgroup || ''}<thead>${b.table.head || ''}</thead><tbody>${rows.join('')}</tbody></table>`;
-    const wrap = h => `<div class="fb">${h}</div>`;
+    const wrap = h => `<div class="fb">${h == null ? '' : h}</div>`;
     const pageCls = (land ? 'page-a4l' : 'page-a4') + ' ' + (o.cls || '');
     d.body.innerHTML = `<div class="${pageCls}" style="height:auto;overflow:visible">${wrap(o.head || '')}${blocks.map(b => wrap(b.table ? tblHtml(b, b.table.rows) : b.html)).join('')}</div>`;
     const pg = d.body.firstChild;
@@ -353,6 +354,16 @@
             list.splice(i + 1, 0, { b: Object.assign({}, b, { html: sp.rest, keepNext: false }), m: { h: sp.hRest } });
             newPage();
             continue;
+          }
+          // 1.9.4: a chart / picture that does not fit is reduced to the free space (down to 55 %) instead of leaving the bottom of the page empty;
+          // the signature that follows it keeps its room
+          if (!lonely && /<(?:svg|img|canvas)\b/i.test(String(b.html || '')) && !/\bkd\b|class="(?:kd|cs-)/.test(String(b.html || ''))) {
+            const keep = Math.max(0, need - m.h), avail = room() - keep - 2 * PX, z = avail / m.h;
+            if (z >= 0.55 && z < 1 && avail > 35 * PX) {
+              pages[pages.length - 1].push(`<div class="fit" style="height:${Math.ceil(m.h * z) + 1}px"><div class="fit-in" style="position:static;width:100%;transform:scale(${z.toFixed(4)});transform-origin:top center">${b.html}</div></div>`);
+              used += m.h * z + 1;
+              continue;
+            }
           }
           newPage();
         }

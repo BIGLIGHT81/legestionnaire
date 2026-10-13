@@ -99,11 +99,11 @@
             <div class="btn-row" style="margin-top:6px"><button class="btn sm" data-add="">${ic('plus')} مهمة جديدة</button>
               <select class="inp" id="tkSug" style="width:auto;max-width:260px"><option value="">+ مهمة مقترحة…</option>${SUGGEST.filter(x => !g.cols.some(c => c.name === x)).map(x => `<option>${esc(x)}</option>`).join('')}</select>
               ${memos.length ? `<select class="inp" id="tkMemo" style="width:auto;max-width:260px"><option value="">+ مهمة من مذكرة داخلية…</option>${memos.map((m, i) => `<option value="${i}">${esc(m.title)}</option>`).join('')}</select>` : ''}</div>
-            <div class="sec-t" style="margin-top:12px">الأساتذة ${g.rows.length ? `<span class="muted" style="font-weight:400">— الإنجاز ${progress(g)}%</span>` : ''}</div>
-            <div class="btn-row" style="margin-bottom:6px"><button class="btn sm" id="tkEmps">${ic('users')} إدراج الأساتذة من لائحة الموظفين</button><button class="btn sm" id="tkRow">${ic('plus')} إضافة صف</button><button class="btn sm" id="tkClear">إفراغ كل الخانات</button></div>
+            <div class="sec-t" style="margin-top:12px">الأساتذة والموظفون ${g.rows.length ? `<span class="muted" style="font-weight:400">— الإنجاز ${progress(g)}%</span>` : ''}</div>
+            <div class="btn-row" style="margin-bottom:6px"><button class="btn sm" id="tkEmps">${ic('users')} إدراج الأساتذة من لائحة الموظفين</button><button class="btn sm pri" id="tkPick">${ic('plus')} إضافة موظف(ين)</button><button class="btn sm" id="tkRow">${ic('plus')} إضافة صف فارغ</button><button class="btn sm" id="tkClear">إفراغ كل الخانات</button></div>
             <div class="muted" style="font-size:12px;margin-bottom:5px">انقر على الخانة للتغيير: فارغة ← ${smiley(13)} منجز ← ${sad(13)} غير منجز. انقر على عنوان المهمة لتحديد العمود كله «منجز».</div>
             <div class="tk-scroll"><table class="tk-grid"><thead><tr><th>ر.ت</th><th>الوحدة</th><th>الأستاذ(ة)</th>${g.cols.map((c, i) => `<th class="tk-h" data-col="${i}" title="تحديد العمود كله منجز">${esc(c.name)}</th>`).join('')}<th></th></tr></thead>
-              <tbody>${g.rows.map((r, ri) => `<tr><td>${ri + 1}</td><td><input class="inp" data-ru="${ri}" value="${esc(r.unit || '')}" list="k2Units"></td><td><input class="inp" data-rn="${ri}" value="${esc(r.name)}" list="k2Emps"></td>${g.cols.map((c, ci) => { const x = (r.st || {})[c.id] || 0; return `<td class="tk-c s${x}" data-c="${ri}:${ci}">${cellHtml(x)}</td>`; }).join('')}<td><button class="btn sm danger icon" data-rd="${ri}">✕</button></td></tr>`).join('') || `<tr><td colspan="${g.cols.length + 4}" class="muted" style="padding:14px;text-align:center">لا توجد صفوف: اضغط «إدراج الأساتذة من لائحة الموظفين»</td></tr>`}</tbody></table></div>
+              <tbody>${g.rows.map((r, ri) => `<tr><td>${ri + 1}</td><td><input class="inp" data-ru="${ri}" value="${esc(r.unit || '')}" list="k2Units"></td><td><input class="inp" data-rn="${ri}" value="${esc(r.name)}" list="k2Emps"></td>${g.cols.map((c, ci) => { const x = (r.st || {})[c.id] || 0; return `<td class="tk-c s${x}" data-c="${ri}:${ci}">${cellHtml(x)}</td>`; }).join('')}<td><button class="btn sm danger icon" data-rd="${ri}" title="حذف هذا الموظف من الشبكة">✕</button></td></tr>`).join('') || `<tr><td colspan="${g.cols.length + 4}" class="muted" style="padding:14px;text-align:center">لا توجد صفوف: اضغط «إدراج الأساتذة من لائحة الموظفين»</td></tr>`}</tbody></table></div>
             ${K.dl('k2Units', K.U.names())}${K.dl('k2Emps', K.E.names())}`;
           wire();
         };
@@ -120,7 +120,25 @@
           box.querySelector('#tkClear').onclick = async () => { if (!await confirmBox('إفراغ كل خانات الشبكة؟', 'إفراغ')) return; g.rows.forEach(r => { r.st = {}; }); save(); draw(); };
           box.querySelectorAll('[data-ru]').forEach(el => el.onchange = () => { g.rows[+el.dataset.ru].unit = nm(el.value); save(); });
           box.querySelectorAll('[data-rn]').forEach(el => el.onchange = () => { const r = g.rows[+el.dataset.rn]; r.name = nm(el.value); const e = K.E.byName(r.name); if (e) { r.eid = e.id; r.unit = r.unit || nm(e.unit); } save(); draw(); });
-          box.querySelectorAll('[data-rd]').forEach(b => b.onclick = () => { g.rows.splice(+b.dataset.rd, 1); save(); draw(); });
+          box.querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => { const r = g.rows[+b.dataset.rd]; if (nm(r.name) && !await confirmBox(`حذف <b>${esc(r.name)}</b> من الشبكة؟`, 'حذف')) return; g.rows.splice(+b.dataset.rd, 1); save(); draw(); });
+          // 1.9.4: any employee of the list (teachers, administration, assigned staff…) can be added to the grid
+          box.querySelector('#tkPick').onclick = () => {
+            const inG = e => g.rows.some(x => (x.eid && x.eid === e.id) || nm(x.name) === nm(fullName(e)));
+            const L = (DB.employees || []).filter(e => nm(fullName(e)) && !inG(e)).sort((a, b) => unitRank(a.unit) - unitRank(b.unit) || nm(fullName(a)).localeCompare(nm(fullName(b)), 'ar'));
+            if (!L.length) return toast('كل الموظفين مدرجون في الشبكة');
+            const body = document.createElement('div');
+            body.innerHTML = `<div class="btn-row" style="margin-bottom:8px"><input class="inp" id="tpQ" placeholder="بحث بالاسم..." style="flex:1"><button type="button" class="btn sm" id="tpAll">تحديد الكل</button><button type="button" class="btn sm" id="tpNone">إلغاء التحديد</button></div>
+              <div style="max-height:52vh;overflow:auto">${L.map(e => `<label class="chk" data-nm="${esc(fullName(e))}" style="display:flex;gap:8px;align-items:center;padding:5px 4px;border-bottom:1px solid var(--line,#eee)"><input type="checkbox" value="${esc(e.id)}"> <b>${esc(fullName(e))}</b> <span class="muted" style="font-size:12px">${esc([e.cadre, e.unit].filter(Boolean).join(' — '))}</span></label>`).join('')}</div>`;
+            body.querySelector('#tpQ').oninput = ev => { const q = nm(ev.target.value); body.querySelectorAll('[data-nm]').forEach(l => { l.style.display = !q || l.dataset.nm.includes(q) ? 'flex' : 'none'; }); };
+            body.querySelector('#tpAll').onclick = () => body.querySelectorAll('[data-nm]').forEach(l => { if (l.style.display !== 'none') l.querySelector('input').checked = true; });
+            body.querySelector('#tpNone').onclick = () => body.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = false; });
+            modal({ title: 'إضافة موظفين إلى الشبكة', body, actions: [{ label: ic('plus') + ' إضافة', cls: 'pri', onClick: m => {
+              const ids = Array.from(body.querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
+              if (!ids.length) { toast('اختر موظفا واحدا على الأقل', true); return false; }
+              ids.forEach(id => { const e = DB.employees.find(x => x.id === id); if (e) g.rows.push({ id: uid('tr'), eid: e.id, name: fullName(e), unit: nm(e.unit), st: {} }); });
+              save(); draw(); toast(`أضيف ${ids.length} موظف(ة)`);
+            } }, { label: 'إلغاء' }] });
+          };
           box.querySelectorAll('.tk-c').forEach(td => td.onclick = () => {
             const [ri, ci] = td.dataset.c.split(':').map(Number), r = g.rows[ri], c = g.cols[ci];
             r.st = r.st || {}; r.st[c.id] = ((r.st[c.id] || 0) + 1) % 3;

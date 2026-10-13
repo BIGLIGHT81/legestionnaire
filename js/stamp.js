@@ -87,7 +87,8 @@
     let css = Array.from(src.querySelectorAll('style')).map(x => x.textContent).join('\n');
     const ff = d.getElementById('ff');
     css = css.replace(/@font-face\s*{[^}]*}/g, f => { if (!fonts.has(f)) { fonts.add(f); ff.appendChild(d.createTextNode(f + '\n')); } return ''; });
-    d.getElementById('cs').textContent = css;
+    // the layout measured is the printed one: the print rules of the document apply here too
+    d.getElementById('cs').textContent = css.replace(/@media\s+print\b/g, '@media all').replace(/@media\s+screen\b/g, '@media not all');
     for (const a of Array.from(d.documentElement.attributes)) d.documentElement.removeAttribute(a.name);
     for (const a of Array.from(src.documentElement.attributes)) d.documentElement.setAttribute(a.name, a.value);
     for (const a of Array.from(d.body.attributes)) d.body.removeAttribute(a.name);
@@ -120,10 +121,11 @@
       for (const el of st) {
         const L = el.parentElement.getBoundingClientRect();
         if (!L.width && !L.height) { pos.push(''); continue; }
-        const pg = el.closest('.copy,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
+        const pg = el.closest('.copy,.cs-copy,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
         const P0 = pg.getBoundingClientRect();
         // content that runs past its page box (printed on the next sheet): the page goes on below
         const P = { left: P0.left, right: P0.right, top: P0.top, bottom: L.bottom > P0.bottom - 4 * mm ? L.bottom + H0 * 2 : P0.bottom };
+        // 1.9.4: a copy of a school certificate (.cs-copy hides what goes out of it) is a page of its own: the stamp is never cut
         const cx = (L.left + L.right) / 2, cy = (L.top + L.bottom) / 2, mid = (P.left + P.right) / 2;
         const toMid = cx > mid ? -1 : 1; // the free side is usually toward the middle of the page
         const cands = (W, H) => { const side = toMid < 0 ? L.left - gap - W : L.right + gap; return [
@@ -165,7 +167,9 @@
   // every document goes through Docs.bidi just before it is displayed, printed or saved
   if (Dx && typeof Dx.bidi === 'function' && !Dx.bidi.__stamp) {
     const b0 = Dx.bidi;
-    Dx.bidi = h => apply(b0(h));
+    // 1.9.4: a stray «undefined» / «NaN» / «null» left by an empty value is never printed
+    const clean = h => (typeof h === 'string' ? h.replace(/>(\s*)(?:undefined|NaN|null)(\s*)</g, '>$1$2<') : h);
+    Dx.bidi = h => apply(clean(b0(h)));
     Dx.bidi.__stamp = true;
   }
 

@@ -550,7 +550,7 @@
       id: 'kudos', title: 'التهاني والتقديرات', icon: '🏅', route: 'kudosDoc', hubRoute: 'kudos', docLabel: 'الشهادة',
       groups: [['t', 'شواهد تقدير الأساتذة والأطر', 'المشاركة والمساهمة والمجهودات المتميزة'], ['f', 'التهاني بالأعياد والمناسبات', 'الأعياد الدينية واليوم العالمي للمدرس'], ['p', 'شواهد التفوق للتلاميذ', 'الثلاثة الأوائل بكل قسم'], ['k', 'الشكر والتقدير للشركاء', 'جمعية الآباء، المجلس الجماعي، الجمعيات المدنية']],
       docs: DOCS, store: sy => store(sy), years: () => Object.keys(KD().years),
-      // 1.9.4: free designer (Canva / Photoshop style) for greetings, thanks and certificates
+      // 1.9.4: free designer for greetings, thanks and certificates
       hubButtons: () => `<button class="btn pri" onclick="go('flyers', { cat: 'congrats' })">🎨 المصمم الحر (تهاني وشواهد بتصميمك)</button>`,
       intro: 'شواهد وبطاقات بتصميم زخرفي فاخر على ورق A4 أفقي، بترويسة المؤسسة كاملة العرض، وبألوان تناسب كل مناسبة. اختر الشهادة وعدّل الأسماء والنص، ثم اطبعها أو احفظها بصيغة PDF؛ كل اسم يُصدر شهادة مستقلة.'
     });

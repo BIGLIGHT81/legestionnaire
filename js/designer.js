@@ -1,11 +1,11 @@
 'use strict';
-/* 1.9.4 — مصمم الإعلانات والتصاميم (على طريقة Canva / Photoshop)، بدون إنترنت:
+/* 1.9.4 — مصمم الإعلانات والتصاميم، بدون إنترنت:
    - إعلانات الأنشطة (الحياة المدرسية) والتهاني والشواهد (التهاني والتقديرات) وكل تصميم حر.
    - قوالب كثيرة جاهزة: تخطيطات × ألوان × مواضيع، تُملأ باسم المؤسسة والمدينة والتاريخ.
    - العناصر: نصوص بكل الخطوط (خطوط الحاسوب والخطوط المستوردة)، أشكال (مستطيل، دائرة، نجمة، سهم، قلب، شريط، فقاعة كلام...)،
      خطوط، رموز، صور من الحاسوب، شعار المملكة، خلفيات (لون، تدرج، زخارف).
    - الخصائص: اللون والتدرج، الحدود، الظل، الشفافية، الدوران، الانعكاس، الزوايا المستديرة، تباعد الأسطر.
-   - معالجة الصور (Photoshop): السطوع، التباين، التشبع، الضبابية، تدرج الرمادي، البني القديم، تدوير الألوان، العكس، القناع الدائري.
+   - معالجة الصور: السطوع، التباين، التشبع، الضبابية، تدرج الرمادي، البني القديم، تدوير الألوان، العكس، القناع الدائري.
    - الطبقات (تقديم، تأخير، قفل، إخفاء، تكرار)، تراجع / إعادة، تكبير، محاذاة على مركز الصفحة.
    - الحفظ في «تصاميمي»، والتصدير PNG / JPG، الحفظ PDF والطباعة.
    Data: DB.designs = [{ id, name, cat, doc, thumb, at }] ; doc = { w, h, bg, objs: [...] } (units: px at 96 dpi). */
@@ -500,7 +500,7 @@
           ${ck('bx', 'مربع خلفية للنص', !!o.box)}${o.box ? c('box', 'لون المربع', o.box) + r('boxR', 'استدارة', 0, 60, o.boxR || 0) : ''}`;
       } else if (o.type === 'image') {
         h += `<div class="dz-row dz-btns"><button class="dz-b ${o.fit !== 'contain' ? 'on' : ''}" data-fit="cover">ملء الإطار</button><button class="dz-b ${o.fit === 'contain' ? 'on' : ''}" data-fit="contain">الصورة كاملة</button><button class="dz-b" data-x="repl">تغيير الصورة</button></div>
-          <div class="dz-h2">تعديل الصورة (Photoshop)</div>
+          <div class="dz-h2">تعديل الصورة</div>
           ${r('f.b', 'السطوع', 0, 200, f.b == null ? 100 : f.b)}${r('f.c', 'التباين', 0, 200, f.c == null ? 100 : f.c)}${r('f.s', 'التشبع', 0, 300, f.s == null ? 100 : f.s)}
           ${r('f.blur', 'الضبابية', 0, 20, f.blur || 0)}${r('f.gray', 'أبيض وأسود', 0, 100, f.gray || 0)}${r('f.sepia', 'لون قديم', 0, 100, f.sepia || 0)}${r('f.hue', 'تدوير الألوان', 0, 360, f.hue || 0)}${r('f.inv', 'عكس الألوان', 0, 100, f.inv || 0)}
           <div class="dz-row dz-btns">${[['أصلي', {}], ['أبيض وأسود', { gray: 100, c: 115 }], ['قديم', { sepia: 80, c: 90, b: 105 }], ['زاهي', { s: 170, c: 115 }], ['دافئ', { sepia: 30, s: 130, b: 105 }], ['بارد', { hue: 190, s: 80 }], ['درامي', { c: 160, b: 90, s: 120 }], ['باهت', { s: 50, b: 115, c: 85 }]].map(([n, v], i) => `<button class="dz-b" data-pre="${i}" data-v='${JSON.stringify(v)}'>${n}</button>`).join('')}</div>
@@ -615,7 +615,7 @@
       const L = list();
       v.innerHTML = `<div class="page-h"><h1>${kudos ? 'تصميم التهاني والشواهد (المصمم الحر)' : 'إعلانات الأنشطة والتصاميم'}</h1><span class="sp"></span>
           <button class="btn pri" id="dzNew">${ic('plus')} تصميم جديد</button></div>
-        <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">صمّم إعلانات الأنشطة والملصقات والتهاني والدعوات على طريقة Canva وPhotoshop: أكثر من ${LAYOUTS.length * PAL.length * CATS.length} قالبا جاهزا (${CATS.length} مواضيع)، كل الخطوط، الأشكال والرموز، الصور مع أدوات تعديلها (السطوع، التباين، التشبع، الضبابية، الأبيض والأسود...)، الخلفيات والتدرجات والزخارف، الطبقات، ثم الحفظ صورة PNG أو PDF أو الطباعة مباشرة. يعمل دون إنترنت.</div>
+        <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">صمّم إعلانات الأنشطة والملصقات والتهاني والدعوات: أكثر من ${LAYOUTS.length * PAL.length * CATS.length} قالبا جاهزا (${CATS.length} مواضيع)، كل الخطوط، الأشكال والرموز، الصور مع أدوات تعديلها (السطوع، التباين، التشبع، الضبابية، الأبيض والأسود...)، الخلفيات والتدرجات والزخارف، الطبقات، ثم الحفظ صورة PNG أو PDF أو الطباعة مباشرة. يعمل دون إنترنت.</div>
         <div class="sec-t">ابدأ من قالب</div>
         <div class="dz-start">${CATS.filter(c => !kudos || ['congrats', 'thanks', 'exam', 'celeb'].includes(c[0])).map(c => `<button class="card dz-cat" data-cat="${c[0]}"><img src="${toCanvas(template(CATS.indexOf(c) % LAYOUTS.length, CATS.indexOf(c) % PAL.length, c[0]), 120 / 1123).toDataURL('image/jpeg', .7)}"><span>${c[1]}</span></button>`).join('')}</div>
         <div class="sec-t" style="margin-top:16px">تصاميمي (${L.length})</div>
