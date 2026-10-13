@@ -24,7 +24,8 @@
     return out;
   }
   const KIND = { tab: 'خانة', doc: 'وثيقة', emp: 'موظف(ة)', pupil: 'تلميذ(ة)' };
-  function openSearch(q0) {
+  function openSearch(q0) { try { openSearch0(q0); } catch (e) { console.error('search', e); try { toast('تعذر فتح البحث: ' + (e && e.message || e), true); } catch (_) {} } }
+  function openSearch0(q0) {
     if (typeof DB === 'undefined' || !DB) return;
     const I = index();
     const body = document.createElement('div');

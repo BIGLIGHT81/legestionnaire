@@ -47,7 +47,8 @@ const ICONS = {
   star: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 16.8 6.6 19.8l1.1-6.1L3.2 9.4l6.1-.8z"/>',
   coin: '<ellipse cx="12" cy="6.5" rx="7" ry="2.8"/><path d="M5 6.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5"/><path d="M5 11.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5"/>'
 };
-const ic = (n, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra}>${ICONS[n]}</svg>`;
+// default size 18px (CSS rules still win where a size is set): an icon can never fill a whole window again
+const ic = (n, extra = '') => `<svg viewBox="0 0 24 24" ${/\bwidth=/.test(extra) ? '' : 'width="18" height="18" '}fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra}>${ICONS[n]}</svg>`;
 
 /* ---------------- state ---------------- */
 let DB = null;
@@ -420,7 +421,7 @@ function pageHome(v) {
       <div class="hello-tags">
         <span class="tag2 ${LIC.active ? 'ok' : 'bad'}" data-go2="license">${ic(LIC.active ? 'check' : 'alert')} ${LIC.active ? 'نسخة مفعلة' : licText()}</span>
         <span class="tag2 ${PROT.enabled ? 'ok' : ''}" data-go2="settings">${ic('lock')} ${PROT.enabled ? 'البيانات محمية بكلمة سر' : 'البيانات غير محمية'}</span>
-        <span class="tag2">الإصدار ${window.APP_VER || '1.9'}${window.APP_EDITION === 'extra' ? ' EXTRA' : ''}${LIC.maxPc > 1 ? ' — حاسوبان' : ''}</span>
+        <span class="tag2" title="تاريخ بناء هذه النسخة">الإصدار ${window.APP_VER || '1.9'}${window.APP_EDITION === 'extra' ? ' EXTRA' : ''}${window.APP_BUILD ? ' (' + window.APP_BUILD + ')' : ''}${LIC.maxPc > 1 ? ' — حاسوبان' : ''}</span>
       </div>
     </div>
     <div class="stats">
@@ -485,9 +486,10 @@ function pageHome(v) {
     </div>`;
   $$('[data-doc]', v).forEach(b => b.onclick = () => go('editor', { type: b.dataset.doc }));
   $$('[data-go2]', v).forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.go2); });
-  if ($('#hSearch')) $('#hSearch').onclick = () => window.Tools && Tools.openSearch($('#hSearchQ') ? $('#hSearchQ').value : '');
+  const search = t => { try { if (!window.Tools || !Tools.openSearch) throw new Error('Tools'); Tools.openSearch(t); } catch (e) { toast('تعذر فتح البحث: ' + (e && e.message || e), true); } };
+  if ($('#hSearch')) $('#hSearch').onclick = () => search($('#hSearchQ') ? $('#hSearchQ').value : '');
   // 1.9.4: typing in the search box of the dashboard opens the search with the typed words
-  if ($('#hSearchQ')) { const q = $('#hSearchQ'); q.oninput = () => { if (q.value.trim() && window.Tools) { const t = q.value; q.value = ''; Tools.openSearch(t); } }; q.onkeydown = e => { if (e.key === 'Enter' && window.Tools) Tools.openSearch(q.value); }; }
+  if ($('#hSearchQ')) { const q = $('#hSearchQ'); q.oninput = () => { if (q.value.trim()) { const t = q.value; q.value = ''; search(t); } }; q.onkeydown = e => { if (e.key === 'Enter') search(q.value); }; }
   if ($('#hPrintAll')) $('#hPrintAll').onclick = () => go('printAll');
   $$('[data-hol]', v).forEach(b => b.onclick = () => Holidays.openManager());
 }

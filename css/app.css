@@ -156,7 +156,7 @@ textarea.inp{resize:vertical;min-height:60px}
 .modal{background:#fff;border-radius:12px;width:min(760px,94vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .modal.sm{width:min(440px,94vw)}
 .modal-h{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center}
-.modal-h h3{margin:0;font-size:16.5px;flex:1}
+.modal-h h3{margin:0;font-size:16.5px;flex:1;display:flex;align-items:center;gap:7px}.modal-h h3 svg{width:19px;height:19px;flex:none;color:var(--pri)}
 .modal-b{padding:16px 20px;overflow:auto}
 .modal-f{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-start}
 @keyframes fade{from{opacity:0}to{opacity:1}}

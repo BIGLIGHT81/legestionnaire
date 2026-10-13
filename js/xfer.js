@@ -1,5 +1,5 @@
 'use strict';
-/* نقل البيانات بين حاسوبين بواسطة USB (1.9.2; 1.9.4: between any two activated computers, file encrypted with the program's own key).
+/* نقل البيانات بين حاسوبين بواسطة USB (1.9.2; 1.9.4: between any two activated computers, file encrypted for the receiving computer only).
    Export: an encrypted .lgx file holding all the data. Import: merge the new data (records are matched by their id,
    the newer one wins) or replace this computer's data entirely. */
 (function () {
@@ -45,19 +45,54 @@
 
   function card(box, st) {
     if (window.APP_MOBILE) { box.innerHTML = '<div class="card-h"><h3>نقل البيانات بين حاسوبين (USB)</h3></div><div class="card-b"><p class="muted" style="margin:0;font-size:12.8px;line-height:1.9">ملفات نقل البيانات (.lgx) خاصة بنسخة الحاسوب. في الهاتف استعمل «حفظ نسخة احتياطية» و«استرجاع نسخة احتياطية».</p></div>'; return; }
-    const on = !!(st && st.active);
+    const on = !!(st && st.active), dis = on ? '' : 'disabled';
     box.innerHTML = `<div class="card-h"><h3>نقل البيانات بين حاسوبين (USB)</h3></div><div class="card-b">
-      <p class="muted" style="margin-top:0;font-size:12.8px;line-height:1.9">انقل المعطيات من حاسوب مفعَّل إلى أي حاسوب مفعَّل آخر (بنفس مفتاح التفعيل أو بمفتاح مختلف) دون إنترنت، بمفتاح USB مثلا:
-        <b>1)</b> على الحاسوب الذي فيه المعطيات اضغط «تصدير إلى USB» واحفظ الملف. <b>2)</b> على الحاسوب الآخر اضغط «استيراد من USB» واختر الملف، ثم «دمج المعطيات الجديدة» (تُضاف الجديدة وتُحدَّث الأحدث دون مسح ما عندك) أو «استبدال» (تصبح بيانات هذا الحاسوب نسخة طبق الأصل من الملف).<br>
-        الملف مشفّر ولا يُفتح إلا داخل البرنامج على حاسوب مفعَّل، ولا يمر عبر الإنترنت. تُحفظ تلقائيا نسخة احتياطية من بياناتك قبل كل استيراد.</p>
+      <p class="muted" style="margin-top:0;font-size:12.8px;line-height:1.95">انقل المعطيات بين أي حاسوبين مفعَّلين (بنفس مفتاح التفعيل أو بمفتاح مختلف) دون إنترنت. الملف يُشفَّر لحاسوب واحد فقط، فلا يستطيع أي حاسوب آخر فتحه:<br>
+        <b>1)</b> على الحاسوب <b>المستقبِل</b>: «رمز هذا الحاسوب» ثم «حفظ الرمز على USB» (أو انسخه وأرسله).<br>
+        <b>2)</b> على الحاسوب <b>المرسِل</b> (الذي فيه المعطيات): «تصدير لحاسوب آخر»، ضع الرمز ثم احفظ الملف على USB.<br>
+        <b>3)</b> على الحاسوب <b>المستقبِل</b>: «استيراد من USB» واختر الملف، ثم «دمج المعطيات الجديدة» أو «استبدال».<br>
+        تُحفظ تلقائيا نسخة احتياطية من بياناتك قبل كل استيراد.</p>
       ${on ? '' : '<p style="color:var(--red);font-size:12.8px;margin:0 0 8px">فعّل البرنامج أولا لاستعمال نقل البيانات.</p>'}
-      <div class="btn-row"><button class="btn" id="xfOut" ${on ? '' : 'disabled'}>${ic('up')} تصدير إلى USB</button><button class="btn" id="xfIn" ${on ? '' : 'disabled'}>${ic('down')} استيراد من USB</button></div></div>`;
-    const need = r => toast(r.error === 'inactive' ? 'فعّل البرنامج أولا لاستعمال نقل البيانات' : r.error === 'key' ? 'تعذر فتح الملف: ملف تالف أو ليس ملف نقل بيانات من هذا البرنامج' : 'ملف غير صالح', true);
-    $('#xfOut', box).onclick = async () => {
-      await persist(true);
-      const r = await window.api.xferExport(DB);
-      if (r.error) return need(r);
-      if (r.ok) toast('تم حفظ ملف النقل. انقل المفتاح إلى الحاسوب الآخر ثم اختر «استيراد من USB».');
+      <div class="btn-row"><button class="btn" id="xfMe" ${dis}>${ic('key')} رمز هذا الحاسوب</button><button class="btn" id="xfOut" ${dis}>${ic('up')} تصدير لحاسوب آخر</button><button class="btn" id="xfIn" ${dis}>${ic('down')} استيراد من USB</button></div></div>`;
+    const need = r => toast(r.error === 'inactive' ? 'فعّل البرنامج أولا لاستعمال نقل البيانات'
+      : r.error === 'code' ? 'رمز الاستقبال غير صحيح: تأكد من نسخه كاملا'
+      : r.error === 'other' ? 'هذا الملف مُعَدّ لحاسوب آخر (' + (r.to || '') + '). اطلب من المرسِل إعادة التصدير برمز هذا الحاسوب' + (r.me ? ' (' + r.me + ')' : '')
+      : r.error === 'old' ? 'ملف من نسخة تجريبية سابقة: أعد التصدير بالطريقة الجديدة (رمز الحاسوب المستقبِل)'
+      : r.error === 'key' ? 'تعذر فتح الملف: ملف تالف أو ليس ملف نقل بيانات من هذا البرنامج' : 'ملف غير صالح', true);
+    const showMe = async renew => {
+      const r = await window.api.xferMyCode(renew); if (r.error) return need(r);
+      const body = document.createElement('div');
+      body.innerHTML = `<p style="margin-top:0;line-height:1.9">أعطِ هذا الرمز للحاسوب المرسِل. الملف الذي يُصدَّر به لا يُفتح إلا على هذا الحاسوب.</p>
+        <div style="direction:ltr;text-align:center;font:600 15px/1.8 Consolas,monospace;background:#f3f6f5;border:1px solid var(--line,#ddd);border-radius:10px;padding:10px;word-break:break-all;user-select:all">${esc(r.code)}</div>
+        <p class="muted" style="font-size:12.5px;line-height:1.8">بصمة هذا الحاسوب: <b style="direction:ltr;display:inline-block">${esc(r.fp)}</b> — تظهر عند المرسِل للتأكد. الرمز ليس سرّيا ويمكن إرساله عبر واتساب أو البريد.</p>`;
+      modal({ title: 'رمز الاستقبال لهذا الحاسوب', body, actions: [
+        { label: ic('down') + ' حفظ الرمز على USB', cls: 'pri', onClick: async () => { const s = await window.api.xferSaveCode(r.code); if (s && s.ok) toast('تم حفظ ملف الرمز. خذه إلى الحاسوب المرسِل'); return false; } },
+        { label: 'نسخ', onClick: () => { window.api.copy(r.code); toast('تم نسخ الرمز'); return false; } },
+        { label: 'رمز جديد', onClick: async () => { if (!await confirmBox('الملفات المُعدّة بالرمز الحالي ولم تُستورد بعد لن تُفتح. إنشاء رمز جديد؟', 'رمز جديد')) return false; setTimeout(() => showMe(true), 50); } },
+        { label: 'إغلاق' }] });
+    };
+    $('#xfMe', box).onclick = () => showMe(false);
+    $('#xfOut', box).onclick = () => {
+      const body = document.createElement('div');
+      body.innerHTML = `<p style="margin-top:0;line-height:1.9">ضع رمز الاستقبال الخاص بالحاسوب الذي ستُنقل إليه المعطيات (يظهر فيه عند الضغط على «رمز هذا الحاسوب»)، أو افتح ملف الرمز من USB.</p>
+        <textarea class="inp" id="xfCode" rows="3" dir="ltr" style="width:100%;font-family:Consolas,monospace" placeholder="LG-XXXX-XXXX-XXXX-..."></textarea>
+        <div class="btn-row" style="margin-top:8px"><button class="btn" id="xfOpenCode">${ic('up')} فتح ملف الرمز</button><span id="xfFp" class="muted" style="font-size:12.8px;align-self:center"></span></div>`;
+      const ta = $('#xfCode', body), fpEl = $('#xfFp', body);
+      const chk = async () => { const v = ta.value.trim(); if (!v) { fpEl.textContent = ''; return null; } const c = await window.api.xferCheckCode(v);
+        fpEl.innerHTML = c.ok ? (c.own ? '<span style="color:#b45309">هذا رمز هذا الحاسوب نفسه</span>' : '✓ رمز صحيح — بصمة الحاسوب المستقبِل: <b dir="ltr">' + esc(c.fp) + '</b>') : '<span style="color:var(--red)">رمز غير صحيح</span>'; return c; };
+      ta.addEventListener('input', chk);
+      $('#xfOpenCode', body).onclick = async () => { const r = await window.api.xferReadCode(); if (r && r.ok) { ta.value = r.code; chk(); } else if (r && r.error) need(r); };
+      modal({ title: 'تصدير المعطيات لحاسوب آخر', body, actions: [
+        { label: ic('down') + ' تصدير وحفظ الملف', cls: 'pri', onClick: async () => {
+          const c = await chk(); if (!c || !c.ok) { toast('ضع رمز الاستقبال الصحيح أولا', true); return false; }
+          await persist(true);
+          const r = await window.api.xferExport(DB, ta.value.trim());
+          if (r.error) { need(r); return false; }
+          if (!r.ok) return false;
+          toast('تم حفظ ملف النقل للحاسوب ' + r.fp + '. على ذلك الحاسوب اختر «استيراد من USB».');
+        } },
+        { label: 'إلغاء' }] });
+      setTimeout(() => ta.focus(), 60);
     };
     $('#xfIn', box).onclick = async () => {
       const r = await window.api.xferImport();
