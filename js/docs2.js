@@ -358,7 +358,7 @@
       </div>
     </div>
     <p class="mt">حرر ب: ${V(f.city)} &nbsp; بتاريخ: ${D(f.date)}</p>
-    <table class="tbl sigt"><tr><th>خاتم وتوقيع رئيس المؤسسة المستقبلة:</th><th style="width:38%">توقيع الموظف:</th></tr><tr><td></td><td></td></tr></table>
+    <table class="tbl sigt"><tr><th>خاتم وتوقيع رئيس المؤسسة المستقبلة:</th><th style="width:38%">توقيع الموظف:</th></tr><tr><td style="height:36mm"></td><td></td></tr></table>
     <p class="b small2 mt">ملحوظة: يبعث بهذه الوثيقة عبر السلم الإداري في 3 نسخ مباشرة بعد التحاق الموظف.</p>`;
 
   /* directorate footer of the official models (Agadir Ida Outanane: the footer printed by the directorate; other directorates: a plain line) */
@@ -504,7 +504,7 @@
     <p>الوثائق المصحوبة في الحالات من 3 الى 6: ${V(f.docs)}</p>
     <p>آخر عنوان ادلى به الموظف (إجباري): ${V(f.lastAddress)}</p>
     <table class="tbl frm2"><tr><th>يملأ هذا الإطار من لدن مدير(ة) المؤسسة</th><th>يملأ هذا الإطار من لدن المديرية الإقليمية</th></tr>
-      <tr><td class="r">إن مدير(ة) المؤسسة يشهد بصحة البيانات الصادرة في هذا الموضوع.<br>تاريخ الارسال إلى المديرية الاقليمية : ${D(f.sendDate)}<br>تحت رقم: ${V(f.sendNo)}<br>التوقيع و الخاتم :<br><br></td>
+      <tr><td class="r">إن مدير(ة) المؤسسة يشهد بصحة البيانات الصادرة في هذا الموضوع.<br>تاريخ الارسال إلى المديرية الاقليمية : ${D(f.sendDate)}<br>تحت رقم: ${V(f.sendNo)}<br><span data-stm>التوقيع و الخاتم :</span><br><br></td>
         <td class="r">توصلت به المديرية الاقليمية بتاريخ : ${V('')}<br>تحت رقم : ${V('')}<br>يشهد السيد المدير الاقليمي بصحة البيانات الواردة في هذا الموضوع.<br>التوقيع و الطابع:<br><br></td></tr></table>
     <p class="b small2 mt u2">ملاحظة : يعبأ المطبوع بدقة بعد انصرام أجل 48 ساعة من تاريخ الانقطاع بالوسط الحضري، و 72 ساعة بالوسط القروي، و تبعث إلى المديرية الإقليمية في ثلاث نظائر أصلية.</p>`;
 

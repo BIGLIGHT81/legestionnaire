@@ -98,7 +98,9 @@
   const cb = on => `<span class="cb">${on ? '✕' : ''}</span>`;
   const refNo = (f, i) => { const r = nm(f.ref); if (!r) return dot('', 16); return /^\d+$/.test(r) ? String(+r + i) : esc(r); };
   const gsName = f => nm(f.gs) || nm(CFG().gs);
-  const signHtml = (W, f) => `<div class="vs-sg"><div>${W.sign}${gsName(f) ? `<br><span class="nm">${esc(gsName(f))}</span>` : ''}</div></div>`;
+  // 1.9.4: with the digital stamp, room is kept under the signature (the stamp never covers the next letter)
+  const stmRoom = W => { try { const c = window.Stamp && Stamp.cfg(); return c && c.on && Stamp.LABEL.test(W.sign) ? ` style="padding-bottom:${(c.h + 1).toFixed(1)}mm"` : ''; } catch (_) { return ''; } };
+  const signHtml = (W, f) => `<div class="vs-sg"${stmRoom(W)}><div>${W.sign}${gsName(f) ? `<br><span class="nm">${esc(gsName(f))}</span>` : ''}</div></div>`;
   const topHtml = (s, W, f, no) => `<div class="vs-top"><div></div><div class="vs-fr">من إدارة ${esc(s.school || W.inst)}<br>بـ: ${dot(nm(f.city) || s.city, 26)}<br>${W.refLbl}: ${no}</div><div class="vs-dd">في: ${esc(fd(f.date))}</div></div>`;
   const toLine = c => `<div class="vs-to">إلى السيد(ة): ${dot(c.gd, 70)}</div>`;
   const letterBlocks = (arr) => arr.map(h => ({ html: `<div class="vs-let">${h}</div>` }));

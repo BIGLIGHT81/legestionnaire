@@ -103,12 +103,14 @@
         <div class="dc-r">يصرح للسيد(ة) المدير(ة) أن الحادثة وقعت يوم ${o.date ? `<b>${esc(ldate(o.date))}</b>` : '<span class="sb-dots" style="min-width:40mm"></span>'} ${L('على الساعة', o.time, 20)} ${L('بالمكان التالي', o.place, 50)}</div>
         <div class="dc-h">ظروف الحادث:</div>${lines(o.desc, 3)}
         <div class="dc-sig c">إمضاء المكلف(ة) بالحراسة:</div>
-        <div class="dc-h">شهود الحادث:</div>${wit}
+        <div class="dc-h">شهود الحادث:</div></div>${wit}<div class="dc">
         <div class="dc-h">تقرير رئيس(ة) المؤسسة:</div>${lines(f.dirRep, 5)}
         <div class="dc-r dc-end"><span>حرر في: ${nm(f.city || s.city) ? `<b>${esc(f.city || s.city)}</b>` : '<span class="sb-dots"></span>'}</span><span>بتاريخ: ${f.date ? `<b>${esc(ldate(f.date))}</b>` : '<span class="sb-dots"></span>'}</span></div>
         <div class="dc-sig c">إمضاء رئيس(ة) المؤسسة:</div>
         <div class="dc-note">يرفق التقرير بتصميم يبين مكان وقوع الحادث وموقع المكلف بالحراسة.</div></div>`;
-      return letter(s, [{ html }]); }
+      // 1.9.4: in blocks — a long declaration continues on a second page instead of losing its end (report and signature of the director)
+      const parts = html.split('\x01'), ws = parts[1].split('<div class="dc-w">').filter(Boolean).map(w => ({ html: '<div class="dc"><div class="dc-w">' + w + '</div>' }));
+      return letter(s, [{ html: parts[0] }, ...ws, { html: parts[2] }]); }
   });
   Dx.modCss += `
   .dc{font-size:11pt;line-height:1.75}.dc-t{text-align:center;font-weight:700;font-size:15pt;text-decoration:underline;margin:0 0 2mm}
