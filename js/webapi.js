@@ -46,8 +46,6 @@
     return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF }, k, 256));
   }
 
-  const XFER_SECRET = unb64('SJe069WJpclJc3w/r5Yyliam6aBSqcmERAg4HUiknRw=');
-  const xferKey = async () => { const pre = enc.encode('LeGestionnaire|xfer|v2|'), all = new Uint8Array(pre.length + XFER_SECRET.length); all.set(pre); all.set(XFER_SECRET, pre.length); return sha256(all); };
   /* ---------- licence ---------- */
   const normCode = s => (String(s || '').toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 16).match(/.{1,4}/g) || []).join('-');
   async function machineId() {
@@ -290,26 +288,9 @@
       if (r.active) { await set('license', String(key).replace(/\s+/g, '')); licCache = r; await bumpLS(); }
       return { ...r, machine: await machineId(), maxPc: MAX_PC };
     },
-    // transfer file (.lgx) between any activated computers / phones: encrypted with the program's own key (same as the computer version)
-    async xferExport(obj) {
-      if (!(await active())) return { error: 'inactive' };
-      const pack = { magic: 'LGXFER2', from: await machineId(), at: new Date().toISOString(), ver: window.APP_VER, data: obj };
-      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
-      return download(new Blob([JSON.stringify({ magic: 'LGXFER2', v: 2, enc: await gcmEnc(await xferKey(), enc.encode(JSON.stringify(pack))) })], { type: 'application/octet-stream' }), `نقل_البيانات_${stamp}.lgx`);
-    },
-    async xferImport() {
-      if (!(await active())) return { error: 'inactive' };
-      const [f] = await pick('.lgx,application/octet-stream,application/json'); if (!f) return { ok: false };
-      let pack;
-      try {
-        const o = JSON.parse(await f.text());
-        if (o.magic === 'LGXFER2') pack = JSON.parse(dec.decode(await gcmDec(await xferKey(), o.enc)));
-        else if (o.magic === 'LGXFER1') { const k = await sha256(enc.encode('lgxfer|' + ((await get('license')) || ''))); pack = JSON.parse(dec.decode(await gcmDec(k, o.enc))); }
-        else return { error: 'format' };
-      } catch (_) { return { error: 'key' }; }
-      try { await set('bk:avant-transfert-' + Date.now(), await get('data')); } catch (_) {}
-      return { ok: true, from: pack.from, at: pack.at, own: pack.from === (await machineId()), data: pack.data };
-    },
+    // transfer files (.lgx) are a computer feature: their key is never put in the phone version (its code is public on the web)
+    async xferExport() { return { error: 'mobile' }; },
+    async xferImport() { return { error: 'mobile' }; },
     copy(text) { try { navigator.clipboard.writeText(String(text || '')); } catch (_) {} }
   };
   window.APP_MOBILE = true;

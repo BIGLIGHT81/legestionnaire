@@ -44,6 +44,7 @@
   };
 
   function card(box, st) {
+    if (window.APP_MOBILE) { box.innerHTML = '<div class="card-h"><h3>نقل البيانات بين حاسوبين (USB)</h3></div><div class="card-b"><p class="muted" style="margin:0;font-size:12.8px;line-height:1.9">ملفات نقل البيانات (.lgx) خاصة بنسخة الحاسوب. في الهاتف استعمل «حفظ نسخة احتياطية» و«استرجاع نسخة احتياطية».</p></div>'; return; }
     const on = !!(st && st.active);
     box.innerHTML = `<div class="card-h"><h3>نقل البيانات بين حاسوبين (USB)</h3></div><div class="card-b">
       <p class="muted" style="margin-top:0;font-size:12.8px;line-height:1.9">انقل المعطيات من حاسوب مفعَّل إلى أي حاسوب مفعَّل آخر (بنفس مفتاح التفعيل أو بمفتاح مختلف) دون إنترنت، بمفتاح USB مثلا:

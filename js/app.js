@@ -2199,6 +2199,7 @@ async function pageLicense(v) {
       <div class="grid">
         <div class="card"><div class="card-b lic-state ${st.active ? 'ok' : 'no'}">
           ${st.active ? `${ic('check')}<div><b>البرنامج مفعل على هذا الجهاز</b><br><span>مرخص لـ: ${esc(st.name || '—')}</span></div>`
+            : st.reason === 'machine' ? `${ic('alert')}<div><b>مفتاح التفعيل المحفوظ لا يطابق رمز هذا الحاسوب</b><br><span>المفتاح${st.name ? ' (باسم ' + esc(st.name) + ')' : ''} صادر للرمز: <b dir="ltr">${esc((st.keyCodes || []).join(' / '))}</b>، ورمز هذا الحاسوب: <b dir="ltr">${esc(st.machine || '')}</b>. أرسل رمز هذا الحاسوب إلى المصمم ليرسل لك مفتاحا محدثا.</span></div>`
             : st.reason === 'expired' ? `${ic('alert')}<div><b>انتهت صلاحية تفعيل البرنامج</b><br><span>لتجديد التفعيل أرسل رمز هذا الجهاز إلى المصمم ليرسل لك مفتاحا جديدا. تبقى جميع بياناتك محفوظة.</span></div>`
               : `${ic('lock')}<div><b>نسخة غير مفعلة</b><br><span>يمكنك استعمال البرنامج وتجربة كل الوثائق، لكن الطباعة وحفظ PDF يتطلبان التفعيل.</span></div>`}
         </div></div>
