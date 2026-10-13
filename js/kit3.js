@@ -148,7 +148,9 @@
           const page = o.page || d.page || 'a4l';
           return { page, pages: SB.pages(s, Object.assign({ page }, o)) };
         },
-        fname: st => { const d = docs.find(x => x.k === st.kind) || docs[0]; return `${d.t}_${MK.syDash(st.sy)}`; }
+        fname: st => { const d = docs.find(x => x.k === st.kind) || docs[0]; return `${d.t}_${MK.syDash(st.sy)}`; },
+        // 1.9.4: after a real print / PDF (e.g. the numbers of the school certificates are registered then)
+        afterOut: (st, kind) => { const d = docs.find(x => x.k === st.kind) || docs[0]; if (d.afterOut) d.afterOut(st.f, st.sy, st, kind); }
       });
     }
     // 1.9.4: every documents centre is registered (global search and «الطبع الشامل» of the dashboard)

@@ -538,6 +538,33 @@
       - ضرورة ادلاء المعني(ة) بالأمر بمبرر لرخصته (ا) الاستثنائية فور تعبئته(ا) لمحضر استئناف العمل.</div>`;
   };
 
+  /* ---------- 1.9.4: warning to come back to work (staff of the Ministry: no reference to the academy cadres) ---------- */
+  T.returnWarn = ({ s, e, f }) => {
+    const F = (f.sex || e.sex) === 'F' || /ة$|أستاذة|مديرة|ملحقة|متصرفة/.test(e.cadre || '');
+    const k = F ? { you: 'ك', cut: 'لانقطاعك', ask: 'منك', resume: 'استئناف عملك', reach: 'توصلك', join: 'التحاقك', post: 'مقر عملك', inf: 'المعنية' } : { you: 'ك', cut: 'لانقطاعك', ask: 'منك', resume: 'استئناف عملك', reach: 'توصلك', join: 'التحاقك', post: 'مقر عملك', inf: 'المعني' };
+    const refs = String(f.refs || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    const copies = String(f.copies || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    return `
+    ${header(s)}
+    <div class="row2"><div>الرقم : ${V(f.ref)}</div><div class="l">${esc(f.city || s.city)} في : ${DL(f.date)}</div></div>
+    <div class="addr-l c2 b">
+      <div class="big">مدير${F && /مديرة/.test(f.signer || '') ? 'ة' : ''} المؤسسة</div>
+      <div>إلى</div>
+      <div>${F ? 'السيدة' : 'السيد'} : ${V(fullName(e))} ( رقم التأجير : ${V(e.ppr)} )</div>
+      <div>الإطار : ${V(e.cadre)}</div>
+      <div>العنوان : ${V(f.address || e.address)}</div>
+    </div>
+    <p class="b mt"><u>الموضوع</u> : إنذار بوجوب العودة إلى مقر العمل.</p>
+    ${refs.length ? `<div class="mt"><b><u>المرجع</u> :</b><ul style="margin:1mm 0 0;padding-inline-start:7mm">${refs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
+    <p class="c b mt">سلام تام بوجود مولانا الإمام</p>
+    <p class="j">وبعد، فنظرا ${k.cut} عن العمل بتاريخ ${DL(f.stopDate)}، الشيء الذي يتنافى والقوانين الجاري بها العمل ويعد إخلالا بالتزاماتك المهنية، أوجه إليك رسالة الإنذار هذه طالبا ${k.ask} ${k.resume} في أجل أقصاه ${esc(f.delay || 'سبعة أيام')} ابتداء من تاريخ ${k.reach} بهذه الرسالة.</p>
+    <p class="j">كما أثير انتباهك إلى أنه في حالة عدم ${k.join} ب${k.post} داخل الأجل المشار إليه أعلاه، ${esc(f.sanction || 'فسيتم تطبيق مسطرة ترك الوظيفة في حقك طبقا للنصوص التشريعية والتنظيمية الجاري بها العمل، ولا سيما الفصل 75 مكرر من النظام الأساسي العام للوظيفة العمومية')}.</p>
+    <p class="c b mt">والسلام</p>
+    <div class="l b mt2 sigw">${esc(s.director || '')}<br>توقيع وخاتم مدير(ة) المؤسسة</div>
+    ${copies.length ? `<div class="mt2 small2">${copies.map(c => `<div>- ${esc(c)}</div>`).join('')}</div>` : ''}
+    ${f.receipt === 'no' ? '' : `<div class="sep"></div><p class="b u">إشعار بالتوصل :</p><p>${F ? 'تشهد السيدة' : 'يشهد السيد'} ${V(fullName(e))} ${F ? 'أنها تسلمت' : 'أنه تسلم'} هذا الإنذار بتاريخ : ${V('')} &nbsp; التوقيع : ${V('')}</p>`}`;
+  };
+
   /* ---------- inquiry: directorate model ---------- */
   T.inquiryDir = ({ s, e, f }) => `
     ${header(s)}
@@ -721,6 +748,7 @@
     joinWork: { title: 'محضر الالتحاق بالعمل', icon: '🏫', desc: 'التحاق موظف جديد أو منقول أو عائد بالمؤسسة، على نموذج المديرية', page: 'a4', cat: 'work' },
     resumeDir: { title: 'محضر استئناف العمل (نموذج المديرية)', icon: '☑️', desc: 'النموذج الرسمي للمديرية الإقليمية', page: 'a4', cat: 'work' },
     absenceNotice: { title: 'إعلان بانقطاع عن العمل', icon: '⛔', desc: 'يبعث في ثلاث نظائر بعد 48 أو 72 ساعة', page: 'a4', cat: 'work' },
+    returnWarn: { title: 'إنذار بوجوب العودة إلى العمل', icon: '⚠️', desc: 'بعد الانقطاع عن العمل: أجل سبعة أيام لاستئناف العمل (موظفو الوزارة)', page: 'a4', cat: 'work' },
     missionArrival: { title: 'إخبار بالوصول إلى مقر المأمورية', icon: '📍', desc: 'حالة تكليف', page: 'a4', cat: 'work' },
     certificate2: { title: 'طلب شهادة', icon: '📃', desc: 'شهادة العمل، الأجرة، الالتزام...', page: 'a4', pageClass: 'big-a4', cat: 'cert' },
     workAttAr: { title: 'شهادة العمل', icon: '🏅', desc: 'تسلمها المؤسسة بالعربية، مع ترويسة المؤسسة', page: 'a4', pageClass: 'wa-a4', cat: 'cert', quick: true },

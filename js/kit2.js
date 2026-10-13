@@ -142,7 +142,7 @@
       if (/اعدادي/.test(n)) { const i = ORD_F.findIndex(o => n.includes(nh(o))); return i >= 0 ? 'C' + (i + 1) : ''; }
       if (/جذع/.test(n)) return 'TC';
       if (/باك|بكالوريا/.test(n)) return /ثاني/.test(n) ? 'B2' : 'B1';
-      if (/اولي|تمهيدي|روض/.test(n) && !/ابتدائي/.test(n)) return /ثاني/.test(n) ? 'PS2' : 'PS1';
+      if (/اولي|تمهيدي|روض/.test(n) && !/ابتدا/.test(n)) return /ثاني/.test(n) ? 'PS2' : 'PS1';
       for (let i = 5; i >= 0; i--) if (n.includes(nh(ORD_M[i]))) return 'P' + (i + 1);
       const d = /^\d$/.exec(s); if (d && +d[0] >= 1 && +d[0] <= 6) return 'P' + d[0];
       return '';

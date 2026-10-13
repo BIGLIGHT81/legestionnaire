@@ -313,6 +313,9 @@
     migrate(DB);
     if (!window.Pupils || !Pupils.X) return toast('بطاقة التلاميذ غير متوفرة', true);
     if (!Pupils.X.Y(sy).pupils.length) return toast(`لا توجد لوائح تلاميذ للموسم ${syDash(sy)} في «بطاقة التلاميذ». استورد لوائح مسار أولا.`, true);
+    // 1.9.4: pupils of the combined classes: their exact level is taken from the other Massar files (CC results, tests) before counting
+    const rf = Pupils.refineLevels ? Pupils.refineLevels(sy) : { changed: 0, guessed: 0 };
+    if (rf.changed) persist();
     const base = planFromPupils(sy, mm, false);
     if (!base.total) return toast('جميع التلاميذ في بطاقة التلاميذ مصنفون ضمن المغادرين أو المنقطعين أو غير الملتحقين', true);
     const body = document.createElement('div');
@@ -323,6 +326,8 @@
       body.innerHTML = `<p style="margin:0 0 8px;line-height:1.9">سيتم نقل عدد التلاميذ من «بطاقة التلاميذ» إلى شهر <b>${esc(monthLabel(sy, mm))}</b> حسب ${SEC() ? '' : 'الوحدة المدرسية و'}المستوى: <b>${pl.used}</b> تلميذ(ة).
         <br><span class="muted">لا تتغير خانات «المتغيبين» و«أيام الغياب»، ويمكن تعديل الأعداد يدويا بعد ذلك في أي شهر.</span></p>
         <label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="apAs" ${asOf ? 'checked' : ''}><span>حسب الوضعية في نهاية الشهر (يراعى تاريخ المغادرة والانقطاع والالتحاق إن كان مسجلا)</span></label>
+        ${rf.changed ? `<p style="margin:6px 0;color:#0e5a4a">صُحح مستوى ${rf.changed} تلميذ(ة) من الأقسام المشتركة حسب ملفات مسار المستوردة (نتائج المراقبة المستمرة / الروائز).</p>` : ''}
+        ${rf.guessed ? `<p class="att-hot" style="margin:6px 0;line-height:1.8">${rf.guessed} تلميذ(ة) في أقسام مشتركة حُدد مستواهم تقديريا حسب السن: راجع مستواهم في «بطاقة التلاميذ» (عمود المستوى) أو استورد نتائج المراقبة المستمرة من مسار ليُحدد مستواهم بدقة.</p>` : ''}
         ${pl.lost ? `<p class="att-hot" style="margin:6px 0">${pl.lost} تلميذ(ة) لم يمكن إدراجهم (${SEC() ? 'مستوى غير معروف' : 'وحدة أو مستوى غير معروف'}).</p>` : ''}
         ${un.length || ln.length ? `<p style="margin:6px 0;line-height:1.8">سيضاف إلى الجدول ما هو موجود في بطاقة التلاميذ وغير موجود فيه: ${un.length ? `<b>وحدات:</b> ${esc(un.join('، '))}. ` : ''}${ln.length ? `<b>مستويات:</b> ${esc(ln.join('، '))}.` : ''}</p>` : ''}`;
       $('#apAs', body).onchange = render;

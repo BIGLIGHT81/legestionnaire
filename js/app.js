@@ -256,18 +256,18 @@ const NAV = [
   { id: 'staff', label: 'الموظفون', icon: 'users', tabs: () => [tab('employees', 'لائحة الموظفين'), tab('absences', 'الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية لغياب الموظفين'), tab('svcAcc', 'حوادث المصلحة')] },
   { id: 'docs', label: 'الوثائق', icon: 'file', tabs: () => (Docs.CATS || [['all', 'الوثائق']]).map(([c, n]) => tab('documents', DOC_SHORT[c] || n, { cat: c }))
       .concat([tab('documents', 'طلب وبعث الملفات', { cat: 'files' }), tab('documents', 'المتابعة والحراسة', { cat: 'follow' }), tab('memos', 'المذكرات الداخلية'), tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق')]) },
-  { id: 'pupils', label: 'شؤون التلاميذ', icon: 'pupil', tabs: () => [tab('pupils', 'بطاقة التلاميذ'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'), tab('incid', 'الحوادث المدرسية')] },
+  { id: 'pupils', label: 'شؤون التلاميذ', icon: 'pupil', tabs: () => [tab('pupils', 'بطاقة التلاميذ'), tab('certsCur', 'الشواهد المدرسية (المتمدرسين)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'), tab('incid', 'الحوادث المدرسية')] },
   { id: 'eval', label: 'التقييم والتتبع', icon: 'chart', tabs: () => [tab('roaiz', 'استثمار النتائج (الروائز)'), tab('cceval', 'استثمار المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ'), tab('support', 'الدعم الممتد'), tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'),
       tab('vschool', 'الحراسة العامة', null, { w: isSecCycle }), tab('exams', 'الامتحانات الإشهادية')] },
   { id: 'life', label: 'الحياة المدرسية', icon: 'star', tabs: () => [tab('clubs', 'الأندية التربوية وبطائقها'), tab('events', 'الاحتفالات والأنشطة'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والوساطة'),
-      tab('partners', 'التواصل مع الشركاء'), tab('kudos', 'التهاني والتقديرات')] },
+      tab('partners', 'التواصل مع الشركاء'), tab('kudos', 'التهاني والتقديرات'), tab('flyers', 'إعلانات الأنشطة والتصاميم')] },
   { id: 'org', label: 'التنظيم التربوي', icon: 'council', tabs: () => [tab('board', 'السبورة المرجعية'), tab('plan', 'برنامج عمل المؤسسة'), tab('teach', 'توزيع الأساتذة'), tab('councils', 'المجالس التقنية')] },
   { id: 'fin', label: 'التدبير المالي والمادي', icon: 'coin', tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية'), tab('stock', 'إدارة العتاد والوسائل التعليمية')] },
   { id: 'settings', label: 'الإعدادات', icon: 'gear', tabs: () => [tab('settings', 'الإعدادات')] },
   { id: 'license', label: 'التفعيل', icon: 'key', tabs: () => [tab('license', 'التفعيل')] }
 ];
 // detail pages -> the tab they belong to (the route of the tab, or «route:cat» for the tabs of the documents page)
-const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
+const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
   pupilDoc: 'pupils', boardDoc: 'board', councilDoc: 'councils', budgetDoc: 'budget', clubsDoc: 'clubs', eventsDoc: 'events', kudosDoc: 'kudos', memosDoc: 'memos', examsDoc: 'exams', supportDoc: 'support',
   teachDoc: 'teach', receiptDoc: 'license', duesDoc: 'dues', absregDoc: 'absreg', vigilDoc: 'vigil', listenDoc: 'listen', empCard: 'employees', empGallery: 'employees', filesDoc: 'documents:files',
   track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
@@ -353,6 +353,8 @@ function go(page, arg) {
     cceval: (vv, a) => window.pageCceval(vv, a), ccevalDoc: (vv, a) => window.pageCcevalDoc(vv, a),
     printAll: vv => window.pagePrintAll(vv),
     mail: (vv, a) => window.pageMail(vv, a), mailDoc: (vv, a) => window.pageMailDoc(vv, a),
+    flyers: (vv, a) => window.pageFlyers(vv, a),
+    certsCur: (vv, a) => window.pageCertsCur(vv, a), certsCurDoc: (vv, a) => window.pageCertsCurDoc(vv, a),
     incid: (vv, a) => window.pageIncid(vv, a), incidDoc: (vv, a) => window.pageIncidDoc(vv, a), svcAcc: (vv, a) => window.pageSvcAcc(vv, a), svcAccDoc: (vv, a) => window.pageSvcAccDoc(vv, a),
     attoffSt: (vv, a) => window.pageAttoffSt(vv, a), attoffStDoc: (vv, a) => window.pageAttoffStDoc(vv, a),
     kudos: (vv, a) => window.pageKudos(vv, a), kudosDoc: (vv, a) => window.pageKudosDoc(vv, a),
@@ -1306,6 +1308,18 @@ const FORMS = {
     { k: 'lastAddress', l: 'آخر عنوان أدلى به الموظف', t: 'text', auto: (f, e) => e.address || '', full: true },
     { sec: 'الإرسال' },
     { k: 'sendDate', l: 'تاريخ الإرسال إلى المديرية', t: 'date' }, { k: 'sendNo', l: 'تحت رقم', t: 'text' }
+  ],
+  returnWarn: [
+    { sec: 'الانقطاع والإنذار' },
+    { k: 'ref', l: 'رقم الإرسال', t: 'text' }, { k: 'stopDate', l: 'انقطع(ت) عن العمل بتاريخ', t: 'date' },
+    { k: 'sex', l: 'الجنس', t: 'select', o: [['M', 'ذكر (السيد)'], ['F', 'أنثى (السيدة)']], auto: (f, e) => e.sex || '' },
+    { k: 'address', l: 'العنوان', t: 'text', auto: (f, e) => e.address || '', full: true },
+    { k: 'delay', l: 'الأجل', t: 'text', d: () => 'سبعة أيام' },
+    { k: 'refs', l: 'المرجع (سطر لكل مرجع)', t: 'textarea', full: true, d: () => 'إعلان بانقطاع عن العمل عدد ............ بتاريخ ............\nالظهير الشريف رقم 1.58.008 بتاريخ 24 فبراير 1958 بمثابة النظام الأساسي العام للوظيفة العمومية، ولا سيما الفصل 75 مكرر منه.' },
+    { k: 'sanction', l: 'عبارة الإجراء في حالة عدم الالتحاق', t: 'textarea', full: true, d: () => 'فسيتم تطبيق مسطرة ترك الوظيفة في حقك طبقا للنصوص التشريعية والتنظيمية الجاري بها العمل، ولا سيما الفصل 75 مكرر من النظام الأساسي العام للوظيفة العمومية' },
+    { k: 'copies', l: 'النسخ (سطر لكل نسخة)', t: 'textarea', full: true, d: () => 'نسخة ترسل للمعني(ة) بالأمر عبر البريد المضمون مع الإشعار بالتوصل.\nنسخة إلى السيد المدير الإقليمي (مصلحة تدبير الموارد البشرية).' },
+    { k: 'receipt', l: 'إشعار بالتوصل في أسفل الوثيقة', t: 'select', o: [['yes', 'نعم'], ['no', 'لا']], d: () => 'yes' },
+    { k: 'city', l: 'حرر في', t: 'text', d: () => S().city }, { k: 'date', l: 'بتاريخ', t: 'date', d: todayIso }
   ],
   missionArrival: [
     { sec: 'المؤسسة الأصلية' },

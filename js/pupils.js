@@ -108,13 +108,13 @@
     const cell = (r, c) => String(((rows[r] || [])[c]) == null ? '' : rows[r][c]).trim();
     // the meta block (academy, school, level, class, year) sits above the header row of the table
     let top0 = 9;
-    for (let i = 0; i < Math.min(rows.length, 20); i++) { const r = (rows[i] || []).map(x => nh(x)); if (r.some(x => x === 'الرمز' || x === 'رقمالتلميذ' || x === 'رمزمسار' || x === 'codemassar')) { top0 = Math.min(9, i); break; } }
+    for (let i = 0; i < Math.min(rows.length, 40); i++) { const r = (rows[i] || []).map(x => nh(x)); if (r.some(x => x === 'الرمز' || x === 'رقمالتلميذ' || x === 'رمزمسار' || x === 'codemassar')) { top0 = Math.min(9, i); break; } }
     const top = rows.slice(0, top0).map(r => (r || []).map(x => String(x == null ? '' : x).trim()));
     // label -> value of the meta block (label cells are followed by their value)
     const meta = rx => { for (const r of top) for (let j = 0; j < r.length; j++) if (rx.test(r[j])) { for (let k = j + 1; k < r.length; k++) if (r[k] && !/[:：]\s*$/.test(r[k])) return r[k]; } return ''; };
     const title = top.map(r => r.filter(Boolean).join(' ')).find(t => /لائحة|لوحة/.test(t)) || '';
     let hi = -1;
-    for (let i = 0; i < Math.min(rows.length, 20) && hi < 0; i++) {
+    for (let i = 0; i < Math.min(rows.length, 40) && hi < 0; i++) {
       const r = (rows[i] || []).map(x => nh(x));
       if (r.some(x => x === 'الرمز' || x === 'رقمالتلميذ' || x === 'رمزمسار' || x === 'codemassar') && r.some(x => /^النسب|^الاسم$|^الاسم|^nom/.test(x))) hi = i;
     }
@@ -135,9 +135,17 @@
       const g = k => (c[k] < 0 ? '' : String((r || [])[c[k]] == null ? '' : r[c[k]]).trim());
       const code = g('code').toUpperCase();
       let last = g('last'), first = g('first');
-      if (c.full >= 0 && !last && !first) { const w = g('full').split(/\s+/).filter(Boolean); last = w.shift() || ''; first = w.join(' '); }
+      if (c.full >= 0 && !last && !first) {
+        // «أيت شريف عبدالرحمان»: the family name keeps its prefix (أيت، بن، أبو، مولاي…)
+        const w = g('full').split(/\s+/).filter(Boolean); last = w.shift() || '';
+        while (w.length > 1 && /^(أيت|آيت|ايت|إيت|بن|ابن|بنت|أبو|ابو|بو|ولد|أولاد|اولاد|الحاج|مولاي|مولى|سيدي|لالة|ال)$/.test(last.split(' ').pop())) last += ' ' + w.shift();
+        first = w.join(' ');
+      }
       if (!code && !last && !first) return;
-      if (!code || /^\d+$/.test(code) && !last) return;
+      if (/^(الرمز|رقمالتلميذ|رمزمسار|codemassar)$/.test(nh(code)) || /^النسب/.test(nh(last))) return; // header repeated on every page of the export
+      if (/^\d+$/.test(code) && !last) return;
+      if (!code && !(last || first)) return;
+      if (!code && /^(المجموع|مجموع|العدد|عدد|total)/i.test(String(last || first).trim())) return;
       const o = { code, last, first, g: gOf(g('g')), birth: isoD(g('birth')), place: g('place') };
       const ex = { date: isoD(g('tdate')), ttype: g('ttype'), rdate: isoD(g('rdate')), orig: g('orig'), recv: g('recv'), odir: g('odir'), oacad: g('oacad'), dis: g('dis'), lvlName: g('lv2'),
         status: g('stat'), rinst: g('rinst'), gresa: g('rgresa'), rcls: g('rcls'), phone: g('phone'), addr: g('addr'), acts: g('acts'), fate: g('fate') };
@@ -150,6 +158,7 @@
     const stats = Array.from(new Set(pupils.map(o => catOfTitle(o.status)).filter(Boolean)));
     const cat = catOfTitle(title) || catOfFileName(file) || catOfFileName(name) || (stats.length === 1 && pupils.every(o => !o.status || catOfTitle(o.status)) ? stats[0] : '');
     if (cat) pupils.forEach(o => { if (o.rcls && !o.cls0) o.cls0 = o.rcls; });
+    else for (let i = pupils.length - 1; i >= 0; i--) if (!pupils[i].code) pupils.splice(i, 1); // the enrolled lists need the Massar code
     return {
       file, sheet: name, title, kind: cat ? 'stat' : 'list', cat,
       academy: meta(/الأكاديمية/), directorate: meta(/المديرية/), commune: meta(/الجماعة/), inst: meta(/المؤسسة/),
@@ -175,6 +184,11 @@
       if (p.kind === 'list' && catOfSheetName(sh.name) && nh(p.cls) === nh(sh.name)) { p.kind = 'stat'; p.cat = catOfSheetName(sh.name); p.cls = ''; }
       found.push(p);
     }));
+    // 1.9.4: a Massar file exported without any pupil (only the title and the header row) is said clearly
+    const empty = found.filter(p => !p.pupils.length).map(p => p.file + (p.sheet && !/^sheet\d*$/i.test(p.sheet) ? ' (' + p.sheet + ')' : ''));
+    found = found.filter(p => p.pupils.length);
+    if (!found.length && !boards.length && empty.length) return modal({ title: 'لائحة فارغة', body: `<p style="margin-top:0;line-height:1.9">الملف <b>${esc(empty.join('، '))}</b> لا يحتوي على أي تلميذ: فيه عنوان اللائحة ورأس الجدول فقط، ولم يصدّر مسار أي سطر تحته.</p><p class="muted" style="line-height:1.9;margin-bottom:0">في منظومة مسار (لائحة غير الملتحقين): <b>الحياة المدرسية ← الهدر المدرسي ← آلية اليقظة</b>، اختر المستوى (أو «جميع المستويات») ثم اضغط «بحث» وتأكد أن التلاميذ ظاهرون في الجدول، وبعدها اضغط «تصدير»، ثم استورد الملف الجديد.</p>`, actions: [{ label: 'حسنا' }] });
+    if (empty.length) setTimeout(() => toast('ملفات فارغة لم تُستورد (لا تلميذ فيها): ' + empty.join('، '), true), 400);
     if (opts.cats) {
       const n0 = found.length; found = found.filter(p => p.kind === 'stat' && opts.cats.includes(p.cat));
       if (!found.length && !boards.length) return toast(n0 ? 'الملفات المختارة لا تحتوي على لوائح هذه الفئة' : 'لم يتم العثور على لوائح مسار', true);
@@ -241,33 +255,38 @@
       const L = { id: uid('pl'), file: p.file, sheet: p.sheet, inst: p.inst, unit, cls: p.cls, lvlLabel: p.lvlLabel, levels, n: p.pupils.length, at: now };
       y.lists = y.lists.filter(x => !(x.unit === unit && x.cls === p.cls));
       y.lists.push(L);
-      p.pupils.forEach(r => {
+      p.pupils.forEach((r, ri) => {
+        r.ord = ri + 1; // 1.9.4: rank of the pupil in the Massar list of the class (the lists keep the Massar order)
         const prev = y.pupils.find(x => x.code === r.code) || (mode === 'replace' ? old.get(r.code) : null);
         const keep = prev && prev.lsrc === 'man' && levels.includes(prev.lvl);
-        const lvl = keep ? prev.lvl : LV.guess(levels, r.birth, sy);
-        const o = Object.assign({}, prev || { id: uid('pp') }, r, { unit, cls: p.cls, lvl, lsrc: keep ? 'man' : levels.length > 1 ? 'age' : 'one', listId: L.id });
+        // 1.9.4: the level written for the pupil in the Massar file (column «المستوى») wins over the guess by age of a combined class
+        const own = LV.fromLabel(r.lvlName || '');
+        const lvl = keep ? prev.lvl : own || LV.guess(levels, r.birth, sy);
+        const o = Object.assign({}, prev || { id: uid('pp') }, r, { unit, cls: p.cls, lvl, lsrc: keep ? 'man' : own ? 'file' : levels.length > 1 ? 'age' : 'one', listId: L.id });
         if (prev && y.pupils.includes(prev)) Object.assign(prev, o); else y.pupils.push(o);
       });
     });
     // categories (arrivals, departures, dropouts, not joined, threatened, disabilities…) and transfer lists: kept apart from the pupils lists
-    stats.forEach(p => {
-      const groups = new Map();
-      p.pupils.forEach(r => {
-        const unit = unitOfRow(p, r);
-        const base0 = r.code ? y.pupils.find(x => x.code === r.code) : null;
-        const lvl = LV.fromLabel(r.lvlName) || LV.fromLabel(p.lvlLabel) || (base0 && base0.lvl) || '';
-        const k = unit + '|' + lvl; if (!groups.has(k)) groups.set(k, { unit, lvl, rows: [] });
-        groups.get(k).rows.push(r);
-      });
-      groups.forEach(gr => {
-        y.moves = y.moves.filter(m => !(m.src === 'file' && m.cat === p.cat && m.unit === gr.unit && m.lvl === gr.lvl));
-        gr.rows.forEach(r => {
-          if (r.code) y.moves = y.moves.filter(m => !(m.cat === p.cat && m.code === r.code));
-          const base = (r.code && y.pupils.find(x => x.code === r.code)) || {};
-          const o = Object.assign({ id: uid('pm'), cat: p.cat, unit: gr.unit, lvl: gr.lvl, src: 'file', date: '', file: p.file }, r, { g: r.g || base.g || '', birth: r.birth || base.birth || '', place: r.place || base.place || '', cls: base.cls || r.rcls || '' });
-          delete o.lvlName; delete o.rcls; delete o.cls0; y.moves.push(o);
-        });
-      });
+    // 1.9.4: all the sheets / files of one import are taken together. Before, a second sheet of the same category (one sheet per level or
+    // per class, often without a readable level for «غير الملتحقين») erased the pupils just added by the first one: only the last sheet stayed.
+    const all = [];
+    stats.forEach(p => p.pupils.forEach(r => {
+      const unit = unitOfRow(p, r);
+      const base0 = r.code ? y.pupils.find(x => x.code === r.code) : null;
+      const lvl = LV.fromLabel(r.lvlName) || LV.fromLabel(p.lvlLabel) || (base0 && base0.lvl) || '';
+      all.push({ p, r, unit, lvl });
+    }));
+    const groups = new Set(all.map(x => x.p.cat + '|' + x.unit + '|' + x.lvl));
+    y.moves = y.moves.filter(m => !(m.src === 'file' && groups.has(m.cat + '|' + m.unit + '|' + m.lvl)));
+    const seen = new Set();
+    all.forEach(({ p, r, unit, lvl }) => {
+      const key = p.cat + '|' + (r.code || (nh(r.last) + ' ' + nh(r.first) + '|' + (r.birth || '')));
+      if (seen.has(key)) return; // the same pupil twice in the selected files
+      seen.add(key);
+      if (r.code) y.moves = y.moves.filter(m => !(m.cat === p.cat && m.code === r.code));
+      const base = (r.code && y.pupils.find(x => x.code === r.code)) || {};
+      const o = Object.assign({ id: uid('pm'), cat: p.cat, unit, lvl, src: 'file', date: '', file: p.file }, r, { g: r.g || base.g || '', birth: r.birth || base.birth || '', place: r.place || base.place || '', cls: base.cls || r.rcls || '' });
+      delete o.lvlName; delete o.rcls; delete o.cls0; y.moves.push(o);
     });
   }
 
@@ -314,7 +333,34 @@
     y.pupils.forEach(p => add(p, 0)); y.moves.forEach(m => add(m, 1));
     return out.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }
-  window.Pupils = { migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
+  // 1.9.4: exact level of the pupils of the combined classes («أقسام مشتركة»): the level is known by their Massar code in the other Massar files
+  // already imported (results of the continuous assessment, tests): the guess by age is replaced. A level chosen by hand is never changed.
+  function exactLevels(sy) {
+    const m = new Map();
+    try { const cc = DB.cc && DB.cc.years && DB.cc.years[sy]; if (cc) Object.values(cc).forEach(arr => (Array.isArray(arr) ? arr : []).forEach(c => { if (c && c.lvl) (c.pupils || []).forEach(p => { if (p.code) m.set(String(p.code).toUpperCase(), c.lvl); }); })); } catch (_) {}
+    try { const rz = DB.roaiz && DB.roaiz.years && DB.roaiz.years[sy]; if (Array.isArray(rz)) rz.forEach(g => { const l = LV.fromLabel(g.level || ''); if (l) (g.pupils || []).forEach(p => { const c = String(p.id || p.code || '').toUpperCase(); if (c && !m.has(c)) m.set(c, l); }); }); } catch (_) {}
+    try { Y(sy).moves.forEach(mv => { const l = LV.fromLabel(mv.lvlName || ''); if (l && mv.code && !m.has(mv.code)) m.set(mv.code, l); }); } catch (_) {}
+    return m;
+  }
+  function refineLevels(sy) {
+    const y = Y(sy), ex = exactLevels(sy); let n = 0;
+    y.pupils.forEach(p => {
+      if (p.lsrc === 'man' || p.lsrc === 'file') return;
+      const l = ex.get(String(p.code || '').toUpperCase()); if (!l) return;
+      const L = y.lists.find(x => x.id === p.listId), ok = !L || !(L.levels || []).length || L.levels.includes(l);
+      if (!ok) return;
+      if (p.lvl !== l) n++;
+      p.lvl = l; p.lsrc = 'file';
+    });
+    return { changed: n, guessed: y.pupils.filter(p => p.lsrc === 'age').length };
+  }
+  // 1.9.4: the order of the Massar lists (class, then the rank in the list) — for the registers of absence and the class lists
+  function massarOrder(arr, sy) {
+    const all = Y(sy || curSy()).pupils, pos = new Map(all.map((p, i) => [p, i]));
+    const cpos = new Map(); all.forEach(p => { if (!cpos.has(p.cls)) cpos.set(p.cls, cpos.size); });
+    return arr.slice().sort((a, b) => ((cpos.get(a.cls) ?? 1e6) - (cpos.get(b.cls) ?? 1e6)) || ((a.ord || 1e6) - (b.ord || 1e6)) || ((pos.get(a) ?? 1e9) - (pos.get(b) ?? 1e9)));
+  }
+  window.Pupils = { massarOrder, refineLevels, exactLevels, migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
 
 
   /* ---------- 1.9.2: same family name (siblings) ---------- */
@@ -656,7 +702,8 @@
         <button class="btn sm" id="mPrn">${ic('print')} جدول التتبع الدوري للحركية</button><button class="btn sm" id="mList">${ic('print')} طباعة اللائحة</button>
         <button class="btn sm" id="mImp">${ic('up')} استيراد اللوائح الإحصائية</button><button class="btn sm pri" id="mAdd">${ic('plus')} إضافة حالة</button></div>
       <div id="mT"></div></div>
-      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">اللوائح الإحصائية لمسار (لائحة التلاميذ المنقطعين، الغير الملتحقين، الناجحين، المفصولين...) تستورد من «استيراد لوائح مسار» مع لوائح الأقسام. يمكن أيضا إضافة حالة يدويا أو من زر «حركة» في لائحة التلاميذ. التلاميذ المنقطعون والمغادرون وغير الملتحقين والمفصولون لا يحتسبون في «الوضعية الحالية».</p>`;
+      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">اللوائح الإحصائية لمسار (لائحة التلاميذ المنقطعين، الغير الملتحقين، الناجحين، المفصولين...) تستورد من «استيراد لوائح مسار» مع لوائح الأقسام. يمكن أيضا إضافة حالة يدويا أو من زر «حركة» في لائحة التلاميذ. التلاميذ المنقطعون والمغادرون وغير الملتحقين والمفصولون لا يحتسبون في «الوضعية الحالية».</p>
+      ${!flt.mcat || flt.mcat === 'notjoined' || flt.mcat === 'drop' || flt.mcat === 'threat' ? `<div class="roz-steps" style="margin-top:10px">${ic('list')} <b>لائحة غير الملتحقين (والمنقطعين والمهددين بالانقطاع) من مسار:</b> <span class="st">الحياة المدرسية</span> ← <span class="st">الهدر المدرسي</span> ← <span class="st">آلية اليقظة</span> ← اختر المستوى (أو جميع المستويات) ← <span class="st">بحث</span> ← <span class="st">تصدير</span>، ثم «استيراد اللوائح الإحصائية».</div>` : ''}`;
     const draw = () => {
       const L = y.moves.filter(m => inStage(m, stage) && (!flt.mcat || m.cat === flt.mcat) && (!flt.munit || m.unit === flt.munit)).sort((a, c) => CATS.findIndex(x => x.k === a.cat) - CATS.findIndex(x => x.k === c.cat) || units.indexOf(a.unit) - units.indexOf(c.unit) || LV.idx(a.lvl) - LV.idx(c.lvl));
       $('#mT').innerHTML = L.length ? `<table class="tbl compact"><thead><tr><th style="width:36px">#</th><th>الفئة</th><th>رمز مسار</th><th>الاسم والنسب</th><th>الجنس</th><th>تاريخ الازدياد</th>${SEC() ? '' : '<th>الوحدة</th>'}<th>المستوى</th><th>التاريخ</th><th>ملاحظة</th><th></th></tr></thead><tbody>

@@ -182,6 +182,7 @@
         ${all.length ? `<button class="btn pri" id="rPrn">${ic('print')} طباعة الاستثمار</button>` : ''}${gs.length ? ` <button class="btn danger sm" id="rClr">${ic('trash')} مسح هذه الفئة</button>` : ''}</div>
       <div class="card roz-ph"><div><b>روائز الموضعة</b><div class="seg" id="rPh1">${PH.slice(0, 2).map(chip).join('')}</div></div>
         <div><b>المراقبة المستمرة</b><div class="seg" id="rPh2">${PH.slice(2).map(chip).join('')}</div></div></div>
+      ${all.length ? MASSAR_STEPS_() : ''}
       ${all.length || state.tab === 'l1' || window.RoaizX ? `<div class="mk-tabs"><div class="seg" id="rTabs">${T.filter(([k]) => all.length || k === 'l1').map(([k, l]) => `<button data-t="${k}" class="${state.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>` : ''}
       <div id="rBody"></div>`;
     $('#rSy').onchange = e => { state.sy = e.target.value; MK.setSy(state.sy); state.unit = ''; state.level = ''; go('roaiz'); };
@@ -198,9 +199,14 @@
     ({ stats: tabStats, lists: tabLists, units: tabUnits, cmp: tabStats, dash: tabStats })[state.tab]($('#rBody'));
   };
 
+  // 1.9.4: where the files come from in Massar
+  const MASSAR_STEPS_ = () => `<div class="roz-steps">${ic('list')} <b>مصدر الملفات:</b> اتبع الخطوات التالية في برنامج مسار:
+    <span class="st">الحياة المدرسية</span> ← <span class="st">الدعم التربوي</span> ← <span class="st">الدعم التربوي TaRL</span> ← <span class="st">استيراد وتصدير مستويات التعلم</span> ← <span class="st">مسك الخانات</span> ← <span class="st">تصدير</span>،
+    ثم استورد الملفات المصدرة هنا بزر «استيراد ملفات الروائز».</div>`;
   const emptyState = () => `<div class="card"><div class="card-b" style="text-align:center;padding:38px 20px">
       <div style="font-size:40px">📊</div><h3 style="margin:10px 0 6px">${esc(phOf(state.phase).n)}</h3>
       <p class="muted" style="max-width:560px;margin:0 auto 16px;line-height:1.8">استورد ملفات «Export Groupe de Soutien» الخاصة بمجموعات الدعم (يمكن اختيار أكثر من 30 ملف مرة واحدة). يستخرج البرنامج تلقائيا توزيع التلاميذ حسب مسارات كل مادة (اللغة العربية، اللغة الفرنسية، الرياضيات) والجنس، مع النسب والمبيانات.</p>
+      <div style="max-width:640px;margin:0 auto 16px;text-align:right">${MASSAR_STEPS_()}</div>
       <button class="btn pri" id="rImpBig">${ic('up')} استيراد ملفات الروائز</button></div></div>`;
 
   /* ---------- filters bar ---------- */

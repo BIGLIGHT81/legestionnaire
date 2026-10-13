@@ -557,6 +557,7 @@
       const r = kind === 'print' ? await window.api.print(html(), land()) : await window.api.pdf(html(), land(), (cfg.fname ? cfg.fname(st) : cfg.title).replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, ''));
       if (r && r.locked) return lockedBox();
       if (r && r.ok) toast(kind === 'print' ? 'تم إرسال الوثيقة إلى الطابعة' : 'تم حفظ الملف PDF');
+      if (r && r.ok && cfg.afterOut) { try { html(); cfg.afterOut(st, kind); } catch (e) { console.error(e); } }
       refresh();
     };
     // 1.9.4: the document is told which output is requested (st.out), e.g. real pictures for Word, a lighter page for the screen

@@ -161,7 +161,7 @@
         const c = comp(sy);
         const o = Object.assign({
           city: s.city || '', date: DEFAULT_DATES[def.period || 'oct'](sy), time: def.time || 'التاسعة صباحا', place: place(), session: def.session || 'الأولى', decree: lastOf(sy, 'decree') || DEC, memo: DEC,
-          lang: def.lang || '', custom: '', secretary: '', intro: def.intro == null ? INTRO : def.intro, agenda: def.agenda, body: def.body,
+          lang: def.fix || def.lang || '', custom: '', secretary: '', intro: def.intro == null ? INTRO : def.intro, agenda: def.agenda, body: def.body,
           att: attFor(c, key).map(r => [r[0], r[1], r[2], '']), abs: [['', '', ''], ['', '', '']]
         }, def.init ? def.init(s, sy, c) : {});
         if (isSec()) Object.keys(o).forEach(k => { if (!/^(att|abs)$/.test(k)) o[k] = secTxt(o[k]); });
@@ -179,7 +179,7 @@
         { k: 'abs', l: 'المتغيبون', t: 'grid', cols: ['الاسم', 'رقم التأجير', 'سبب الغياب'], widths: ['1.6fr', '1fr', '1.6fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], e.ppr || '', r[2]] : null; } }
       ],
       build: (s, f, sy) => {
-        const lang = f.lang || def.lang || '';
+        const lang = def.fix || f.lang || def.lang || '';
         const cname = key === 'ar' || key === 'fr' ? ({ ar: COUNCIL_NAME.ar, fr: COUNCIL_NAME.fr, x: `المجلس التعليمي ل${f.custom || 'المادة'}` })[lang] || COUNCIL_NAME[key] : COUNCIL_NAME[key];
         const ex = def.extra ? def.extra.blocks(s, f, sy) : { blocks: {}, ctx: {} };
         const ctx = K.tokens(Object.assign({ dateLong: K.ldate(f.date), day: K.dayName(f.date), time: f.time, place: f.place, session: f.session, decree: f.decree, memo: f.memo, council: cname }, ex.ctx || {}));
@@ -326,48 +326,77 @@
   /* teaching councils */
   const SUBJ = { ar: ['اللغة العربية', 'التربية الإسلامية', 'الاجتماعيات'], fr: ['اللغة الفرنسية', 'الرياضيات', 'النشاط العلمي'], x: ['المادة'] };
   const subjInit = (sy, lang) => { const L = levelKeys(sy); const out = []; L.forEach(k => { const n = +String(k).replace(/\D/g, ''); SUBJ[lang].forEach((m, j) => { if (lang === 'ar' && j === 2 && n < 4) return; if (lang === 'fr' && j === 2 && n < 3) return; out.push([k, m].concat(Array.from({ length: Math.max(1, B().unitNames().length) }, () => ''))); }); }); return out; };
-  const T_TEACH_OCT = `# تقييم مراحل الدعم التربوي في المادة:
-[[dots:4]]
-# مناقشة تقارير دعم التعلمات الأساس:
+  /* 1.9.4: the teaching councils of the Arabic language and of the French language are two separate councils, each with its own documents
+     (members, subjects, content), for the three sessions (October, March, July). */
+  const LANGN = { ar: 'اللغة العربية', fr: 'اللغة الفرنسية' };
+  const T_TEACH_OCT = {
+    ar: `# تقييم مراحل الدعم التربوي في اللغة العربية (التدريس وفق المستوى المناسب TaRL):
+تم استعراض نتائج الروائز التشخيصية في اللغة العربية وتوزيع المتعلمات والمتعلمين حسب مستويات التحكم في القراءة (مبتدئ – حرف – كلمة – فقرة – قصة)، وتكوين مجموعات الدعم داخل كل قسم.
 [[dots:3]]
-# مناقشة المشاكل المعيقة لاكتساب التعلمات في المادة والحلول المقترحة:
-[[dots:4]]
-# إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات:
-[[dots:3]]`;
-  minutes({
-    k: 'teach_oct', t: 'محضر المجلس التعليمي — الدورة الأولى (أكتوبر)', council: 'ar', lang: 'ar', title: 'محضر اجتماع {{council}} في دورته الأولى', period: 'oct', session: 'الأولى', time: 'الثالثة بعد الزوال', d: 'تقييم الدعم التربوي، المشاكل المعيقة، الخطة السنوية للدعم (للعربية أو الفرنسية أو مادة أخرى).',
-    agenda: 'تقييم مراحل الدعم التربوي وفق مقاربة الدعم المعتمدة في المادة؛\nمناقشة تقارير دعم التعلمات الأساس؛\nمناقشة المشاكل المعيقة لاكتساب التعلمات في المادة؛\nإعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات.', body: T_TEACH_OCT, intro: 'انعقد اجتماع {{council}} {{place}} يوم {{dateLong}} على الساعة {{time}} برئاسة السيد مدير المؤسسة لدراسة النقط التالية:'
-  });
-  // the attendees of a teaching council follow the chosen language
-  const teachOct = DOCS[DOCS.length - 1];
-
-  const T_TEACH_MAR = `بناء على المقرر الوزاري رقم {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وبناء على المذكرة الداخلية رقم {{memo}}، انعقد اجتماع {{council}} {{place}}، يومه {{day}} {{dateLong}} على الساعة {{time}}، وذلك لدراسة ومناقشة النقط التالية:
-- تتبع النتائج العامة ونتائج تحصيل التلاميذ في المادة الدراسية خلال الأسدوس الأول ودراسة القضايا التربوية التي ينبغي التركيز عليها خلال الأسدوس الثاني؛
+# مناقشة تقارير دعم التعلمات الأساس في مكونات اللغة العربية:
+- التواصل الشفهي والاستماع؛
+- القراءة: التعرف على الحروف والمقاطع، الطلاقة، الفهم؛
+- الكتابة: الخط والإملاء والنسخ؛
+- الظواهر اللغوية (التراكيب والصرف والتحويل والإملاء)؛
+- التعبير الكتابي والإنتاج.
+[[dots:3]]
+# المشاكل المعيقة لاكتساب التعلمات في اللغة العربية والحلول المقترحة:
+- ضعف القراءة الجهرية والطلاقة لدى فئة من المتعلمين، والخلط بين الحروف المتشابهة رسما وصوتا؛
+- ضعف الرصيد المعجمي وصعوبة الانتقال من القراءة إلى الفهم؛
+- صعوبات في الإملاء والإنتاج الكتابي.
+الحلول: حصص قرائية يومية قصيرة، تفعيل المكتبة الصفية والقصص المصورة، ألعاب قرائية وبطاقات المقاطع، إشراك الأسر في القراءة المنزلية.
+[[dots:2]]
+# إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات في اللغة العربية:
+[[dots:3]]`,
+    fr: `# تقييم مراحل الدعم التربوي في اللغة الفرنسية (التدريس وفق المستوى المناسب TaRL):
+تم استعراض نتائج الروائز التشخيصية في اللغة الفرنسية وتوزيع المتعلمات والمتعلمين حسب مستويات القراءة (Débutant – Lettre – Mot – Paragraphe – Histoire)، وتكوين مجموعات الدعم داخل كل قسم.
+[[dots:3]]
+# مناقشة تقارير دعم التعلمات الأساس في مكونات اللغة الفرنسية:
+- Communication orale (التواصل الشفهي والاستماع)؛
+- Lecture (décodage, fluidité, compréhension)؛
+- Écriture et copie (الكتابة والنسخ)؛
+- Lexique et structures (المعجم والتراكيب)؛
+- Production de l'écrit (الإنتاج الكتابي).
+[[dots:3]]
+# المشاكل المعيقة لاكتساب التعلمات في اللغة الفرنسية والحلول المقترحة:
+- قلة التعرض للغة الفرنسية خارج القسم وضعف التواصل الشفهي؛
+- صعوبات في التمييز بين الأصوات المركبة (les sons complexes: ou, on, an, oi, ch…) وفي فك الترميز؛
+- ضعف الرصيد المعجمي والخلط بين الحروف اللاتينية المتشابهة (b/d، p/q).
+الحلول: أنشطة تواصلية يومية (comptines, jeux de rôle)، بطاقات الأصوات والمقاطع، القراءة المصورة، استعمال الموارد السمعية البصرية، القراءة المنزلية بمساعدة الأسر.
+[[dots:2]]
+# إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات في اللغة الفرنسية:
+[[dots:3]]`
+  };
+  const teachAgendaOct = l => `تقييم مراحل الدعم التربوي في ${LANGN[l]} وفق مقاربة التدريس وفق المستوى المناسب؛\nمناقشة تقارير دعم التعلمات الأساس في مكونات ${LANGN[l]}؛\nمناقشة المشاكل المعيقة لاكتساب التعلمات في ${LANGN[l]}؛\nإعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات.`;
+  const T_TEACH_MAR = l => `بناء على المقرر الوزاري رقم {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وبناء على المذكرة الداخلية رقم {{memo}}، انعقد اجتماع {{council}} {{place}}، يومه {{day}} {{dateLong}} على الساعة {{time}}، وذلك لدراسة ومناقشة النقط التالية:
+- تتبع النتائج العامة ونتائج تحصيل التلاميذ في ${LANGN[l]} خلال الأسدوس الأول ودراسة القضايا التربوية التي ينبغي التركيز عليها خلال الأسدوس الثاني؛
 - جرد الصعوبات واقتراح الحلول؛
-- وضع خطة للدعم البيداغوجي في المادة.
+- وضع خطة للدعم البيداغوجي في ${LANGN[l]}.
 # النتائج العامة للأسدوس الأول من السنة الدراسية {{syslash}}:
 [[results]]
 بعد قراءة النتائج المحصل عليها خلال الأسدوس الأول من السنة الدراسية الحالية تبين أن النسبة العامة للنجاح بلغت {{rate}}.
-# تتبع نتائج التلاميذ في المادة:
+# تتبع نتائج التلاميذ في ${LANGN[l]} والمواد المرتبطة بالمجلس:
 من خلال نتائج الأسدوس الأول، يتبين أن مستوى المتعلمين والمتعلمات في تحسن، وسيتم تكثيف الجهود في الفترة المتبقية من السنة الدراسية للرفع من مستوى التحصيل وتجاوز التعثرات المرصودة من خلال وضع خطة للدعم على مستوى كل قسم.
 [[subj]]
-# وضع خطة للدعم البيداغوجي في المادة:
-تم الاتفاق على وضع خطة للدعم على مستوى كل قسم انطلاقا من تحليل نتائج المتعلمين، وتفييء التلاميذ إلى ثلاث مجموعات حسب كل مكون دراسي (متمكنة – في طور التمكن – متعثرة)، واختيار الأنشطة المناسبة لمعالجة التعثرات مع استحضار مشروع القسم الذي يتم من خلاله تنزيل المشروع التربوي للمؤسسة. وتم الاتفاق على أبرز الخطوط العريضة لخطة دعم الفئة المتعثرة في المادة:
+# وضع خطة للدعم البيداغوجي في ${LANGN[l]}:
+تم الاتفاق على وضع خطة للدعم على مستوى كل قسم انطلاقا من تحليل نتائج المتعلمين، وتفييء التلاميذ إلى ثلاث مجموعات حسب كل مكون (${l === 'fr' ? 'communication orale، lecture، écriture، production de l\'écrit' : 'التواصل الشفهي، القراءة، الكتابة، الظواهر اللغوية، التعبير الكتابي'}) (متمكنة – في طور التمكن – متعثرة)، واختيار الأنشطة المناسبة لمعالجة التعثرات مع استحضار مقاربة التدريس وفق المستوى المناسب:
 - دعم التلاميذ المتعثرين بالموازاة مع أنشطة بناء التعلمات؛
 - تمكين المتعثرين من الاستفادة من تتبع فردي خلال أسابيع الدعم.
-# وضع برمجة للعمليات التقويمية الخاصة بالمادة الدراسية:
-تم الاتفاق على أن يضع كل أستاذ برمجة خاصة بالعمليات التقويمية للمواد الأساسية التي تعرف تعثرات.
+# وضع برمجة للعمليات التقويمية الخاصة بـ${LANGN[l]}:
+تم الاتفاق على أن يضع كل أستاذ برمجة خاصة بالعمليات التقويمية للمكونات التي تعرف تعثرات.
 # العوائق والصعوبات:
+${l === 'fr' ? `- قلة التعرض للغة الفرنسية خارج الفصل وضعف التواصل الشفهي؛
+- صعوبات في فك الترميز والأصوات المركبة وفي الإنتاج الكتابي؛` : `- ضعف الطلاقة القرائية والفهم لدى فئة من المتعلمين؛
+- صعوبات في الإملاء والتعبير الكتابي؛`}
 - تعدد الأقسام المشتركة في أغلب الوحدات المدرسية مما يؤثر سلبا على مردودية المتعلمين؛
-- ضعف المكتسبات السابقة لدى التلاميذ؛
-- عدم متابعة جل الأسر للمسار الدراسي لأبنائها؛
-- ضعف التكوين المستمر: لقاءات تربوية، مواكبة الأساتذة الجدد في مقرات عملهم...
+- عدم متابعة جل الأسر للمسار الدراسي لأبنائها.
 # الحلول والإجراءات:
-- توفير الوسائل التعليمية اللازمة بما فيها العدة الرقمية؛
+${l === 'fr' ? `- تكثيف الأنشطة التواصلية الشفهية (dialogues, comptines, jeux de rôle) واستعمال الموارد السمعية البصرية؛
+- اعتماد بطاقات الأصوات والمقاطع والقراءة المصورة؛` : `- حصص قرائية يومية قصيرة وتفعيل المكتبة الصفية؛
+- أنشطة إملائية وتعبيرية متدرجة؛`}
 - عقد لقاءات تواصلية مع المحيط الأسري للمتعلمين لحثهم على تتبع ومراقبة سير تعلم أطفالهم؛
-- تأطير ومواكبة المدرسين في شأن المستجدات التربوية والديداكتيكية؛
-- تكثيف زيارات وندوات هيئة التأطير والمراقبة التربوية.
-وفي الختام شكر رئيس المؤسسة الأساتذة على المجهودات المبذولة في الأسدوس الأول ومشاركتهم الهادفة والبناءة في مجالس المؤسسة، وحثهم على الالتزام بتوصيات المجلس أملا في تجاوز الصعوبات التي تم رصدها.`;
+- تأطير ومواكبة المدرسين في شأن المستجدات التربوية والديداكتيكية الخاصة بـ${LANGN[l]}.
+وفي الختام شكر رئيس المؤسسة الأساتذة على المجهودات المبذولة في الأسدوس الأول، وحثهم على الالتزام بتوصيات المجلس أملا في تجاوز الصعوبات التي تم رصدها.`;
   function subjBlock(sy, rows) {
     const curSy = sy;
     const U = B().unitNames().map(n => B().shortUnit(n));
@@ -382,12 +411,6 @@
       { k: 'subj', l: 'الحاصلون على المعدل في كل مادة (حسب الوحدة)', t: 'grid', cols: ['المستوى', 'المادة'].concat(B().unitNames().map(n => B().shortUnit(n))), widths: ['.8fr', '1.4fr'].concat(B().unitNames().map(() => '.7fr')), types: ['ro'], rofmt: v => LV.sh(v) || v }],
     blocks: (s, f, sy) => { const r = resTable(sy, f.res); return { ctx: { rate: r.rate }, blocks: { results: [r.block], subj: [subjBlock(sy, f.subj || [])] } }; }
   };
-  const tm = { k: 'teach_mar', t: 'محضر المجلس التعليمي — دورة منتصف السنة (مارس)', council: 'ar', lang: 'ar', title: 'محضر اجتماع {{council}}', period: 'mar', session: 'الثانية', time: 'الثالثة بعد الزوال', d: 'نتائج الأسدوس الأول بالمادة، خطة الدعم، الصعوبات والحلول.',
-    agenda: 'التداول في وضعية تدريس المادة الدراسية؛\nاقتراح أنشطة داعمة (تقارير – خطة عمل للدعم – استثمار – لوائح المقترحين للدعم…)', body: T_TEACH_MAR, intro: '',
-    init: (s, sy) => ({ res: resInit(sy), subj: subjInit(sy, 'ar') }), extra: teachExtra };
-  minutes(tm);
-  const teachMar = DOCS[DOCS.length - 1];
-
   const J1 = [
     ['نسبة إنجاز المقرر الدراسي وسبل تجاوز التعثرات', '100%', 'مواصلة وتيرة الإنجاز بكل مسؤولية؛ تخصيص شهر شتنبر لدعم ما تم إنجازه'],
     ['الصعوبات التي تعترض تطبيق المقرر واقتراحات لتجاوزها', 'تفاوت إيقاعات التعلم؛ الوضعية الاجتماعية للأسر', 'اقتراح مقرر خاص بالعالم القروي؛ الاستعانة بالموارد الرقمية وحوامل حديثة'],
@@ -406,27 +429,37 @@
     ['الأنشطة التربوية الخاصة بالمادة الدراسية', 'تفعيل المكتبات الصفية؛ التصريف التربوي لمشروع المؤسسة', 'مواصلة الانخراط في أجرأة مشروع المؤسسة المندمج؛ التشجيع والتعريف بالممارسات الفضلى']];
   const semi = x => String(x || '').split(/[;؛]/).map(t => t.trim()).filter(Boolean).map(t => esc(t)).join('<br>');
   const j3 = (title, rows) => ({ before: SB.cap(title, ''), table: { cls: 'sb-t cmp', head: thr(['المجال', 'الوضعية الراهنة', 'الاقتراحات'].map(t => ({ t, c: 'd' }))), rows: rows.map(r => tr([{ t: r[0], c: 'k sm r' }, { h: semi(r[1]), c: 'r sm' }, { h: semi(r[2]), c: 'r sm' }])) } });
-  const jt = {
-    k: 'teach_jul', t: 'محضر المجالس التعليمية — الدورة الرابعة (يوليوز)', council: 'ar', lang: 'ar', title: 'محضر اجتماع المجالس التعليمية — الدورة الرابعة', sub: 'دورة يوليوز', period: 'jul', session: 'الرابعة', time: 'العاشرة صباحا', d: 'تتبع إنجاز المقرر والتقويم، حاجيات المادة، التنسيق والمشاركة (مع الجداول).',
-    agenda: 'تتبع إنجاز المقرر الدراسي والتقويم؛\nتحديد حاجيات المادة الدراسية؛\nتتبع أنشطة التنسيق والمشاركة؛\nمختلفات.', body: '[[t1]]\n[[t2]]\n[[t3]]',
-    init: () => ({ j1: J1.map(r => r.slice()), j2: J2.map(r => r.slice()), j3: J3.map(r => r.slice()) }),
-    extra: {
-      defs: () => [{ sec: 'الجداول (الفصل بين الفقرات بفاصلة منقوطة ؛)' }, ...[['j1', 'إنجاز المقرر الدراسي والتقويم'], ['j2', 'حاجيات المادة الدراسية'], ['j3', 'التنسيق والمشاركة']].map(([k, l]) => ({ k, l, t: 'grid', cols: ['المجال', 'الوضعية الراهنة', 'الاقتراحات'], widths: ['1.3fr', '1.2fr', '1.5fr'] }))],
-      blocks: (s, f) => ({ ctx: {}, blocks: { t1: [j3('إنجاز المقرر الدراسي والتقويم', f.j1 || [])], t2: [j3('حاجيات المادة الدراسية', f.j2 || [])], t3: [j3('التنسيق والمشاركة', f.j3 || [])] } })
-    }
+  // rows specific to each language in the July tables
+  const JL = {
+    ar: { j1: ['التحكم في مكونات اللغة العربية (القراءة، الكتابة، التعبير)', 'تحسن ملحوظ في القراءة مع تعثرات في التعبير الكتابي', 'تعزيز القراءة اليومية والإنتاج الكتابي المتدرج'],
+      j2: ['الموارد الخاصة باللغة العربية', 'قلة القصص والمعاجم المناسبة للمستويات', 'تزويد المكتبات الصفية بقصص ومعاجم مصورة؛ بطاقات الحروف والمقاطع'] },
+    fr: { j1: ['Maîtrise des composantes du français (oral, lecture, écrit)', 'Difficultés à l\'oral et en production de l\'écrit', 'Activités orales quotidiennes؛ ateliers d\'écriture؛ lecture suivie'],
+      j2: ['Ressources spécifiques au français', 'Manque de livres de lecture et de supports audio', 'Albums illustrés et petits livres؛ supports audio-visuels؛ cartes des sons'] }
   };
-  minutes(jt);
-  const teachJul = DOCS[DOCS.length - 1];
-  // for the three teaching documents the list of attendees follows the selected council: handled by 'mapAtt' below (the user can also edit it)
-  [teachOct, teachMar, teachJul].forEach(d => {
-    const b = d.build;
-    d.build = (s, f, sy) => {
-      const c = comp(sy);
-      const k = f.lang === 'fr' ? 'fr' : 'ar';
-      const f2 = Object.assign({}, f);
-      if (!(store(sy)[d.k] || {}).att && f.lang && f.lang !== 'ar') f2.att = (f.lang === 'fr' ? c.fr : (f.lang === 'x' ? c.ar : c.ar)).map(r => [r[0], r[1], r[2], '']);
-      return b(s, f2, sy);
-    };
+  const teach = {};
+  ['ar', 'fr'].forEach(l => {
+    const N = LANGN[l], key = l === 'ar' ? '' : '_fr';
+    minutes({
+      k: 'teach_oct' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — الدورة الأولى (أكتوبر)`, council: l, title: 'محضر اجتماع {{council}} في دورته الأولى', period: 'oct', session: 'الأولى', time: 'الثالثة بعد الزوال',
+      d: `${N}: تقييم الدعم التربوي (TaRL)، تقارير دعم التعلمات الأساس، المشاكل المعيقة، الخطة السنوية للدعم.`,
+      agenda: teachAgendaOct(l), body: T_TEACH_OCT[l]
+    });
+    teach['oct' + l] = DOCS[DOCS.length - 1];
+    minutes({ k: 'teach_mar' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — دورة منتصف السنة (مارس)`, council: l, title: 'محضر اجتماع {{council}}', period: 'mar', session: 'الثانية', time: 'الثالثة بعد الزوال',
+      d: `${N}: نتائج الأسدوس الأول، خطة الدعم، الصعوبات والحلول.`,
+      agenda: `التداول في وضعية تدريس ${N}؛\nاقتراح أنشطة داعمة (تقارير – خطة عمل للدعم – استثمار – لوائح المقترحين للدعم…)`, body: T_TEACH_MAR(l), intro: '',
+      init: (s, sy) => ({ res: resInit(sy), subj: subjInit(sy, l) }), extra: teachExtra });
+    const jr = (rows, extra) => rows.map(r => r.slice().map(x => String(x).replace(/المادة الدراسية|المادة/g, N))).concat([extra.slice()]);
+    minutes({
+      k: 'teach_jul' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — الدورة الرابعة (يوليوز)`, council: l, title: 'محضر اجتماع {{council}} — الدورة الرابعة', sub: 'دورة يوليوز', period: 'jul', session: 'الرابعة', time: 'العاشرة صباحا',
+      d: `${N}: تتبع إنجاز المقرر والتقويم، حاجيات المادة، التنسيق والمشاركة.`,
+      agenda: `تتبع إنجاز المقرر الدراسي والتقويم في ${N}؛\nتحديد حاجيات ${N}؛\nتتبع أنشطة التنسيق والمشاركة؛\nمختلفات.`, body: '[[t1]]\n[[t2]]\n[[t3]]',
+      init: () => ({ j1: jr(J1, JL[l].j1), j2: jr(J2, JL[l].j2), j3: jr(J3, ['التنسيق بين أساتذة ' + N + ' بالوحدات المدرسية', 'لقاءات غير منتظمة', 'لقاء شهري لتقاسم الممارسات وتتبع خطة الدعم']) }),
+      extra: {
+        defs: () => [{ sec: 'الجداول (الفصل بين الفقرات بفاصلة منقوطة ؛)' }, ...[['j1', 'إنجاز المقرر الدراسي والتقويم'], ['j2', 'حاجيات ' + N], ['j3', 'التنسيق والمشاركة']].map(([k, lb]) => ({ k, l: lb, t: 'grid', cols: ['المجال', 'الوضعية الراهنة', 'الاقتراحات'], widths: ['1.3fr', '1fr', '1.3fr'] }))],
+        blocks: (s, f) => ({ ctx: {}, blocks: { t1: [j3('إنجاز المقرر الدراسي والتقويم', f.j1 || [])], t2: [j3('حاجيات ' + N, f.j2 || [])], t3: [j3('التنسيق والمشاركة', f.j3 || [])] } })
+      }
+    });
   });
 
   /* synthetic report of the class councils */
@@ -586,7 +619,7 @@
       { sec: 'قرارات المجلس في حق التلاميذ' }, { t: 'html', html: '<button type="button" class="btn sm pri" data-act="fill">ملء لائحة تلاميذ القسم</button>' },
       { k: 'pupilsList', l: 'التلاميذ', t: 'grid', cols: ['التلميذ(ة)', 'المعدل', 'القرار', 'ملاحظات'], widths: ['1.6fr', '.6fr', '1.2fr', '1.2fr'], types: ['ro', 'num', 'text', 'text'], fixed: true, list: [null, null, 'sec_dec'] },
       { k: 'remarks', l: 'خلاصات وتوصيات المجلس', t: 'area', rows: 4 }, { t: 'html', html: `<datalist id="sec_dec">${DECIS.map(d => `<option value="${d}">`).join('')}</datalist>` }],
-    act: { fill: (f, sy, c) => { const old = f.pupilsList || []; f.pupilsList = (window.Pupils ? Pupils.current(sy) : []).filter(p => p.cls === f.cls).sort((a, b) => `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar')).map(p => { const nm2 = `${p.last || ''} ${p.first || ''}`.trim(), o = old.find(r => r[0] === nm2) || []; return [nm2, o[1] || '', o[2] || '', o[3] || '']; }); c.save('pupilsList'); } },
+    act: { fill: (f, sy, c) => { const old = f.pupilsList || []; f.pupilsList = (window.Pupils ? Pupils.massarOrder(Pupils.current(sy).filter(p => p.cls === f.cls), sy) : []).map(p => { const nm2 = `${p.last || ''} ${p.first || ''}`.trim(), o = old.find(r => r[0] === nm2) || []; return [nm2, o[1] || '', o[2] || '', o[3] || '']; }); c.save('pupilsList'); } },
     build: (s, f, sy) => {
       const T = (f.teachers || []).filter(r => nm(r[0])), P = f.pupilsList || [];
       const cnt2 = P.length, dec = {}; P.forEach(r => { if (nm(r[2])) dec[r[2]] = (dec[r[2]] || 0) + 1; });
@@ -631,7 +664,7 @@
     }
   });
 
-  const ORDER = ['comp', 'restr', 'inv', 'ped_oct', 'mgmt_oct', 'teach_oct', 'ped_mar', 'mgmt_mar', 'teach_mar', 'classes_rep', 'ped_jul', 'mgmt_jul', 'teach_jul', 'project', 'rules', 'cover', 'sec_comp', 'sec_class'];
+  const ORDER = ['comp', 'restr', 'inv', 'ped_oct', 'mgmt_oct', 'teach_oct', 'teach_oct_fr', 'ped_mar', 'mgmt_mar', 'teach_mar', 'teach_mar_fr', 'classes_rep', 'ped_jul', 'mgmt_jul', 'teach_jul', 'teach_jul_fr', 'project', 'rules', 'cover', 'sec_comp', 'sec_class'];
   DOCS.sort((a, b) => ORDER.indexOf(a.k) - ORDER.indexOf(b.k));
   const C = K.center({
     id: 'councils', title: 'المجالس التقنية', icon: '🏛️', route: 'councilDoc', hubRoute: 'councils',

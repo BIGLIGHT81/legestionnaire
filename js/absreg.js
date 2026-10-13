@@ -21,7 +21,8 @@
   const pkey = p => p.code || p.mid || `${p.last}|${p.first}`;
   const nameOf = p => `${p.last || ''} ${p.first || ''}`.trim();
   const classes = sy => Array.from(new Set((window.Pupils ? Pupils.current(sy) : []).map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
-  const pupilsOf = (sy, cls) => (window.Pupils ? Pupils.current(sy) : []).filter(p => p.cls === cls).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'ar'));
+  // 1.9.4: the pupils in the order of the Massar list of the class (not alphabetical)
+  const pupilsOf = (sy, cls) => { const L = (window.Pupils ? Pupils.current(sy) : []).filter(p => p.cls === cls); return Pupils.massarOrder ? Pupils.massarOrder(L, sy) : L; };
   const week = (sy, wk, cls, create) => { const W = Y(sy).weeks; const w = W[wk] || (create ? (W[wk] = {}) : null); if (!w) return null; return w[cls] || (create ? (w[cls] = {}) : null); };
   const rowOf = (sy, wk, cls, k, create) => { const c = week(sy, wk, cls, create); if (!c) return null; const n = 5 * SESS().length; let r = c[k]; if (!r && create) r = c[k] = '.'.repeat(n); if (r && r.length < n) r = c[k] = r.padEnd(n, '.'); return r || null; };
   const codeAt = (r, i) => { const c = r ? r[i] : '.'; return c === 'A' ? 'غ' : c === 'J' ? 'ب' : c === 'L' ? 'ت' : ''; };
@@ -95,6 +96,57 @@
     return SB.pages(s, { title: 'ورقة ضبط الغياب بالشبكة', sub: `القسم: ${esc(cls || '..........')} — من ${esc(MK.showDate(wk))} إلى ${esc(MK.showDate(addDays(wk, 4)))} — الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4l',
       blocks: [{ table: { cls: 'sb-t cmp ar-sheet', head, rows } }, { html: '<div class="sb-note">الرموز: غ = غياب غير مبرر — ب = غياب مبرر — ت = تأخر.</div>' }], sign: SB.sign(s, { right: 'توقيع الأستاذ(ة)', left: 'توقيع الحارس العام / المدير' }) });
   }
+  /* 1.9.4 — «ورقة الغياب» على نموذج مسار (لوحة التتبع اليومي للغياب): ثلاثة أيام في كل ورقة A4، حصص كل يوم، التلاميذ بترتيب لائحة مسار،
+     عدد الذكور والإناث والمجموع، أيام العطل من «لائحة العطل» (خانة مظللة)، الغيابات المسجلة في السجل، وأستاذ(ة) القسم من الإسناد (الموظفون). */
+  const teachersOf = (sy, cls) => {
+    try {
+      const R = window.Teach && Teach.rows ? Teach.rows(sy) : [];
+      const k = MK.hkey(cls), out = [];
+      R.forEach(r => { const t = String(r[2] || '').split(/[،,;؛\s+]+/).map(x => MK.hkey(x)).filter(Boolean); if (t.includes(k) || MK.hkey(r[2] || '').includes(k)) out.push(String(r[0]).trim()); });
+      return Array.from(new Set(out));
+    } catch (_) { return []; }
+  };
+  const holName = (sy, d) => { try { const L = window.Holidays && Holidays.forSy ? Holidays.forSy(sy) : []; const h = L.find(x => x.from && d >= x.from && d <= (x.to || x.from)); return h ? (h.name || h.label || h.t || 'عطلة') : ''; } catch (_) { return ''; } };
+  function massarSheet(s, sy, cls, wk, filled, rowsMin) {
+    const P = pupilsOf(sy, cls), S0 = SESS(), n = S0.length;
+    const g = { m: P.filter(p => p.g !== 'F').length, f: P.filter(p => p.g === 'F').length };
+    const T = teachersOf(sy, cls);
+    const dmy = d => d.split('-').reverse().join('-');
+    const syT = MK.syDash(sy);
+    const pages = [];
+    [[0, 1, 2], [3, 4]].forEach(days => {
+      const dates = days.map(i => addDays(wk, i));
+      const hol = dates.map(d => holName(sy, d));
+      const lab = isSec() ? S0.map((x, i) => String((i % 4) + 1)) : S0.map(x => (x === 'صباحا' ? 'ص' : 'م'));
+      const head = `<tr><th rowspan="2" class="d ms-n">ر.ت</th><th rowspan="2" class="d ms-c">رقم التلميذ</th><th rowspan="2" class="d ms-nm">الاسم والنسب</th>
+        ${days.map((di, k) => `<th colspan="${n + 1}" class="d ms-day">${DAYS[di]} <span class="ms-dt">${esc(dmy(dates[k]))}</span></th>`).join('')}</tr>
+        <tr>${days.map(() => `${lab.map((l, i) => `<th class="ms-s${isSec() && i === 4 ? ' ms-pm' : ''}">${l}</th>`).join('')}<th class="ms-v"><span>المتغيبون</span></th>`).join('')}</tr>`;
+      const list = P.length ? P : Array.from({ length: rowsMin || 30 }, () => null);
+      const cnt = days.map(() => Array.from({ length: n }, () => 0)), abs = days.map(() => 0);
+      const body = list.map((p, i) => {
+        const r = p && filled ? rowOf(sy, wk, cls, pkey(p), false) : null;
+        return `<tr><td>${i + 1}</td><td class="ms-c" dir="ltr">${esc(p ? p.code || '' : '')}</td><td class="r ms-nm">${esc(p ? nameOf(p) : '')}</td>${days.map((di, k) => {
+          if (hol[k]) return `<td colspan="${n + 1}" class="ms-hol"></td>`;
+          let any = false;
+          const cells = Array.from({ length: n }, (_, j) => { const c = codeAt(r, di * n + j); if (c === 'غ' || c === 'ب') { any = true; cnt[k][j]++; } return `<td class="${isSec() && j === 4 ? 'ms-pm' : ''}">${c}</td>`; }).join('');
+          if (any) abs[k]++;
+          return cells + `<td class="ms-v">${any ? '×' : ''}</td>`;
+        }).join('')}</tr>`;
+      }).join('');
+      const foot = `<tr class="ms-f"><td colspan="3" class="b">عدد المتغيبين</td>${days.map((di, k) => hol[k] ? `<td colspan="${n + 1}" class="ms-hol">${esc(hol[k])}</td>` : cnt[k].map(x => `<td>${filled && P.length ? x || '' : ''}</td>`).join('') + `<td class="b">${filled && P.length ? abs[k] || '' : ''}</td>`).join('')}</tr>
+        <tr class="ms-f"><td colspan="3" class="b">توقيع الأستاذ(ة)${T.length ? `<div class="ms-tn">${esc(T.join(' / '))}</div>` : ''}</td>${days.map((di, k) => `<td colspan="${n + 1}" class="${hol[k] ? 'ms-hol' : ''}" style="height:11mm"></td>`).join('')}</tr>`;
+      pages.push(`<div class="ms-page${list.length > 44 ? ' ms-xdense' : list.length > 34 ? ' ms-dense' : ''}">
+        <div class="ms-top">
+          <div class="ms-hd">${Dx.header(s)}</div>
+          <table class="ms-box"><tr><th colspan="3">السنة الدراسية : ${esc(syT)}</th></tr><tr><th>ذكور</th><th>إناث</th><th>المجموع</th></tr><tr><td>${P.length ? g.m : ''}</td><td>${P.length ? g.f : ''}</td><td>${P.length ? P.length : ''}</td></tr></table>
+        </div>
+        <div class="ms-ttl"><div class="ms-cls">القسم : <b dir="ltr">${esc(cls || '..........')}</b>${T.length ? ` &nbsp; الأستاذ(ة) : <b>${esc(T.join(' / '))}</b>` : ''}</div><div class="ms-name">ورقة الغياب</div><div class="ms-rng">من <b dir="ltr">${esc(dmy(dates[0]))}</b> إلى <b dir="ltr">${esc(dmy(dates[dates.length - 1]))}</b></div></div>
+        <table class="ms-t">${head}${body}${foot}</table>
+        <div class="ms-note">الرموز: غ = غياب غير مبرر — ب = غياب مبرر — ت = تأخر — × = تلميذ(ة) متغيب(ة) خلال اليوم.${isSec() ? ' الحصص: 1-4 صباحا، 1-4 مساء.' : ' ص = الفترة الصباحية، م = الفترة المسائية.'}</div>
+      </div>`);
+    });
+    return pages;
+  }
   function monthDoc(s, sy, cls, ym) {
     const M = monthStats(sy, cls, ym), rows = M.rows.map((o, i) => tr([i + 1, { t: nameOf(o.p), c: 'r b' }, o.a || '', o.j || '', o.a + o.j || '', o.days || '', o.l || '']));
     const tot = M.rows.reduce((x, o) => ({ a: x.a + o.a, j: x.j + o.j, l: x.l + o.l, d: x.d + o.days }), { a: 0, j: 0, l: 0, d: 0 });
@@ -124,9 +176,9 @@
       form: (box, s0, refresh) => {
         const draw = () => {
           const P = pupilsOf(s0.sy, s0.cls);
-          box.innerHTML = `<div class="fld"><label>الوثيقة</label><select class="inp" id="aK"><option value="sheet" ${s0.kind === 'sheet' ? 'selected' : ''}>ورقة ضبط الغياب بالشبكة (أسبوع)</option><option value="month" ${s0.kind === 'month' ? 'selected' : ''}>إحصاء الغياب الشهري للقسم</option><option value="card" ${s0.kind === 'card' ? 'selected' : ''}>بطاقة الغياب (لكل تلميذ)</option></select></div>
+          box.innerHTML = `<div class="fld"><label>الوثيقة</label><select class="inp" id="aK"><option value="massar" ${s0.kind === 'massar' ? 'selected' : ''}>ورقة الغياب — لوحة التتبع اليومي (نموذج مسار)</option><option value="sheet" ${s0.kind === 'sheet' ? 'selected' : ''}>ورقة ضبط الغياب بالشبكة (أسبوع)</option><option value="month" ${s0.kind === 'month' ? 'selected' : ''}>إحصاء الغياب الشهري للقسم</option><option value="card" ${s0.kind === 'card' ? 'selected' : ''}>بطاقة الغياب (لكل تلميذ)</option></select></div>
             <div class="fld"><label>القسم</label><select class="inp" id="aC">${cl.map(c => `<option ${c === s0.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
-            ${s0.kind === 'sheet' ? `<div class="fld"><label>الأسبوع (يبدأ يوم الإثنين)</label><input class="inp" type="date" id="aW" value="${s0.wk}"></div><div class="fld"><label>المحتوى</label><select class="inp" id="aF"><option value="1" ${s0.filled === '1' ? 'selected' : ''}>بالغيابات المسجلة</option><option value="0" ${s0.filled === '0' ? 'selected' : ''}>فارغة (للتعبئة اليدوية)</option></select></div>` : ''}
+            ${s0.kind === 'sheet' || s0.kind === 'massar' ? `<div class="fld"><label>الأسبوع (يبدأ يوم الإثنين)</label><input class="inp" type="date" id="aW" value="${s0.wk}"></div><div class="fld"><label>المحتوى</label><select class="inp" id="aF"><option value="1" ${s0.filled === '1' ? 'selected' : ''}>بالغيابات المسجلة</option><option value="0" ${s0.filled === '0' ? 'selected' : ''}>فارغة (للتعبئة اليدوية)</option></select></div>` : ''}
             ${s0.kind === 'month' ? `<div class="fld"><label>الشهر</label><select class="inp" id="aM">${monthsOf(s0.sy).map(m => `<option value="${m}" ${m === s0.ym ? 'selected' : ''}>${ymName(m)}</option>`).join('')}</select></div>` : ''}
             ${s0.kind === 'card' ? `<div class="fld"><label>التلميذ(ة)</label><select class="inp" id="aP"><option value="">كل تلاميذ القسم</option>${P.map(p => `<option value="${esc(pkey(p))}" ${pkey(p) === s0.pupil ? 'selected' : ''}>${esc(nameOf(p))}</option>`).join('')}</select></div>` : ''}`;
           const b = (id, k, rd) => { const el = $(id, box); if (el) el.onchange = e => { s0[k] = e.target.value; if (k === 'wk') s0.ym = s0.wk.slice(0, 7); if (rd) draw(); refresh(); }; };
@@ -136,6 +188,7 @@
       },
       build: s0 => {
         const sc = S();
+        if (s0.kind === 'massar') return { page: 'a4', pages: massarSheet(sc, s0.sy, s0.cls, monday(s0.wk), s0.filled === '1') };
         if (s0.kind === 'month') return { page: 'a4', pages: monthDoc(sc, s0.sy, s0.cls, s0.ym) };
         if (s0.kind === 'card') return { page: 'a4', pages: cardDoc(sc, s0.sy, s0.cls, s0.pupil) };
         return { page: 'a4l', pages: sheetDoc(sc, s0.sy, s0.cls, monday(s0.wk), s0.filled === '1') };
@@ -143,7 +196,15 @@
       fname: s0 => 'غياب_' + (s0.cls || '')
     });
   };
-  Dx.modCss = (Dx.modCss || '') + `.ar-sheet td,.ar-sheet th{padding:.5mm .3mm;font-size:8pt;text-align:center}.ar-sheet tr{height:6.4mm}`;
+  Dx.modCss = (Dx.modCss || '') + `.ar-sheet td,.ar-sheet th{padding:.5mm .3mm;font-size:8pt;text-align:center}.ar-sheet tr{height:6.4mm}
+  .ms-page{display:flex;flex-direction:column;height:100%;font-size:9pt}
+  .ms-top{display:flex;align-items:flex-start;gap:3mm}.ms-hd{flex:1;zoom:.72}.ms-box{border-collapse:collapse;font-size:8.5pt;margin-top:1mm}.ms-box th,.ms-box td{border:1px solid #000;padding:.4mm 2.5mm;text-align:center}
+  .ms-ttl{display:flex;align-items:center;justify-content:space-between;margin:1.5mm 0}.ms-name{border:2px solid #000;border-radius:2mm;padding:.6mm 10mm;font-weight:700;font-size:13pt}.ms-cls,.ms-rng{font-size:9.5pt}
+  .ms-t{width:100%;border-collapse:collapse;table-layout:fixed}.ms-t th,.ms-t td{border:1px solid #000;padding:0 .3mm;text-align:center;font-size:7.6pt;height:5.2mm;overflow:hidden;white-space:nowrap}
+  .ms-t th{background:#eef2f6}.ms-t .ms-n{width:6mm}.ms-t .ms-c{width:19mm;font-size:7pt}.ms-t .ms-nm{width:38mm;text-align:right}.ms-t .ms-day{font-size:8.5pt}.ms-dt{font-weight:400;font-size:7.2pt}
+  .ms-t .ms-v{width:5mm;background:#f6f6f6}.ms-t th.ms-v span{display:inline-block;transform:rotate(-90deg);font-size:6.5pt;white-space:nowrap}.ms-t th.ms-v{height:14mm}
+  .ms-t .ms-pm{border-right:2px solid #000}.ms-t .ms-hol{background:repeating-linear-gradient(45deg,#e9e9e9 0 2mm,#fff 2mm 4mm);font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ms-f td{height:7mm}.ms-tn{font-weight:400;font-size:7pt;white-space:normal}.ms-dense .ms-t td{height:4.1mm;font-size:7pt}.ms-xdense .ms-t td{height:3.5mm;font-size:6.6pt}.ms-note{font-size:7.5pt;margin-top:1mm;color:#333}`;
   /* 1.9.3 — pupils absent / late on a given date (read by the daily report): { abs, unj, just, late, classes } */
   function dayCount(sy, dateIso, unit) {
     const o = { abs: 0, unj: 0, just: 0, late: 0, classes: 0, pupils: 0 };
