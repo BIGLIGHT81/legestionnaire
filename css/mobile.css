@@ -1,0 +1,71 @@
+/* Le Gestionnaire — نسخة الهاتف: تكييف الواجهة مع الشاشات الصغيرة (كل الخانات متاحة) */
+.m-bar{display:none}
+@media (max-width:900px){
+  html,body{height:100%;overflow:hidden}
+  body{font-size:14px;-webkit-text-size-adjust:100%}
+  .app{display:block;height:100dvh;height:100vh}
+  @supports(height:100dvh){.app{height:100dvh}}
+  /* top bar with the menu button */
+  .m-bar{display:flex;position:fixed;top:0;right:0;left:0;height:52px;z-index:60;align-items:center;gap:10px;padding:0 10px;padding-top:env(safe-area-inset-top);
+    background:linear-gradient(180deg,#0d5345,#0a3f34);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+  .m-bar button{background:rgba(255,255,255,.14);border:0;color:#fff;width:40px;height:40px;border-radius:10px;font-size:22px;line-height:1;display:grid;place-items:center}
+  .m-bar .m-t{flex:1;min-width:0;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-bar img{width:30px;height:30px;border-radius:8px}
+  /* side menu = drawer */
+  .side{position:fixed;top:0;bottom:0;right:0;width:min(290px,86vw);z-index:220;transform:translateX(105%);transition:transform .22s ease;overflow-y:auto;box-shadow:-6px 0 24px rgba(0,0,0,.3);padding-top:env(safe-area-inset-top)}
+  body.nav-open .side{transform:none}
+  .m-ov{display:none}
+  body.nav-open .m-ov{display:block;position:fixed;inset:0;background:rgba(10,30,24,.45);z-index:210}
+  .main{height:100%;overflow:auto;-webkit-overflow-scrolling:touch;padding-top:52px;box-sizing:border-box}
+  #view{padding:12px 10px 60px}
+  #subnav{top:0}
+  #subnav .sn-in{padding:6px 8px;gap:2px}
+  #subnav .sn-t{display:none}
+  #subnav .sn-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  #subnav .sn-tabs::-webkit-scrollbar{display:none}
+  #subnav a{font-size:12.5px;padding:7px 10px}
+  /* headings and toolbars */
+  .page-h{gap:8px;margin-bottom:12px}
+  .page-h h1{font-size:18px;width:100%}
+  .page-h .sp{display:none}
+  .page-h .btn,.btn-row .btn{font-size:13px}
+  .btn{min-height:38px;max-width:100%}
+  .seg{max-width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.seg::-webkit-scrollbar{display:none}.seg button{flex:none}
+  .page-h>*{max-width:100%}
+  .setup-note,.agent-note{flex-direction:column;align-items:stretch!important}.setup-note>*,.agent-note>*{max-width:100%}.agent-note .tx{width:100%}
+  .agent-note .btn,.setup-note .btn{align-self:flex-start}
+  /* one column everywhere */
+  .fgrid,.quick,.dash2,.doc-cards,.editor,.editor.tk-wide,.settings-grid,.att-two,.roz-two,.rz-grid,.k2-two,.pl-r2,.abs-reasons,.prof{grid-template-columns:1fr!important}
+  .stats{grid-template-columns:1fr 1fr!important;gap:8px}
+  .mods,.hub-grid,.k2-tiles,.att-units,.emp-cards,.bd-sum,.dh-mini{grid-template-columns:1fr!important}
+  .emp-cards{grid-template-columns:1fr 1fr!important}
+  .k2-kpis{grid-template-columns:1fr 1fr!important}
+  .abs-reasons{grid-template-rows:none;grid-auto-flow:row}
+  .fld.full,.fld{grid-column:auto}
+  /* inputs: 16px avoids the zoom of the phone when typing */
+  input,select,textarea,.inp{font-size:16px!important}
+  /* wide tables scroll sideways instead of breaking the page */
+  .card{max-width:100%}
+  .card>.tbl,.card-b>.tbl,.card>table,.card-b>table,.tk-scroll,.pp-grid{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tbl{white-space:nowrap}
+  .tbl td,.tbl th{padding:7px 8px}
+  /* windows: full screen */
+  .modal,.modal.lg,.modal.xl,.modal.sm{width:100vw!important;max-width:100vw!important;max-height:100dvh;border-radius:0;height:auto}
+  .modal-bg{place-items:end stretch}
+  .modal-b{padding:12px}
+  .modal-f{flex-wrap:wrap}
+  .modal-f .btn{flex:1 1 auto}
+  /* document page: the form above, the preview below */
+  .prev-wrap{padding:8px}
+  .mk-prev,.prev-wrap{min-height:0}
+  /* Word-like editor */
+  .we-top{flex-wrap:wrap;gap:6px}.we-hint{display:none}
+  .we-bar{max-height:34vh;overflow-y:auto}
+  /* search / print-all */
+  .pa-grid{grid-template-columns:1fr!important}
+  #toasts{left:10px;right:10px;bottom:12px}
+  .toast{max-width:none}
+}
+@media (max-width:420px){
+  .stats,.emp-cards,.k2-kpis{grid-template-columns:1fr!important}
+}
