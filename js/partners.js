@@ -737,7 +737,7 @@
       ${(o.body || []).map(p => `<div class="iv-p">${p}</div>`).join('')}
       ${(o.agenda || []).length ? `<ol class="iv-ag">${o.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` : ''}
       ${o.outro ? `<div class="iv-p">${esc(o.outro)}</div>` : ''}<div class="iv-end"><div class="iv-p">وتقبلوا فائق التقدير والاحترام.</div>
-      <div class="iv-sig">${esc(o.sigTitle || '')}${o.sigName ? `<div>${esc(o.sigName)}</div>` : ''}</div></div>
+      <div class="iv-sig">${/مدير|رئيس(?:\(ة\))? المؤسسة/.test(o.sigTitle || '') ? `<span data-stm>${esc(o.sigTitle)}</span>` : esc(o.sigTitle || '')}${o.sigName ? `<div>${esc(o.sigName)}</div>` : ''}</div></div>
       ${o.tear ? `<div class="iv-tear"><span>✂</span>${o.tearTxt || ''}</div>` : ''}${o.copy && o.copy.length ? `<div class="iv-cp"><u>نسخة إلى</u>: ${o.copy.map(esc).join('، ')}</div>` : ''}</div>`;
     const list = (o.to && o.to.length ? o.to : ['']);
     const pages = [];
@@ -810,7 +810,7 @@
       <div class="ivo-kv"><b>المكان:</b> ${esc(f.where || DOTS + DOTS)}</div>
       ${f.indiv ? `<div class="ivo-kv" style="margin-top:2mm"><b>موعد اللقاء الفردي مع الأستاذ(ة):</b></div><div class="ivo-kv">اليوم: ${esc(f.indivDay || DOTS + '....')} &nbsp; الساعة: ${esc(f.indivTime || DOTS)}</div>` : ''}
       ${f.outro ? `<div class="ivo-p" style="margin-top:2mm">${esc(f.outro)}</div>` : ''}
-      <div class="ivo-sig"><div>الإمضاء: ${f.sigName ? esc(f.sigName) : DOTS + DOTS}</div><div>${f.sigWho === 'pres' ? 'رئيس الجمعية' : 'مدير(ة) المؤسسة (خاتم المؤسسة)'}</div></div></div>`;
+      <div class="ivo-sig"><div>الإمضاء: ${f.sigName ? esc(f.sigName) : DOTS + DOTS}</div>${f.sigWho === 'pres' ? '<div>رئيس الجمعية</div>' : '<div data-stm>مدير(ة) المؤسسة (خاتم المؤسسة)</div>'}</div></div>`;
     const list = to.length ? to : [''];
     const pages = [];
     for (let i = 0; i < list.length; i += 2) pages.push(`<!--cls:rp ivo-pg--><div class="ivo-row">${one(list[i])}${list[i + 1] != null ? one(list[i + 1]) : '<div class="ivo ivo-empty"></div>'}</div>`);

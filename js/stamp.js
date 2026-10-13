@@ -36,14 +36,14 @@
         const next = plain(all.slice(off + m.length - 1, off + m.length + 400)).trim(), prev = plain(all.slice(Math.max(0, off - 400), off));
         if (/^(?:إلى|الى|إلي|ألى|à|A)\b|^(?:إلى|الى)/.test(next) || /الموقع/.test(prev.slice(-120)) || /(?:^|\s)(?:من|من لدن|من طرف|De|de)\s*:?\s*$/.test(prev)) return m;
         // a caption only at the end of its page / copy (a role in a table in the middle of the page is not a signature)
-        const rest = all.slice(off + m.length - 1), e = rest.search(/class="(?:page-a4l?|sheet|copy|vs-let)[" ]/);
+        const rest = all.slice(off + m.length - 1), e = rest.search(/class="(?:page-a4l?|sheet|copy|cs-copy|vs-let|iv|ivo|iv-cut|inc-rc)[" ]|<!--cls:/); // 1.9.4: each copy of a sheet holding several copies ends here too
         if (plain(e < 0 ? rest : rest.slice(0, e)).replace(/[.…_\-—–ـ:]/g, '').trim().length > 260) return m;
         const a = t.match(/^\s*/)[0], b = t.match(/\s*$/)[0]; return '>' + a + mark(t.trim()) + b + '<';
       }
       return m;
     });
     // an element marked in the template (data-stm) = the place of the director's signature
-    out = out.replace(/(<[a-z0-9]+\b[^>]*\bdata-stm\b[^>]*>)([^<>]*)/g, (m, tag, t) => { if (/class="stm-h"/.test(m)) return m; return tag + mark(t); });
+    out = out.replace(/(<[a-z0-9]+\b[^>]*\bdata-stm\b[^>]*>)([^<>]*)/g, (m, tag, t, off, all) => { if (/class="stm-h"/.test(m) || all.startsWith('<span class="stm-h"', off + m.length)) return m; return tag + mark(t); });
     if (!n) return html;
     // the director's name printed just under the label: the stamp goes under the name, so it never covers it
     const nm = String((inst() || {}).director || '').trim();
@@ -121,16 +121,20 @@
       for (const el of st) {
         const L = el.parentElement.getBoundingClientRect();
         if (!L.width && !L.height) { pos.push(''); continue; }
-        const pg = el.closest('.copy,.cs-copy,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
+        const pg = el.closest('.copy,.cs-copy,.iv,.ivo,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
         const P0 = pg.getBoundingClientRect();
         // content that runs past its page box (printed on the next sheet): the page goes on below
-        const P = { left: P0.left, right: P0.right, top: P0.top, bottom: L.bottom > P0.bottom - 4 * mm ? L.bottom + H0 * 2 : P0.bottom };
+        const isCopy = pg.matches('.copy,.cs-copy,.iv,.ivo'); // a copy among several on the sheet hides what goes out of it
+        const P = { left: P0.left, right: P0.right, top: P0.top, bottom: !isCopy && L.bottom > P0.bottom - 4 * mm ? L.bottom + H0 * 2 : P0.bottom };
         // 1.9.4: a copy of a school certificate (.cs-copy hides what goes out of it) is a page of its own: the stamp is never cut
         const cx = (L.left + L.right) / 2, cy = (L.top + L.bottom) / 2, mid = (P.left + P.right) / 2;
         const toMid = cx > mid ? -1 : 1; // the free side is usually toward the middle of the page
         const cands = (W, H) => { const side = toMid < 0 ? L.left - gap - W : L.right + gap; return [
           [cx - W / 2, L.bottom + gap], [cx - W / 2 + toMid * W * .35, L.bottom + gap], [cx - W / 2 + toMid * W * .7, L.bottom + gap],
           [cx - W / 2, L.bottom + 5 * mm], [cx - W / 2 + toMid * W * .5, L.bottom + 5 * mm],
+          // 1.9.4: under the lines written just below the label (the director's name, a date…), still close to the label
+          ...(() => { let yb = 0; for (const o of obs) if (o.t >= L.bottom - 1 && o.t <= L.bottom + 12 * mm && o.r > cx - W / 2 && o.l < cx + W / 2) yb = Math.max(yb, o.b); return yb ? [[cx - W / 2, yb + gap], [cx - W / 2 + toMid * W * .35, yb + gap]] : []; })(),
+          [cx - W / 2, L.bottom + 9 * mm], [cx - W / 2, L.bottom + 12 * mm],
           [side, cy - H / 2], [side, L.top - H * .25], [side, L.bottom - H * .75], [side, L.top], [side + toMid * W * .5, cy - H / 2], [side, L.bottom - H]
         ]; };
         // last choices: in the free space just above the label
