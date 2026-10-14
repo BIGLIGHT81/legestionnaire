@@ -175,7 +175,7 @@
   const catOfFileName = n => { const t = String(n || '').toLowerCase().replace(/[\s_\-.]/g, ''); return /noninscri|nonintegr|غيرالملتحق|غيرملتحق/.test(t) ? 'notjoined' : /abandon|decroch|المنقطع/.test(t) ? 'drop' : /exclu|المفصول/.test(t) ? 'expelled' : /menac|المهدد/.test(t) ? 'threat' : /redoubl|المكرر/.test(t) ? 'repeat' : /handicap|اعاق|إعاق/.test(t) ? 'disab' : ''; };
   const catOfSheetName = n => { n = nh(n); return /طورالتحويل/.test(n) ? 'transit' : /المغادر/.test(n) ? 'left' : /الوافد/.test(n) ? 'joined' : ''; };
   async function importMassar(opts) {
-    opts = opts && (opts.cats !== undefined || opts.unit) ? opts : {};   // (a click event is not a set of options)
+    opts = opts && (opts.cats !== undefined || opts.unit || opts.board) ? opts : {};   // (a click event is not a set of options)
     if (!window.api.openTables) return toast('الاستيراد المتعدد غير متوفر', true);
     const res = await window.api.openTables();
     if (!res || !res.files) return;
@@ -199,8 +199,8 @@
       if (!found.length && !boards.length) return toast(n0 ? 'الملفات المختارة لا تحتوي على لوائح هذه الفئة' : 'لم يتم العثور على لوائح مسار', true);
     }
     if (!found.length && boards.length) {
-      const b = boards[0]; const y = Y(b.sy || curSy(), true); y.board = b; MK.setSy(b.sy || curSy()); persist();
-      go('pupils', { tab: 'dash', dash: 'school' }); return toast('تم استيراد لوحة إحصاء التمدرس من مسار (للمقارنة مع أرقام البرنامج)');
+      const sy0 = boards[0].sy || curSy(), y = Y(sy0, true); boards.forEach(b => window.Pupils2.addBoard(y, b)); MK.setSy(sy0); persist();
+      go('pupils', { tab: opts.board ? 'moves' : 'dash', dash: 'school' }); return toast(`تم استيراد لوحة إحصاء التمدرس من مسار${boards.length > 1 ? ` (${boards.length} لوحات مجمعة)` : ''}: ${y.board.rows.reduce((a, r) => a + (+r.totT || 0), 0)} تلميذ(ة) متمدرس(ة)`);
     }
     if (!found.length) return toast('لم يتم العثور على لوائح مسار (لائحة التلاميذ: الرمز، النسب، الإسم، النوع، تاريخ الإزدياد...)', true);
     const instOf = (p, r) => (p.kind === 'stat' ? (p.cat === 'joined' ? r.recv : p.cat === 'left' ? r.orig : '') || r.rinst : '') || p.inst;
@@ -231,7 +231,7 @@
       if (!SEC()) insts.forEach((n, i) => { const v = $(`[data-inst="${i}"]`, m).value.trim(); if (v) { names[n] = v; PD().alias[n] = v; } });
       apply(sy, mode, lists, stats, names);
       normSec();
-      boards.forEach(b => { Y(sy, true).board = b; });
+      boards.forEach(b => { window.Pupils2.addBoard(Y(sy, true), b); });
       MK.setSy(sy);
       persist(); try { toCerts(sy, true); } catch (e) {}
       const only = !lists.length && stats.length ? Array.from(new Set(stats.map(p => p.cat))) : [];
@@ -1040,7 +1040,7 @@
     const sy0 = curSy();
     MK.docPage(v, {
       title: 'وثائق بطاقة التلاميذ', icon: '🎒', modes: false, flow: true,
-      state: { kind: arg.kind || 'stats', unit: arg.unit || '', cls: arg.cls || '', lvl: arg.lvl || '', cat: arg.cat || (arg.kind === 'xfer' ? 'joined' : ''), ids: arg.ids || null, sy: sy0, stage: SECL() ? '' : (arg.stage != null ? arg.stage : stage) },
+      state: { kind: arg.kind || 'stats', unit: arg.unit || '', cls: arg.cls || '', lvl: arg.lvl || '', cat: arg.cat || (arg.kind === 'xfer' ? 'joined' : ''), ids: arg.ids || null, sy: sy0, stage: SECL() ? '' : (arg.stage != null ? arg.stage : stage), src: arg.src || '' },
       back: () => go('pupils'),
       beforeOutput: async st => { if (st.kind === 'cards') { const s0 = S(); if (s0.headerMode === 'image' && s0.letterhead) await lhReady(s0.letterhead); } },
       form: (box, st, refresh) => {

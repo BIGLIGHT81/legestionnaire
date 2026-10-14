@@ -71,7 +71,36 @@
     });
     return { head, rows };
   }
+  // 1.9.4: the boards imported from Massar (one per institution of the file); their sum is the board of the school
+  const K12 = ['newT', 'newF', 'repT', 'repF', 'totT', 'totF', 'classes', 'njT', 'njF', 'trT', 'trF'];
+  function mergeBoards(L) {
+    const by = {}; L.forEach(b => b.rows.forEach(r => { const o = by[r.lvl] || (by[r.lvl] = { lvl: r.lvl, label: r.label }); K12.forEach(k => { o[k] = (o[k] || 0) + (+r[k] || 0); }); }));
+    const rows = LV.sort(Object.keys(by)).map(l => { const o = by[l]; o.avg = o.classes ? Math.round(o.totT / o.classes * 10) / 10 : 0; return o; });
+    return { file: L.map(b => b.file).filter(Boolean).join('، '), at: (L[L.length - 1] || {}).at, sy: (L[0] || {}).sy, inst: L.map(b => b.inst).filter(Boolean).join(' + '), rows };
+  }
+  function addBoard(y, b) { y.boards = (Array.isArray(y.boards) ? y.boards : y.board ? [y.board] : []).filter(x => (x.inst || x.file) !== (b.inst || b.file)); y.boards.push(b); y.board = mergeBoards(y.boards); }
+  const boardData = bd => { const tot = { lvl: '', label: 'المجموع' }; K12.forEach(k => { tot[k] = sum(bd.rows.map(r => +r[k] || 0)); }); tot.avg = tot.classes ? Math.round(tot.totT / tot.classes * 10) / 10 : 0; return { rows: bd.rows.map(r => Object.assign({ label: LV.ar(r.lvl) || r.label }, r)), tot }; };
+  function boardCard(y, sy) {
+    const bd = y.board && y.board.rows && y.board.rows.length ? y.board : null;
+    if (!bd) return `<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>لوحة إحصاء التمدرس (مسار)</h3><span style="flex:1"></span><button class="btn sm pri" id="bdImp">${ic('up')} استيراد لوحة مسار (StatistiquesScolarite)</button></div>
+      <p class="muted" style="font-size:12.5px;line-height:1.8;padding:0 16px 10px;margin:0">في مسار: تمدرس التلاميذ ← إحصاء التمدرس ← طباعة (ملف StatistiquesScolarite.xlsx). يمكن استيراد ملف لكل مؤسسة/وحدة: تُجمع الأرقام تلقائيا (الجدد، المكررون، المجموع والإناث منهم، عدد الأقسام، معدل التلاميذ بالقسم، غير الملتحقين، في طور التحويل).</p></div>`;
+    const d = boardData(bd), t = schoolTable(d), T = d.tot, BL = Array.isArray(y.boards) ? y.boards : [bd];
+    return `<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>لوحة إحصاء التمدرس (مسار)</h3><span class="muted" style="font-size:12px">${esc(bd.inst || '')} — ${esc(fmtDate((bd.at || '').slice(0, 10)))}</span><span style="flex:1"></span>
+        <button class="btn sm" id="bdImp">${ic('up')} استيراد / إضافة لوحة</button><button class="btn sm" id="bdPrn">${ic('print')} طباعة</button><button class="btn sm danger" id="bdDel">${ic('trash')} حذف</button></div>
+      <div class="k2-kpis">${kpi(T.totT, 'المتمدرسون', 'green')}${kpi(T.totF, 'الإناث منهم', 'pink')}${kpi(T.newT, 'الجدد')}${kpi(T.repT, 'المكررون')}${kpi(fx(T.classes), 'عدد الأقسام')}${kpi(T.avg || '—', 'معدل التلاميذ بالقسم')}${kpi(T.njT, 'غير ملتحقين', T.njT ? 'red' : '')}${kpi(T.trT, 'في طور التحويل')}</div>
+      <div style="overflow:auto;padding:0 16px 12px"><table class="tbl compact att-mx"><thead>${t.head}</thead><tbody>${t.rows.join('')}</tbody></table></div>
+      ${BL.length > 1 ? `<p class="muted" style="font-size:12px;padding:0 16px 10px;margin:0">مجموع ${BL.length} لوحات: ${BL.map(b => esc(b.inst || b.file || '')).join('، ')}</p>` : ''}</div>`;
+  }
+  function bindBoard(b, y, sy, back) {
+    if ($('#bdImp', b)) $('#bdImp', b).onclick = () => X().importMassar({ board: true });
+    if ($('#bdPrn', b)) $('#bdPrn', b).onclick = () => go('pupilDoc', { kind: 'school', src: 'massar' });
+    if ($('#bdDel', b)) $('#bdDel', b).onclick = async () => { if (await confirmBox('حذف لوحة (لوحات) مسار المستوردة لهذا الموسم؟', 'حذف')) { delete y.board; delete y.boards; persist(); back(); } };
+  }
   function docSchool(s, sy, o) {
+    o = o || {};
+    { const y0 = X().Y(sy); if ((o.src === 'massar' || !X().current(sy).length) && y0.board && y0.board.rows && y0.board.rows.length) { const d = boardData(y0.board), t = schoolTable(d);
+      const chart = K.bars(d.rows.map(r => LV.sh(r.lvl)), [{ name: 'ذكور', color: COL.m, vals: d.rows.map(r => r.totT - r.totF) }, { name: 'إناث', color: COL.f, vals: d.rows.map(r => r.totF) }], { w: 620, h: 200, title: 'المتمدرسون حسب المستوى والجنس' });
+      return { title: 'لوحة إحصاء التمدرس', sub: `الموسم الدراسي ${esc(sy)}${y0.board.inst ? ' — ' + esc(y0.board.inst) : ''}`, blocks: [SB.tbl(t.head, t.rows, 'cmp'), `<div class="sb-box" style="width:72%;margin:2mm auto 0">${chart}</div>`, '<div class="sb-note">المصدر: لوحة إحصاء التمدرس المستوردة من منظومة مسار (تمدرس التلاميذ ← إحصاء التمدرس).</div>'] }; } }
     o = o || {};
     const x = X(), d = schoolData(sy, o.unit || ''), t = schoolTable(d), y = x.Y(sy);
     const chart = d.rows.length ? K.bars(d.rows.map(r => LV.sh(r.lvl)), [{ name: 'ذكور', color: COL.m, vals: d.rows.map(r => r.totT - r.totF) }, { name: 'إناث', color: COL.f, vals: d.rows.map(r => r.totF) }], { w: 620, h: 200, title: 'المتمدرسون حسب المستوى والجنس' }) : '';
@@ -163,7 +192,7 @@
       drop: 'تلاميذ منقطعون عن الدراسة. لا يُحتسبون ضمن المتمدرسين.', notjoined: 'تلاميذ مسجلون لم يلتحقوا بالمؤسسة. لا يُحتسبون ضمن المتمدرسين.', expelled: 'تلاميذ مفصولون. لا يُحتسبون ضمن المتمدرسين.',
       threat: 'تلاميذ مهددون بالفصل (لائحة مسار «لائحة المهددين بالفصل»). يبقون ضمن المتمدرسين.', disab: 'تلاميذ في وضعية إعاقة (لائحة مسار أو إدخال يدوي مع نوع الإعاقة). يبقون ضمن المتمدرسين.', merged: 'تلاميذ مدمجون.',
       repeat: 'التلاميذ المكررون (تحتسب في «الجدد/المكررون»).', success: 'التلاميذ الناجحون.' }[cat] || '';
-    b.innerHTML = `<div class="card"><div class="cat-chips">${ORDER.map(c => `<button class="cat-chip ${c === cat ? 'on' : ''} ${x.OUT.includes(c) ? 'out' : ''}" data-c="${c}"><span class="n">${n(c)}</span>${esc(x.CAT[c].l)}</button>`).join('')}</div>
+    b.innerHTML = boardCard(y, sy) + `<div class="card"><div class="cat-chips">${ORDER.map(c => `<button class="cat-chip ${c === cat ? 'on' : ''} ${x.OUT.includes(c) ? 'out' : ''}" data-c="${c}"><span class="n">${n(c)}</span>${esc(x.CAT[c].l)}</button>`).join('')}</div>
       <div class="toolbar"><div class="search">${ic('search')}<input class="inp" id="cq" placeholder="بحث بالاسم أو رمز مسار..." value="${esc(f.mq || '')}"></div>
         ${SEC() ? '' : `<select class="inp" id="cu" style="width:auto"><option value="">كل الوحدات</option>${units.map(u => `<option ${f.munit === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>`}
         <span class="muted" id="cn"></span><span style="flex:1"></span>
@@ -190,6 +219,7 @@
         $('[data-a=d]', tr).onclick = async () => { if (await confirmBox(`حذف حالة <b>${esc(x.fullN(m))}</b> (${esc(C.sh)})؟`, 'حذف')) { y.moves = y.moves.filter(z => z !== m); persist(); go('pupils', { tab: 'moves' }); } };
       });
     };
+    bindBoard(b, y, sy, () => go('pupils', { tab: 'moves' }));
     $$('.cat-chip', b).forEach(c => c.onclick = () => { f.mcat = c.dataset.c; go('pupils', { tab: 'moves' }); });
     $('#cq').oninput = e => { f.mq = e.target.value; draw(); };
     if ($('#cu')) $('#cu').onchange = e => { f.munit = e.target.value; draw(); };
@@ -224,6 +254,7 @@
   }
   function viewSchool(box, sy, unit) {
     const x = X(), y = x.Y(sy), d = schoolData(sy, unit), t = schoolTable(d);
+    if (!d.rows.length && y.board && y.board.rows && y.board.rows.length) { box.innerHTML = boardCard(y, sy); bindBoard(box, y, sy, () => go('pupils', { tab: 'dash' })); return; }
     const T = d.tot, pct = T.totT ? Math.round(T.totF * 1000 / T.totT) / 10 : 0;
     const bd = y.board && y.board.rows && y.board.rows.length ? y.board : null;
     box.innerHTML = `<div class="card"><div class="k2-kpis">${kpi(T.totT, 'التلاميذ المتمدرسون', 'green')}${kpi(T.totT - T.totF, 'الذكور', 'blue')}${kpi(T.totF, 'الإناث', 'pink')}${kpi(pct + '%', 'نسبة الإناث')}${kpi(T.newT, 'الجدد')}${kpi(T.repT, 'المكررون')}
@@ -282,6 +313,6 @@
     $('#vcPrn').onclick = () => go('pupilDoc', { kind: cat === 'threat' ? 'threat' : 'disab', unit });
   }
 
-  window.Pupils2 = { readBoard, tabCats, tabDash, exportTransfers, exportCat, schoolData,
+  window.Pupils2 = { readBoard, addBoard, mergeBoards, tabCats, tabDash, exportTransfers, exportCat, schoolData,
     docs: { school: docSchool, threat: (s, sy, o) => docCatDash(s, sy, o, 'threat'), disab: (s, sy, o) => docCatDash(s, sy, o, 'disab'), xfer: docXfer } };
 })();

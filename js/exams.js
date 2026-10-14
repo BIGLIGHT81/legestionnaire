@@ -35,7 +35,7 @@
     B2: [['اللغة العربية', 2], ['اللغة الفرنسية', 2], ['اللغة الإنجليزية', 2], ['الفلسفة', 2], ['التربية الإسلامية', 1], ['الرياضيات', 7], ['علوم الحياة والأرض', 5], ['الفيزياء والكيمياء', 7]],
     C3: [['اللغة العربية', 3], ['اللغة الفرنسية', 3], ['الرياضيات', 3], ['التربية الإسلامية', 2], ['الاجتماعيات', 2], ['علوم الحياة والأرض', 2], ['الفيزياء والكيمياء', 2], ['اللغة الإنجليزية', 2]]
   };
-  const ROLES = ['رئيس مركز الامتحان', 'مراقب(ة) الإجراء', 'ملاحظ(ة)', 'الكتابة', 'مكلف بجناح', 'مداوم(ة)', 'التصحيح', 'طاقم النظافة', 'أخرى'];
+  const ROLES = ['رئيس مركز الامتحان', 'مراقب(ة) الإجراء', 'ملاحظ(ة)', 'الكتابة', 'مكلف بجناح', 'مداوم(ة)', 'التصحيح', 'رئيس مركز التصحيح', 'كتابة مركز التصحيح', 'منسق(ة) المسك', 'طاقم النظافة', 'أخرى'];
   // explanations that follow the cycle of the settings
   const WEIGHTS = ' (غيّر النسب حسب المذكرة المعمول بها: اترك أحد الأجزاء فارغا ليُهمل).';
   const noteCalc = () => { const k = kindNow(); return k === 'lyc' ? 'الأولى باكالوريا: «الامتحان الموحد المحلي» أو «الامتحان الجهوي الموحد». الثانية باكالوريا: «الامتحان الوطني الموحد» (المعدل العام = 25% مراقبة مستمرة + 25% امتحان جهوي + 50% امتحان وطني)' + WEIGHTS
@@ -467,6 +467,37 @@
         return tr([i + 1, { t: r[0], c: 'r b' }, r[1], base.filter(am).length, res.filter(am).length, base.filter(g => !am(g)).length, res.filter(g => !am(g)).length, { t: mine.length, c: 'b' }]); });
       return { title: 'إحصائيات لعدد حصص المراقبة', sub: sub(sy), page: 'a4', sign: signHead(s), blocks: [tbl(`<tr><th rowspan="2" class="d">ر.ت</th><th rowspan="2" class="d">الأستاذ(ة)</th><th rowspan="2" class="d">رقم التأجير</th><th colspan="2" class="d">صباحا</th><th colspan="2" class="d">مساء</th><th rowspan="2" class="d">إجمالي الحراسات</th></tr><tr><th class="d">أساسي</th><th class="d">احتياطي</th><th class="d">أساسي</th><th class="d">احتياطي</th></tr>`, rows, 'cmp')] };
     } });
+  /* ---------- 1.9.4: census of the invigilation hours and lists of the secretariat of the exam centre and of the correction centre (model of the directorate) ---------- */
+  const tMin = t => { const m = /(\d{1,2})\s*[:hHس.]\s*(?:د\s*)?(\d{0,2})/.exec(nm(t)); return m ? +m[1] * 60 + (+m[2] || 0) : null; };
+  const sessH = sj => { const a = tMin(sj[2]), b = tMin(sj[3]); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
+  const empOf = n => (K.E && K.E.byName ? K.E.byName(n) : null) || {};
+  const fmtH = h => (Math.round(h * 100) / 100).toString().replace('.', ',');
+  add({ k: 'ex_ghours', t: 'إحصاء ساعات الحراسة (مراقبو الإجراء)', grp: 'o', d: 'لكل مراقب(ة): رقم التأجير، رقم البطاقة الوطنية، المؤسسة الأصلية، مادة التدريس، عدد ساعات الحراسة (من جدول الحراسة ومواقيت المواد)، المداومة، ملاحظات — على نموذج المديرية.', auto: 'طاقم المركز وجدول الحراسة', page: 'a4l', init: () => ({}), defs: () => [],
+    build: (s, f, sy) => {
+      const I = info(sy), G = guardRows(sy);
+      const L = staff(sy).filter(r => /مراقب|مداوم|ملاحظ/.test(r[3] || 'مراقب'));
+      const rows = L.map((r, i) => {
+        const e = empOf(r[0]), mine = G.filter(g => g[2] === r[0] || g[3] === r[0]), h = mine.reduce((t, g) => t + sessH(sessOf(sy, g[0])), 0);
+        return tr([i + 1, { t: r[0], c: 'r b' }, r[1] || e.ppr || '', { t: e.cin || '', c: 'ltr' }, { t: r[4] || e.origin || s.school || '', c: 'sm' }, { t: e.subject || r[2] || '', c: 'sm' }, { t: h ? fmtH(h) : '', c: 'b' }, /مداوم/.test(r[3] || '') ? 'نعم' : 'لا', '']);
+      });
+      const tot = L.reduce((t, r) => t + G.filter(g => g[2] === r[0] || g[3] === r[0]).reduce((a, g) => a + sessH(sessOf(sy, g[0])), 0), 0);
+      if (rows.length) rows.push(`<tr class="tot"><td colspan="6">المجموع</td><td>${fmtH(tot)}</td><td></td><td></td></tr>`);
+      return { title: `إحصاء ساعات الحراسة خلال ${esc(examTitle(I))} — دورة ${esc(I.session)}`, sub: `مركز الامتحان: ${esc(I.center || '..........')}${I.code ? ' — ' + esc(I.code) : ''}`, page: 'a4l', sign: signHead(s),
+        blocks: [{ table: { cls: 'sb-t', head: thr(['ر.ت', 'الإسم الكامل', 'رقم التأجير', 'رقم بطاقة التعريف', 'المؤسسة الأصلية', 'مادة التدريس', 'عدد ساعات الحراسة', 'مداومة: نعم/لا', 'ملاحظات']), rows }, minRows: 12 }] };
+    } });
+  const secList = corr => ({ k: corr ? 'ex_seccorr' : 'ex_secexam', t: corr ? 'لائحة أعضاء الكتابة — مركز التصحيح' : 'لائحة أعضاء الكتابة — مركز الإجراء', grp: corr ? 'r' : 'o',
+    d: corr ? 'رئيس مركز التصحيح، كتابة مركز التصحيح، منسق(ة) المسك: الاسم، رقم التأجير، رقم البطاقة الوطنية، الإطار، المهمة.' : 'رئيس المركز وأعضاء كتابة المركز: الاسم، رقم التأجير، رقم البطاقة الوطنية، الإطار، المهمة.', auto: 'طاقم المركز ولائحة الموظفين', page: 'a4',
+    init: () => ({ center: '' }), defs: (f, sy) => [{ k: 'center', l: corr ? 'مركز التصحيح' : 'مركز الامتحان', ph: corr ? 'اسم مركز التصحيح' : info(sy).center }],
+    build: (s, f, sy) => {
+      const I = info(sy), rx = corr ? /تصحيح|المسك/ : /^رئيس مركز الامتحان|الكتابة|كتابة المركز/;
+      let L = staff(sy).filter(r => rx.test(r[3] || '') && !(corr ? false : /تصحيح/.test(r[3] || '')));
+      const def = corr ? ['رئيس مركز التصحيح', 'كتابة مركز التصحيح', 'منسق(ة) المسك'] : ['رئيس المركز', 'كتابة المركز', 'كتابة المركز'];
+      const rows = (L.length ? L : def.map(t => ['', '', '', t])).map((r, i) => { const e = empOf(r[0]); return tr([i + 1, { t: r[0], c: 'r b' }, r[1] || e.ppr || '', { t: e.cin || '', c: 'ltr' }, { t: e.cadre || r[2] || '', c: 'sm' }, { t: /^رئيس مركز الامتحان$/.test(r[3]) ? 'رئيس المركز' : /^الكتابة$/.test(r[3]) ? 'كتابة المركز' : r[3] || '', c: 'b' }, { t: '', st: 'width:18%' }]); });
+      return { title: `لائحة أعضاء الكتابة خلال ${esc(examTitle(I))} — دورة ${esc(I.session)}`, sub: `${corr ? 'مركز التصحيح' : 'مركز الامتحان'}: ${esc(nm(f.center) || (corr ? '..........' : I.center || '..........'))}`, page: 'a4',
+        sign: corr ? SB.sign(s, { left: 'خاتم وتوقيع رئيس(ة) مركز التصحيح' }) : signHead(s),
+        blocks: [{ table: { cls: 'sb-t big', head: thr(['ر.ت', 'الإسم الكامل', 'رقم التأجير', 'رقم بطاقة التعريف', 'الإطار', 'المهمة', 'التوقيع']), rows }, minRows: 3 }] };
+    } });
+  add(secList(false)); add(secList(true));
   const pvText = (k, t, lines) => add({ k, t, grp: 'p', d: 'محضر رسمي يُملأ بمركز الامتحان ويوقعه أعضاء اللجنة.', auto: 'معطيات الامتحان', page: 'a4', init: () => ({ subj: '1' }),
     defs: (f, sy) => [{ k: 'subj', l: 'المادة', t: 'select', opts: subjects(sy).map((r, i) => [String(i + 1), r[0]]) }],
     build: (s, f, sy) => { const sj = sessOf(sy, f.subj); return { title: t, sub: sub(sy), page: 'a4', sign: SB.sign(s, { three: ['أعضاء اللجنة: الأسماء والتوقيعات', '', 'خاتم وتوقيع رئيس(ة) المركز'] }), blocks: [kv([['المادة', sj[0]], ['التاريخ', MK.showDate(sj[1])], ['التوقيت', `${sj[2] || ''}${sj[3] ? ' - ' + sj[3] : ''}`], ['مركز الامتحان', info(sy).center]]), { html: `<div class="sb-pv">${lines(sj, sy)}</div>` }, tbl(thr(['ر.ت', 'الاسم الكامل', 'الصفة', 'التوقيع']), [1, 2, 3, 4].map(i => tr([i, '', '', { t: '', st: 'height:9mm' }])), 'big')] }; } });

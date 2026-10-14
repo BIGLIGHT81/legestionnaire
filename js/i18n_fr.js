@@ -4113,5 +4113,8 @@ window.I18N_FR_PAT = {
 "كل المصالح": "Tous les services",
 "طلبات التسجيل الجديدة": "Nouvelles demandes d'inscription",
 "لصق من مسار": "Coller depuis Massar",
-"طلب جديد": "Nouvelle demande"
+"طلب جديد": "Nouvelle demande",
+"إحصاء ساعات الحراسة (مراقبو الإجراء)": "Heures de surveillance (surveillants)",
+"لائحة أعضاء الكتابة — مركز الإجراء": "Secrétariat du centre d'examen",
+"لائحة أعضاء الكتابة — مركز التصحيح": "Secrétariat du centre de correction"
 };
