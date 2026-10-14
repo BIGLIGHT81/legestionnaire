@@ -21,6 +21,8 @@
   const PH = [{ k: 'pre', n: 'روائز الموضعة القبلية', s: 'الموضعة القبلية', c: '#c0392b' }, { k: 'post', n: 'روائز الموضعة البعدية', s: 'الموضعة البعدية', c: '#27ae60' }]
     .concat(STG.map((w, i) => ({ k: 'c' + (i + 1), n: `المراقبة المستمرة — المرحلة ${w}`, s: `المرحلة ${i + 1}`, c: ['#2e86c1', '#8e44ad', '#e67e22', '#16a085', '#d4ac0d', '#7f8c8d'][i] })));
   const PH_BY = Object.fromEntries(PH.map(p => [p.k, p]));
+  // 1.9.4: the placement tests (before / after) and the six continuous-assessment stages are two separate families: never mixed
+  const famOf = k => (/^c\d/.test(k || '') ? 'cc' : 'pp');
   const phOf = k => PH_BY[k] || PH[0];
   const STG_RX = [/(?:^|[^\d])1(?!\d)|أولى|اولى|1\s*(?:ère|ere|re)/i, /(?:^|[^\d])2(?!\d)|ثانية|ثانيه|2\s*(?:ème|eme)/i, /(?:^|[^\d])3(?!\d)|ثالثة|ثالثه|3\s*(?:ème|eme)/i, /(?:^|[^\d])4(?!\d)|رابعة|رابعه|4\s*(?:ème|eme)/i, /(?:^|[^\d])5(?!\d)|خامسة|خامسه|5\s*(?:ème|eme)/i, /(?:^|[^\d])6(?!\d)|سادسة|سادسه|6\s*(?:ème|eme)/i];
   // phase of a file from its name / sheet name / the rows above the table ('' when nothing says it)
@@ -172,12 +174,14 @@
     if (arg && arg.phase) state.phase = arg.phase;
     state.sy = curSy();
     const all = groupsOf(state.sy), gs = all.filter(g => g.phase === state.phase), ph = phOf(state.phase);
-    const T = [['dash', 'لوحة القيادة'], ['stats', 'الإحصاء والمبيانات'], ['lists', 'لوائح مجموعات الدعم'], ['units', 'حسب الوحدة والمستوى'], ['cmp', 'المقارنة بين الفئات'], ['evo', 'القبلي والبعدي وتطور الكفايات'], ['l1', 'المستوى الأول (رائز المستوى الأول)']];
-    const dashPh = () => { const l = phasesWith(state.sy).pop(); return l ? l.k : state.phase; };
+    const CC = famOf(state.phase) === 'cc';
+    const T = CC ? [['dash', 'لوحة القيادة'], ['stats', 'الإحصاء والمبيانات'], ['units', 'حسب الوحدة والمستوى'], ['cats', 'المقارنة بين الفئات'], ['cmp', 'المقارنة بين المراحل'], ['rep6', 'التقارير (كل مرحلة، المقارنة، المراحل الست)']]
+      : [['dash', 'لوحة القيادة'], ['stats', 'الإحصاء والمبيانات'], ['lists', 'لوائح مجموعات الدعم'], ['units', 'حسب الوحدة والمستوى'], ['cmp', 'المقارنة بين القبلية والبعدية'], ['evo', 'القبلي والبعدي حسب المستويات'], ['rep6', 'التقارير (القبلية، البعدية، المقارنة)'], ['l1', 'المستوى الأول (رائز المستوى الأول)']];
+    if (!T.some(t => t[0] === state.tab)) state.tab = 'dash';
     // 1.9.4: every category has its own colour (big buttons, ✔, message; the whole page takes the colour of the chosen category)
     const nOf = k => all.filter(g => g.phase === k).reduce((t, g) => t + g.pupils.length, 0);
     const chip = p => `<button data-p="${p.k}" class="rz-b ${state.phase === p.k ? 'on' : ''}" style="--c:${p.c};--cl:${p.c}24"><span class="t">${esc(p.s)}</span><span class="n">${nOf(p.k)}</span>${state.phase === p.k ? '<span class="ck">✔</span>' : ''}</button>`;
-    const multi = ['cmp', 'evo'].includes(state.tab);
+    const multi = ['cmp', 'evo', 'cats', 'rep6'].includes(state.tab);
     v.innerHTML = `<div class="rz-wrap" style="--stc:${ph.c};--stl:${ph.c}1f"><div class="page-h"><h1>استثمار الروائز <span class="rz-tag">${esc(ph.s)}</span></h1>
         <select class="inp" id="rSy" style="width:auto">${years().map(y => `<option value="${y}" ${y === state.sy ? 'selected' : ''}>الموسم الدراسي ${esc(syDash(y))}</option>`).join('')}</select>
         <span class="sub">${esc(ph.n)}: ${gs.length} مجموعة — ${gs.reduce((s, g) => s + g.pupils.length, 0)} تلميذ(ة)</span><span class="sp"></span>
@@ -186,23 +190,56 @@
         ${all.length ? `<button class="btn pri" id="rPrn">${ic('print')} طباعة الاستثمار</button>` : ''}${gs.length ? ` <button class="btn danger sm" id="rClr">${ic('trash')} مسح هذه الفئة</button>` : ''}</div>
       <div class="rz-phs"><div class="rz-grp"><div class="rz-gt">روائز الموضعة</div><div class="rz-row two" id="rPh1">${PH.slice(0, 2).map(chip).join('')}</div></div>
         <div class="rz-grp"><div class="rz-gt">المراقبة المستمرة — المراحل الست</div><div class="rz-row six" id="rPh2">${PH.slice(2).map(chip).join('')}</div></div></div>
-      <div class="rz-msg">${multi ? 'هذا التبويب يقارن بين عدة فئات؛ الفئة المختارة' : 'تعرض جميع الإحصائيات والمبيانات واللوائح والوثائق الآن'}: <b>${esc(ph.n)}</b> — ${gs.reduce((t, g) => t + g.pupils.length, 0)} تلميذ(ة)</div>
+      <div class="rz-msg">${multi ? (CC ? 'هذا التبويب يقارن بين مراحل المراقبة المستمرة فقط (اختر المراحل أسفله)؛ المرحلة المختارة' : 'هذا التبويب يقارن بين الموضعة القبلية والموضعة البعدية فقط؛ الفئة المختارة') : 'تعرض جميع الإحصائيات والمبيانات واللوائح والوثائق الآن'}: <b>${esc(ph.n)}</b> — ${gs.reduce((t, g) => t + g.pupils.length, 0)} تلميذ(ة)</div>
       ${all.length ? MASSAR_STEPS_() : ''}
       ${all.length || state.tab === 'l1' || window.RoaizX ? `<div class="mk-tabs"><div class="seg" id="rTabs">${T.filter(([k]) => all.length || k === 'l1').map(([k, l]) => `<button data-t="${k}" class="${state.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>` : ''}
       <div id="rBody"></div></div>`;
     $('#rSy').onchange = e => { state.sy = e.target.value; MK.setSy(state.sy); state.unit = ''; state.level = ''; go('roaiz'); };
     $('#rImp').onclick = importFiles;
     $('#rSup').onclick = () => go('support');
-    if ($('#rPrn')) $('#rPrn').onclick = () => go('roaizDoc', { sy: state.sy, unit: state.tab === 'dash' ? dstate.unit : state.unit, level: state.tab === 'dash' ? dstate.level : state.level, phase: state.phase, kind: state.tab === 'cmp' ? 'cmp' : state.tab === 'evo' ? 'evo' : state.tab === 'dash' ? 'dash' : 'stat', dash: Object.assign({}, dstate) });
+    if ($('#rPrn')) $('#rPrn').onclick = () => go('roaizDoc', { sy: state.sy, unit: state.tab === 'dash' ? dstate.unit : state.unit, level: state.tab === 'dash' ? dstate.level : state.level, phase: state.phase, kind: state.tab === 'cmp' ? 'cmp' : state.tab === 'evo' ? 'evo' : ['cats', 'rep6'].includes(state.tab) ? 'rep6' : state.tab === 'dash' ? 'dash' : 'stat', stages: CC ? selStages() : null, dash: Object.assign({}, dstate) });
     if ($('#rClr')) $('#rClr').onclick = async () => { if (await confirmBox(`مسح معطيات «${esc(ph.n)}» لموسم <b>${esc(syDash(state.sy))}</b> (باقي الفئات لا تُمس)؟`, 'مسح')) { RD().years[state.sy] = groupsAll(state.sy).filter(g => g.phase !== state.phase); persist(); go('roaiz'); } };
-    $$('#rPh1 button, #rPh2 button').forEach(b => b.onclick = () => { state.phase = b.dataset.p; state.unit = ''; state.level = ''; go('roaiz'); });
+    $$('#rPh1 button, #rPh2 button').forEach(b => b.onclick = () => { const was = famOf(state.phase); state.phase = b.dataset.p; state.unit = ''; state.level = ''; if (famOf(state.phase) !== was) { state.tab = 'dash'; state.stg = null; } go('roaiz'); });
     $$('#rTabs button').forEach(b => b.onclick = () => { state.tab = b.dataset.t; go('roaiz'); });
     if (state.tab === 'l1' && window.RoaizX) return RoaizX.renderL1($('#rBody'));
     if (state.tab === 'cmp' && all.length) return tabCompare($('#rBody'));
-    if (state.tab === 'evo' && all.length) return tabEvo($('#rBody'));
-    if (state.tab === 'dash' && all.length) { if (!gs.length) { state.phase = dashPh(); return go('roaiz', { tab: 'dash' }); } return tabDash($('#rBody')); }
+    if (state.tab === 'evo' && all.length) return tabEvo($('#rBody'), 'pp');
+    if (state.tab === 'cats' && all.length) return tabEvo($('#rBody'), 'cc');
+    if (state.tab === 'rep6' && all.length) return tabRep6($('#rBody'));
+    if (state.tab === 'dash' && gs.length) return tabDash($('#rBody'));
     if (!gs.length) { $('#rBody').innerHTML = emptyState(); $('#rImpBig') && ($('#rImpBig').onclick = importFiles); return; }
     ({ stats: tabStats, lists: tabLists, units: tabUnits, cmp: tabStats, dash: tabStats })[state.tab]($('#rBody'));
+  };
+  // the stages chosen for the comparisons and the report (default: the stages with data up to the chosen stage)
+  function selStages() {
+    const withD = STAGES().filter(p => groupsIn(state.sy, p.k).length).map(p => p.k);
+    if (Array.isArray(state.stg)) { const v = state.stg.filter(k => withD.includes(k)); if (v.length) return v; }
+    const cur = +String(state.phase).slice(1) || 6;
+    const d = withD.filter(k => +k.slice(1) <= cur); return d.length > 1 ? d : withD;
+  }
+  function stagePicker(b, onChange) {
+    const sel = selStages(), box = document.createElement('div'); box.className = 'card rz-pick';
+    box.innerHTML = `<div class="card-b"><b>المراحل المعنية بالمقارنة:</b> ${STAGES().map(p => { const has = groupsIn(state.sy, p.k).length; return `<label class="rz-pk ${sel.includes(p.k) ? 'on' : ''} ${has ? '' : 'off'}" style="--c:${p.c}"><input type="checkbox" data-sk="${p.k}" ${sel.includes(p.k) ? 'checked' : ''} ${has ? '' : 'disabled'}> ${esc(p.s)}${has ? '' : ' <small>(لا معطيات)</small>'}</label>`; }).join('')}
+      <span class="sp"></span><button class="btn sm" data-sa="prev">المراحل السابقة حتى ${esc(phOf(state.phase).s)}</button><button class="btn sm" data-sa="all">كل المراحل</button></div>`;
+    b.prepend(box);
+    $$('[data-sk]', box).forEach(c => c.onchange = () => { state.stg = $$('[data-sk]', box).filter(x => x.checked).map(x => x.dataset.sk); go('roaiz'); });
+    $$('[data-sa]', box).forEach(x => x.onclick = () => { state.stg = x.dataset.sa === 'all' ? STAGES().map(p => p.k) : null; go('roaiz'); });
+  }
+  // 1.9.4: the reports: one per category (each stage / before / after) and the comparative reports, each family on its own
+  function tabRep6(b) {
+    const CC = famOf(state.phase) === 'cc', st = CC ? selStages() : null;
+    const card = (t, d, c, act, dis) => `<div class="rz-rep" style="--c:${c}"><div class="t">${t}</div><div class="d">${d}</div><button class="btn sm pri" data-rep='${JSON.stringify(act)}' ${dis ? 'disabled' : ''}>${ic('print')} ${dis ? 'لا توجد معطيات' : 'معاينة وطباعة'}</button></div>`;
+    const one = p => card(`تقرير ${esc(p.n.replace('روائز ', ''))}`, 'لوحة القيادة (نسبة التحكم، التوزيع A/B/C/D، الوحدات المدرسية، خلاصات) + جداول ومبيانات كل مادة', p.c, { kind: 'phrep', phase: p.k }, !groupsIn(state.sy, p.k).length);
+    const L = CC ? STAGES() : PH.slice(0, 2);
+    b.innerHTML = `<div class="card"><div class="card-h"><h3>${CC ? 'تقارير المراقبة المستمرة — تقرير لكل مرحلة' : 'تقارير روائز الموضعة'}</h3></div><div class="card-b rz-reps">${L.map(one).join('')}</div></div>
+      <div class="card"><div class="card-h"><h3>التقارير المقارنة</h3></div><div class="card-b rz-reps">${CC
+        ? card('تقرير المقارنة بين المراحل المختارة', `المراحل: ${st.map(k => esc(phOf(k).s)).join(' ، ') || '—'} (غيّرها من خانات الاختيار أعلاه)`, '#1f3864', { kind: 'cmp', stages: st }, st.length < 2)
+          + card('تقرير المراحل الست', 'تتبع تطور الكفايات: المؤشرات، تطور الفئات A/B/C/D ونسبة التحكم عبر المراحل، حسب المادة والمستوى', '#0e5a4a', { kind: 'rep6', stages: st }, !st.length)
+        : card('تقرير المقارنة بين الموضعة القبلية والبعدية', 'لكل مادة: نسبة التلاميذ في كل فئة في الرائزين، مع المبيانات', '#1f3864', { kind: 'cmp' }, !(groupsIn(state.sy, 'pre').length && groupsIn(state.sy, 'post').length))
+          + card('القبلي والبعدي حسب المستويات', 'نسبة التحكم والفئة D والربح لكل مستوى ومادة، حركية التلاميذ بين الرائزين', '#0e5a4a', { kind: 'evo' }, !(groupsIn(state.sy, 'pre').length && groupsIn(state.sy, 'post').length))}</div></div><div id="r6Body"></div>`;
+    if (CC) stagePicker(b);
+    $$('[data-rep]', b).forEach(x => x.onclick = () => { const a = JSON.parse(x.dataset.rep); go('roaizDoc', Object.assign({ sy: state.sy, unit: state.unit, phase: a.phase || state.phase, by: 'subj' }, a)); });
+    if (CC) tabEvo($('#r6Body'), 'cc', true);
   };
 
   // 1.9.4: the placement tests (before / after) come from the TaRL support, the six continuous-monitoring stages from the competences file
@@ -217,6 +254,8 @@
     .rz-tag{display:inline-block;background:var(--stc);color:#fff;border-radius:14px;padding:2px 12px;font-size:14px;vertical-align:middle;margin-right:6px}
     .rz-wrap .seg button.on{background:var(--stc);border-color:var(--stc);color:#fff}.rz-wrap .card{border-top:3px solid var(--stc)}.rz-wrap .tbl thead th{background:var(--stl)}
     .rz-wrap .att-kpis b{color:var(--stc)}
+    .rz-reps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}.rz-rep{border:2px solid var(--c);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}.rz-rep .t{font-weight:800;color:var(--c);font-size:14px}.rz-rep .d{font-size:12px;color:#555;flex:1;line-height:1.7}.rz-rep .btn{align-self:flex-start}
+    .rz-pick .card-b{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.rz-pk{display:inline-flex;align-items:center;gap:4px;border:2px solid var(--c);color:var(--c);border-radius:16px;padding:3px 10px;font-weight:700;font-size:13px;cursor:pointer}.rz-pk.on{background:var(--c);color:#fff}.rz-pk.off{opacity:.45;cursor:default}.rz-pk input{accent-color:#fff}
     @media(max-width:900px){.rz-phs{grid-template-columns:1fr}.rz-row.six{grid-template-columns:repeat(3,1fr)}}`; document.head.appendChild(c); }
   const MASSAR_STEPS_ = () => {
     const st = a => a.map(x => `<span class="st">${x}</span>`).join(' ← ');
@@ -234,7 +273,7 @@
 
   /* ---------- filters bar ---------- */
   function filterBar(b, onChange, allPh) {
-    const gs = allPh ? groupsOf(state.sy) : groupsIn(state.sy, state.phase);
+    const gs = allPh ? groupsOf(state.sy).filter(g => famOf(g.phase) === famOf(state.phase)) : groupsIn(state.sy, state.phase);
     const units = Array.from(new Set(gs.map(g => g.unit)));
     const levels = Array.from(new Set(gs.filter(g => !state.unit || g.unit === state.unit).map(g => g.level)));
     b.innerHTML = `<div class="toolbar">
@@ -293,7 +332,7 @@
 
   /* ---------- comparison between the categories (before / after / stages) ---------- */
   // [{ p, pupils }] of the categories that have data, in the order pre, post, stage 1..6
-  const phasesData = (sy, f) => PH.filter(p => groupsIn(sy, p.k).length).map(p => ({ p, pupils: pupilsFor(sy, { phase: p.k, unit: f.unit, level: f.level }) }));
+  const phasesData = (sy, f) => PH.filter(p => famOf(p.k) === famOf(f.phase || state.phase) && (!f.stages || !f.stages.length || f.stages.includes(p.k)) && groupsIn(sy, p.k).length).map(p => ({ p, pupils: pupilsFor(sy, { phase: p.k, unit: f.unit, level: f.level }) }));
   // for one subject: ordered categories, and per phase { total, by[cat] }
   function cmpSubject(list, s) {
     const dist = list.map(x => distribution(x.pupils, s.k));
@@ -304,10 +343,12 @@
   }
   function tabCompare(b) {
     b.innerHTML = `<div class="card" id="rFilt3"></div><div id="rCmp"></div>`;
+    const CC = famOf(state.phase) === 'cc';
+    if (CC) stagePicker(b);
     const draw = () => {
-      const list = phasesData(state.sy, state).filter(x => x.pupils.length);
+      const list = phasesData(state.sy, Object.assign({}, state, { stages: CC ? selStages() : null })).filter(x => x.pupils.length);
       $('#fCount') && ($('#fCount').textContent = `${list.length} فئة بها معطيات`);
-      if (list.length < 2) { $('#rCmp').innerHTML = `<div class="card"><div class="card-b empty-state" style="line-height:1.9">للمقارنة استورد معطيات فئتين على الأقل (مثلا الموضعة القبلية والموضعة البعدية، أو مراحل المراقبة المستمرة).${list.length ? `<br>الفئة المتوفرة حاليا: <b>${esc(list[0].p.n)}</b>` : ''}</div></div>`; return; }
+      if (list.length < 2) { $('#rCmp').innerHTML = `<div class="card"><div class="card-b empty-state" style="line-height:1.9">${CC ? 'للمقارنة اختر مرحلتين على الأقل من مراحل المراقبة المستمرة (يجب أن تكون معطياتهما مستوردة).' : 'للمقارنة استورد معطيات الموضعة القبلية والموضعة البعدية معا.'}${list.length ? `<br>الفئة المتوفرة حاليا: <b>${esc(list[0].p.n)}</b>` : ''}</div></div>`; return; }
       $('#rCmp').innerHTML = `<div class="card"><div class="card-b"><div class="att-kpis big">${list.map(x => `<span style="border-right:4px solid ${x.p.c}">${esc(x.p.s)}: <b>${x.pupils.length}</b> تلميذ(ة)</span>`).join('')}</div></div></div>`
         + SUBJ.map(s => {
           const c = cmpSubject(list, s);
@@ -344,7 +385,7 @@
       return { sj, rows, tot: { a, b, d: a.rate != null && b.rate != null ? b.rate - a.rate : null } };
     }).filter(x => x.rows.some(r => r.a.n || r.b.n));
     // the six stages: per subject, the share of pupils at each step of the ladder (the competences), the mastery rate per stage and per level
-    const stgAny = STAGES().some(p => groupsIn(sy, p.k).length), stg = stgAny ? STAGES() : []; // the six stages are always shown once one of them has data
+    const stgAny = STAGES().some(p => groupsIn(sy, p.k).length), stg = stgAny ? STAGES().filter(p => !f.stages || !f.stages.length || f.stages.includes(p.k)) : []; // the six stages are always shown once one of them has data
     const cc = SUBJ.map(sj => {
       const per = stg.map(p => { const pu = dpupils(sy, base, p.k).filter(x => String(x[sj.k] || '').trim()); const d = distribution(pu, sj.k); return { p, d, by: Object.fromEntries(d.rows.map(r => [norm(r.cat), r])), st: dstat(pu, [sj.k]) }; });
       const cats = []; per.forEach(x => x.d.rows.forEach(r => { if (!cats.some(c => norm(c) === norm(r.cat))) cats.push(r.cat); }));
@@ -407,15 +448,19 @@
     + `<tr><td class="muted">التلاميذ</td>${x.per.map(y => `<td class="num muted">${y.d.total}</td>`).join('')}${x.per.length > 1 ? '<td></td>' : ''}</tr>`;
   const ccLvRows = x => x.lv.map(r => { const f0 = r.v.find(z => z != null), l0 = [...r.v].reverse().find(z => z != null); return `<tr><td class="b">${esc(r.l)}</td>${r.v.map(z => `<td class="num">${pcH(z)}</td>`).join('')}${x.per.length > 1 ? `<td class="num">${sgn(r.v.filter(z => z != null).length > 1 ? l0 - f0 : null)}</td>` : ''}</tr>`; }).join('');
   const ccChart = (m, w) => lineSvg(m.stg.map(p => ({ t: p.s })), m.cc.map(x => ({ name: x.sj.name.replace('اللغة ', ''), c: SUBJ_COL[x.sj.k], w: 2.4, vals: x.per.map(y => y.st.rate) })), { w: w || 600, h: 240 });
-  function tabEvo(b) {
+  function tabEvo(b, part, noPick) {
     b.innerHTML = `<div class="card" id="rFiltE"></div><div id="rEvo"></div>`;
+    if (part === 'cc' && !noPick) stagePicker(b);
     const draw = () => {
-      const m = evoModel(state.sy, state);
+      const m = evoModel(state.sy, Object.assign({}, state, { stages: part === 'cc' ? selStages() : null }));
       $('#fCount') && ($('#fCount').textContent = `${m.levels.length} مستوى`);
-      let h = `<div class="card"><div class="card-h"><h3>المقارنة بين الموضعة القبلية والبعدية حسب المستويات</h3></div><div class="card-b">`;
+      let h = '';
+      if (part !== 'cc') { h += `<div class="card"><div class="card-h"><h3>المقارنة بين الموضعة القبلية والبعدية حسب المستويات</h3></div><div class="card-b">`;
       if (!m.hasPre || !m.hasPost) h += `<div class="empty-state" style="line-height:1.9">للمقارنة استورد ملفات الموضعة القبلية والموضعة البعدية معا.${m.hasPre ? ' (المتوفر: القبلية فقط)' : m.hasPost ? ' (المتوفر: البعدية فقط)' : ''}</div>`;
       else h += RZK_CSS + screenParts(ppParts(m)) + m.pp.map(x => `<h4 style="margin:10px 0 6px">${esc(x.sj.name)}</h4><div class="roz-two"><div style="overflow:auto"><table class="tbl compact"><thead>${ppHead}</thead><tbody>${x.rows.map(r => ppRow(r.l, r)).join('')}${ppRow('المجموع', x.tot, 'att-tot')}</tbody></table></div><div>${ppChart(x)}</div></div>`).join('');
-      h += `</div></div><div class="card"><div class="card-h"><h3>تتبع تطور الكفايات عبر مراحل المراقبة المستمرة الست</h3></div><div class="card-b">`;
+      h += '</div></div>'; }
+      if (part === 'pp') { $('#rEvo').innerHTML = h; return; }
+      h += `<div class="card"><div class="card-h"><h3>المقارنة بين الفئات (درجات الكفاية A / B / C / D) عبر مراحل المراقبة المستمرة</h3></div><div class="card-b">`;
       if (!m.stg.length) h += `<div class="empty-state" style="line-height:1.9">لا توجد بعد معطيات المراقبة المستمرة. استورد ملفات كل مرحلة واختر المرحلة المعنية عند الاستيراد.</div>`;
       else {
         h += `<div class="muted" style="font-size:12.5px;margin-bottom:6px">المراحل المتوفرة: ${m.stg.map(p => `<b style="color:${p.c}">${esc(p.s)}</b>`).join(' ، ')} — نسبة التلاميذ في كل درجة من درجات الكفاية (✓ = بلغ عتبة التحكم).</div>`;
@@ -429,8 +474,10 @@
     const fl = $('#fL'); if (fl) fl.parentNode && (fl.style.display = 'none');
     draw();
   }
-  function evoReport(s, sy, f) {
+  function evoReport(s, sy, f, part) {
     const m = evoModel(sy, f);
+    if (part === 'cc') { m.hasPre = false; m.hasPost = false; }
+    if (part === 'pp') { m.stg = []; }
     const blocks = [`<div class="mk-info">الموسم الدراسي: <b>${esc(syDash(sy))}</b>${f.unit ? ' — الوحدة: ' + esc(f.unit) : ''}</div>`];
     if (m.hasPre && m.hasPost) ppParts(m).forEach((h, i) => blocks.push({ html: (i ? '' : RZK_CSS + `<div class="rp-h">مؤشرات المقارنة بين الموضعة القبلية والبعدية</div>`) + (i ? `<div class="c" style="width:140mm;margin:0 auto">${h}</div>` : h) }));
     if (m.hasPre && m.hasPost) m.pp.forEach(x => {
@@ -447,7 +494,7 @@
     }
     if (blocks.length === 1) blocks.push('<p style="text-align:center">لا توجد معطيات: استورد ملفات الموضعة القبلية والبعدية أو مراحل المراقبة المستمرة.</p>');
     blocks.push({ html: K.SB.sign(s, { right: "" }) });
-    return { page: 'a4', pages: MK.flowPages({ page: 'a4', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">القبلي والبعدي حسب المستويات وتطور الكفايات</div>`, blocks }) };
+    return { page: 'a4', pages: MK.flowPages({ page: 'a4', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">${part === 'cc' ? 'تقرير المراحل الست للمراقبة المستمرة — تتبع تطور الكفايات' : part === 'pp' ? 'المقارنة بين الموضعة القبلية والبعدية حسب المستويات' : 'القبلي والبعدي حسب المستويات وتطور الكفايات'}</div>`, blocks }) };
   }
 
   /* ---------- lists of support groups ---------- */
@@ -496,7 +543,7 @@
     BK.forEach(b => { o['p' + b] = o.n ? o[b] / o.n * 100 : null; });
     return o;
   }
-  const phasesWith = sy => PH.filter(p => groupsIn(sy, p.k).length);
+  const phasesWith = (sy, ph) => PH.filter(p => famOf(p.k) === famOf(ph == null ? state.phase : ph) && groupsIn(sy, p.k).length);
 
   /* ---- SVG charts (also used by the printed report) ---- */
   const SVG0 = (W, H, cls) => `<svg class="mk-chart ${cls || ''}" viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="MAJ, NSA, sans-serif" direction="ltr">`;
@@ -566,7 +613,7 @@
     const keys = subjKeys(f), cur = dpupils(sy, f, phase), mk = (label, pupils, ks) => Object.assign({ label }, dstat(pupils, ks || keys));
     if (by === 'subj') return SUBJ.filter(x => !f.subj || f.subj === x.k).map(x => mk(x.name, cur, [x.k]));
     if (by === 'g') return [['ذكر', 'ذكور'], ['أنثى', 'إناث']].map(([g, l]) => mk(l, cur.filter(p => p.g === g)));
-    if (by === 'phase') return phasesWith(sy).map(p => mk(p.s, dpupils(sy, f, p.k)));
+    if (by === 'phase') return phasesWith(sy, phase).map(p => mk(p.s, dpupils(sy, f, p.k)));
     const key = { unit: p => p.unit, level: p => p.level, group: p => p.gid }[by] || (p => p.unit);
     const labels = new Map(); cur.forEach(p => { if (!labels.has(key(p))) labels.set(key(p), by === 'group' ? gLabel(p.gid) : key(p)); });
     return Array.from(labels, ([k, l]) => mk(l, cur.filter(p => key(p) === k))).sort((a, b) => (b.rate == null ? -1 : b.rate) - (a.rate == null ? -1 : a.rate));
@@ -574,7 +621,7 @@
   const BY = [['subj', 'المادة'], ['unit', 'الوحدة المدرسية'], ['level', 'المستوى'], ['group', 'مجموعة الدعم'], ['g', 'الجنس'], ['phase', 'الفئة الزمنية']];
   // ranking of the units: mastery per subject, overall, and the progress between the first and the last period
   function unitRows(sy, f, phase) {
-    const cur = dpupils(sy, f, phase), units = Array.from(new Set(cur.map(p => p.unit))), phs = phasesWith(sy);
+    const cur = dpupils(sy, f, phase), units = Array.from(new Set(cur.map(p => p.unit))), phs = phasesWith(sy, phase);
     return units.map(u => {
       const pu = cur.filter(p => K.U.same(p.unit, u));
       const r = { unit: u, pupils: pu.length, all: dstat(pu, subjKeys(f)), subj: SUBJ.map(x => dstat(pu, [x.k]).rate) };
@@ -584,7 +631,7 @@
     }).sort((a, b) => (b.all.rate == null ? -1 : b.all.rate) - (a.all.rate == null ? -1 : a.all.rate));
   }
   function dashModel(sy, f, phase, by) {
-    const keys = subjKeys(f), cur = dpupils(sy, f, phase), all = dstat(cur, keys), phs = phasesWith(sy);
+    const keys = subjKeys(f), cur = dpupils(sy, f, phase), all = dstat(cur, keys), phs = phasesWith(sy, phase);
     const bySubj = SUBJ.filter(x => !f.subj || f.subj === x.k).map(x => Object.assign({ s: x }, dstat(cur, [x.k])));
     const gend = [['ذكر', 'ذكور'], ['أنثى', 'إناث']].map(([g, l]) => Object.assign({ g, l }, dstat(cur.filter(p => p.g === g), keys)));
     const evo = phs.map(p => Object.assign({ p }, dstat(dpupils(sy, f, p.k), keys)));
@@ -632,7 +679,7 @@
   function tabDash(b) {
     const sy = state.sy, f = dstate, phase = state.phase;
     b.innerHTML = `<div class="card" id="rzF"></div><div id="rzB"></div>`;
-    const gsAll = groupsOf(sy);
+    const gsAll = groupsOf(sy).filter(g => famOf(g.phase) === famOf(phase));
     const units = Array.from(new Set(gsAll.map(g => g.unit)));
     const levels = Array.from(new Set(gsAll.filter(g => !f.unit || g.unit === f.unit).map(g => g.level)));
     const grps = gsAll.filter(g => g.phase === phase && (!f.unit || g.unit === f.unit) && (!f.level || g.level === f.level));
@@ -687,6 +734,13 @@
   /* ================================================================= */
   /* documents */
   const GN = g => g === 'أنثى' ? 'أنثى' : g === 'ذكر' ? 'ذكر' : '';
+  // the report of one category: the dashboard (indicators, distribution, units, insights) then the tables and charts of every subject, under one title
+  function phaseReport(s, sy, f) {
+    const t = `تقرير ${phOf(f.phase).n.replace('روائز ', '')}`;
+    const A = dashReport(s, sy, { unit: f.unit, level: f.level, group: '', subj: '', g: '' }, f.phase, f.by || 'subj').map(p => p.replace('لوحة قيادة استثمار الروائز', esc(t) + ' — المؤشرات'));
+    const B = statReport(s, sy, f).map(p => p.replace(`استثمار ${esc(phOf(f.phase).n)}`, esc(t) + ' — الجداول والمبيانات حسب المواد'));
+    return A.concat(B);
+  }
   function statReport(s, sy, f) {
     const pupils = pupilsFor(sy, f);
     const scope = [f.unit && `الوحدة: ${f.unit}`, f.level && `المستوى: ${f.level}`].filter(Boolean).join(' — ');
@@ -724,7 +778,7 @@
         table: { cls: 'roz-pt', head: `<tr><th rowspan="2" style="width:22%">المستوى / الفئة</th>${list.map(x => `<th colspan="2">${esc(x.p.s)}</th>`).join('')}</tr><tr>${list.map(() => '<th>العدد</th><th>%</th>').join('')}</tr>`, rows, minRows: 1 } });
       blocks.push(`<div class="c" style="width:150mm;margin:0 auto">${K.bars(c.cats, list.map((x, i) => ({ name: x.p.s, color: x.p.c, vals: c.cats.map(cat => { const r = c.by[i][norm(cat)]; return r ? +r.pct.toFixed(1) : 0; }) })), { w: 640, h: 200, fs: c.cats.length > 7 ? 8 : 9.5, fmt: v => (v ? v : '') })}</div>`);
     });
-    return { page: land ? 'a4l' : 'a4', pages: MK.flowPages({ page: land ? 'a4l' : 'a4', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">المقارنة بين فئات الروائز</div>`, blocks }) };
+    return { page: land ? 'a4l' : 'a4', pages: MK.flowPages({ page: land ? 'a4l' : 'a4', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">${famOf(f.phase) === 'cc' ? 'المقارنة بين مراحل المراقبة المستمرة' : 'المقارنة بين الموضعة القبلية والموضعة البعدية'}</div>`, blocks }) };
   }
 
   window.pageRoaizDoc = function (v, arg) {
@@ -733,7 +787,7 @@
     const g0 = arg.groupId ? groupsOf(arg.sy).find(x => x.id === arg.groupId) : null;
     MK.docPage(v, {
       title: g0 ? 'لائحة مجموعة الدعم' : 'استثمار الروائز', icon: '📊', modes: false, flow: true,
-      state: { sy: arg.sy || state.sy || curSy(), unit: arg.unit || '', level: arg.level || '', groupId: arg.groupId || '', phase: arg.phase || state.phase || 'pre', kind: arg.kind || 'stat', subj: (arg.dash || {}).subj || '', g: (arg.dash || {}).g || '', by: (arg.dash || {}).by || 'subj', group: (arg.dash || {}).group || '' },
+      state: { sy: arg.sy || state.sy || curSy(), unit: arg.unit || '', level: arg.level || '', groupId: arg.groupId || '', phase: arg.phase || state.phase || 'pre', stages: arg.stages || null, kind: arg.kind || 'stat', subj: (arg.dash || {}).subj || '', g: (arg.dash || {}).g || '', by: (arg.dash || {}).by || 'subj', group: (arg.dash || {}).group || '' },
       back: () => go('roaiz'),
       form: (box, st, refresh) => {
         if (st.groupId) { box.innerHTML = `<p class="muted" style="line-height:1.8">لائحة مجموعة دعم واحدة. للرجوع إلى الاستثمار العام أغلق هذه الوثيقة.</p>`; return; }
@@ -742,8 +796,9 @@
         const levels = Array.from(new Set(gs.filter(g => !st.unit || g.unit === st.unit).map(g => g.level)));
         const cnt = k => groupsIn(st.sy, k).length;
         box.innerHTML = `<div class="sec-t">الوثيقة</div>
-          <div class="fld"><select class="inp" id="dK"><option value="stat" ${st.kind === 'stat' ? 'selected' : ''}>استثمار فئة واحدة (جداول ومبيانات)</option><option value="cmp" ${st.kind === 'cmp' ? 'selected' : ''}>المقارنة بين الفئات (قبلي ← بعدي ← المراقبة المستمرة)</option><option value="dash" ${st.kind === 'dash' ? 'selected' : ''}>لوحة القيادة (نسبة التحكم، التطور، التوزيع A/B/C/D)</option><option value="evo" ${st.kind === 'evo' ? 'selected' : ''}>القبلي والبعدي حسب المستويات وتطور الكفايات عبر المراحل الست</option></select></div>
-          ${st.kind === 'stat' || st.kind === 'dash' ? `<div class="fld"><label>الفئة</label><select class="inp" id="dP">${PH.map(p => `<option value="${p.k}" ${st.phase === p.k ? 'selected' : ''}>${esc(p.n)}${cnt(p.k) ? ` (${cnt(p.k)})` : ' — لا معطيات'}</option>`).join('')}</select></div>` : ''}
+          <div class="fld"><select class="inp" id="dK"><option value="phrep" ${st.kind === 'phrep' ? 'selected' : ''}>${famOf(st.phase) === 'cc' ? 'تقرير المرحلة' : 'تقرير الفئة (القبلية أو البعدية)'} (لوحة القيادة + الجداول والمبيانات)</option><option value="stat" ${st.kind === 'stat' ? 'selected' : ''}>استثمار فئة واحدة (جداول ومبيانات)</option><option value="cmp" ${st.kind === 'cmp' ? 'selected' : ''}>${famOf(st.phase) === 'cc' ? 'المقارنة بين المراحل المختارة' : 'المقارنة بين الموضعة القبلية والبعدية'}</option><option value="dash" ${st.kind === 'dash' ? 'selected' : ''}>لوحة القيادة (نسبة التحكم، التطور، التوزيع A/B/C/D)</option>${famOf(st.phase) === 'cc' ? `<option value="rep6" ${st.kind === 'rep6' || st.kind === 'evo' ? 'selected' : ''}>تقرير المراحل الست (تتبع تطور الكفايات)</option>` : `<option value="evo" ${st.kind === 'evo' || st.kind === 'rep6' ? 'selected' : ''}>القبلي والبعدي حسب المستويات</option>`}</select></div>
+          ${famOf(st.phase) === 'cc' && ['cmp', 'rep6', 'evo'].includes(st.kind) ? `<div class="fld"><label>المراحل</label><div class="btn-row" style="flex-wrap:wrap">${STAGES().map(p => `<label class="chk"><input type="checkbox" data-dst="${p.k}" ${(st.stages || STAGES().map(x => x.k)).includes(p.k) ? 'checked' : ''} ${groupsIn(st.sy, p.k).length ? '' : 'disabled'}> ${esc(p.s)}</label>`).join('')}</div></div>` : ''}
+          ${st.kind === 'stat' || st.kind === 'dash' || st.kind === 'phrep' ? `<div class="fld"><label>${famOf(st.phase) === 'cc' ? 'المرحلة' : 'الفئة'}</label><select class="inp" id="dP">${PH.filter(p => famOf(p.k) === famOf(st.phase)).map(p => `<option value="${p.k}" ${st.phase === p.k ? 'selected' : ''}>${esc(p.n)}${cnt(p.k) ? ` (${cnt(p.k)})` : ' — لا معطيات'}</option>`).join('')}</select></div>` : ''}
           <div class="sec-t">نطاق الاستثمار</div>
           <div class="fld"><label>الوحدة المدرسية</label><select class="inp" id="dU"><option value="">كل الوحدات</option>${units.map(u => `<option ${st.unit === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></div>
           <div class="fld"><label>المستوى</label><select class="inp" id="dL"><option value="">كل المستويات</option>${levels.map(l => `<option ${st.level === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
@@ -751,15 +806,16 @@
             <div class="fld"><label>الجنس</label><select class="inp" id="dG"><option value="">الجنسان</option><option value="ذكر" ${st.g === 'ذكر' ? 'selected' : ''}>ذكور</option><option value="أنثى" ${st.g === 'أنثى' ? 'selected' : ''}>إناث</option></select></div></div>
             <div class="fld"><label>تجميع مبيان التوزيع حسب</label><select class="inp" id="dB">${BY.map(([k, l]) => `<option value="${k}" ${st.by === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>` : ''}
           <p class="muted" style="font-size:12px;line-height:1.7">${st.kind === 'dash' ? 'يُطبع مؤشر نسبة التحكم والنسب حسب المادة وتطور الفئات A/B/C/D عبر الفئات الزمنية وتوزيع النتائج وترتيب الوحدات المدرسية وخلاصات مكتوبة.' : st.kind === 'cmp' ? 'يُطبع لكل مادة جدول يقارن توزيع التلاميذ (العدد والنسبة) بين الفئات التي بها معطيات، مع مبيان.' : 'يُطبع لكل مادة جدول التوزيع حسب المستوى والجنس مع النسب والمبيان.'}</p>`;
-        const reopen = () => go('roaizDoc', { sy: st.sy, unit: st.unit, level: st.level, phase: st.phase, kind: st.kind, dash: { subj: st.subj, g: st.g, by: st.by, group: st.group } });
+        $$('[data-dst]', box).forEach(c => c.onchange = () => { st.stages = $$('[data-dst]', box).filter(x => x.checked).map(x => x.dataset.dst); refresh(); });
+        const reopen = () => go('roaizDoc', { sy: st.sy, unit: st.unit, level: st.level, phase: st.phase, kind: st.kind, stages: st.stages, dash: { subj: st.subj, g: st.g, by: st.by, group: st.group } });
         $('#dK', box).onchange = e => { st.kind = e.target.value; st.unit = ''; st.level = ''; reopen(); };
         if ($('#dP', box)) $('#dP', box).onchange = e => { st.phase = e.target.value; st.unit = ''; st.level = ''; reopen(); };
         $('#dU', box).onchange = e => { st.unit = e.target.value; st.level = ''; reopen(); };
         $('#dL', box).onchange = e => { st.level = e.target.value; refresh(); };
         if ($('#dS', box)) { $('#dS', box).onchange = e => { st.subj = e.target.value; refresh(); }; $('#dG', box).onchange = e => { st.g = e.target.value; refresh(); }; $('#dB', box).onchange = e => { st.by = e.target.value; refresh(); }; }
       },
-      build: st => (!st.groupId && st.kind === 'evo' ? evoReport(S(), st.sy, st) : !st.groupId && st.kind === 'cmp' ? compareReport(S(), st.sy, st) : { page: 'a4', pages: st.groupId ? listReport(S(), g0) : st.kind === 'dash' ? dashReport(S(), st.sy, { unit: st.unit, level: st.level, group: st.group, subj: st.subj, g: st.g }, st.phase, st.by) : statReport(S(), st.sy, st) }),
-      fname: st => st.groupId ? 'لائحة_مجموعة_الدعم' : st.kind === 'evo' ? 'تطور_الروائز_حسب_المستويات_' + syDash(st.sy) : st.kind === 'dash' ? 'لوحة_قيادة_الروائز_' + syDash(st.sy) : (st.kind === 'cmp' ? 'مقارنة_فئات_الروائز_' : 'استثمار_' + phOf(st.phase).s.replace(/\s+/g, '_') + '_') + syDash(st.sy)
+      build: st => (!st.groupId && st.kind === 'phrep' ? { page: 'a4', pages: phaseReport(S(), st.sy, st) } : !st.groupId && (st.kind === 'evo' || st.kind === 'rep6') ? evoReport(S(), st.sy, st, famOf(st.phase) === 'cc' ? 'cc' : 'pp') : !st.groupId && st.kind === 'cmp' ? compareReport(S(), st.sy, st) : { page: 'a4', pages: st.groupId ? listReport(S(), g0) : st.kind === 'dash' ? dashReport(S(), st.sy, { unit: st.unit, level: st.level, group: st.group, subj: st.subj, g: st.g }, st.phase, st.by) : statReport(S(), st.sy, st) }),
+      fname: st => st.groupId ? 'لائحة_مجموعة_الدعم' : st.kind === 'phrep' ? 'تقرير_' + phOf(st.phase).n.replace(/\s+/g, '_').replace(/—/g, '') + '_' + syDash(st.sy) : st.kind === 'rep6' || (st.kind === 'evo' && famOf(st.phase) === 'cc') ? 'تقرير_المراحل_الست_' + syDash(st.sy) : st.kind === 'evo' ? 'القبلي_والبعدي_حسب_المستويات_' + syDash(st.sy) : st.kind === 'dash' ? 'لوحة_قيادة_الروائز_' + syDash(st.sy) : (st.kind === 'cmp' ? 'مقارنة_فئات_الروائز_' : 'استثمار_' + phOf(st.phase).s.replace(/\s+/g, '_') + '_') + syDash(st.sy)
     });
   };
 })();
