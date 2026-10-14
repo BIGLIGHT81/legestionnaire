@@ -43,7 +43,8 @@
   const RD = () => DB.roaiz;
   const syDash = sy => String(sy || '').replace('/', '-');
   const curSy = () => window.MK ? MK.curSy() : '';
-  const groupsOf = sy => RD().years[sy] || [];
+  const groupsAll = sy => RD().years[sy] || [];
+  const groupsOf = sy => groupsAll(sy);
   const groupsIn = (sy, ph) => groupsOf(sy).filter(g => g.phase === ph);
   const years = () => MK.syList(Object.keys(RD().years));
   const gender = g => /^(أنثى|انثى|أنثي|انثي|f|fille|féminin|feminin|ث)$/i.test(String(g || '').trim()) ? 'أنثى' : /^(ذكر|m|garçon|garcon|masculin|ذ)$/i.test(String(g || '').trim()) ? 'ذكر' : '';
@@ -121,13 +122,13 @@
     const run = mode => {
       sum();
       const ph = new Set(groups.map(g => g.phase));
-      const keep = mode === 'add' ? groupsOf(sy) : groupsOf(sy).filter(g => !ph.has(g.phase));
+      const keep = mode === 'add' ? groupsAll(sy) : groupsAll(sy).filter(g => !ph.has(g.phase));
       RD().years[sy] = keep.concat(groups);
       const n1 = l1.length ? RoaizX.applyL1(sy, l1) : 0;
       state.sy = sy; MK.setSy(sy); if (ph.size === 1) state.phase = Array.from(ph)[0]; persist(); go('roaiz');
       toast(`تم استيراد ${groups.length} مجموعة دعم (${nP} تلميذ)${n1 ? ` ونتائج رائز المستوى الأول (${n1} تلميذ)` : ''}`);
     };
-    const existing = groupsOf(sy).some(g => groups.some(x => x.phase === g.phase)) || groupsOf(sy).length;
+    const existing = groupsAll(sy).some(g => groups.some(x => x.phase === g.phase)) || groupsAll(sy).length;
     modal({ title: 'استيراد استثمار الروائز', body, actions: [
       { label: ic('up') + (existing ? ' استبدال' : ' استيراد'), cls: 'pri', onClick: () => run('replace') },
       ...(existing ? [{ label: ic('plus') + ' إضافة', onClick: () => run('add') }] : []),
@@ -174,7 +175,7 @@
     const T = [['dash', 'لوحة القيادة'], ['stats', 'الإحصاء والمبيانات'], ['lists', 'لوائح مجموعات الدعم'], ['units', 'حسب الوحدة والمستوى'], ['cmp', 'المقارنة بين الفئات'], ['evo', 'القبلي والبعدي وتطور الكفايات'], ['l1', 'المستوى الأول (رائز المستوى الأول)']];
     const dashPh = () => { const l = phasesWith(state.sy).pop(); return l ? l.k : state.phase; };
     const chip = p => { const n = all.filter(g => g.phase === p.k).reduce((t, g) => t + g.pupils.length, 0); return `<button data-p="${p.k}" class="${state.phase === p.k ? 'on' : ''}">${esc(p.s)}${n ? ` <small>${n}</small>` : ''}</button>`; };
-    v.innerHTML = `<div class="page-h"><h1>استثمار الروائز</h1>
+    v.innerHTML = `<div><div class="page-h"><h1>استثمار الروائز</h1>
         <select class="inp" id="rSy" style="width:auto">${years().map(y => `<option value="${y}" ${y === state.sy ? 'selected' : ''}>الموسم الدراسي ${esc(syDash(y))}</option>`).join('')}</select>
         <span class="sub">${esc(ph.n)}: ${gs.length} مجموعة — ${gs.reduce((s, g) => s + g.pupils.length, 0)} تلميذ(ة)</span><span class="sp"></span>
         <button class="btn" id="rSup">🧩 الدعم الممتد</button>
@@ -184,12 +185,12 @@
         <div><b>المراقبة المستمرة</b><div class="seg" id="rPh2">${PH.slice(2).map(chip).join('')}</div></div></div>
       ${all.length ? MASSAR_STEPS_() : ''}
       ${all.length || state.tab === 'l1' || window.RoaizX ? `<div class="mk-tabs"><div class="seg" id="rTabs">${T.filter(([k]) => all.length || k === 'l1').map(([k, l]) => `<button data-t="${k}" class="${state.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>` : ''}
-      <div id="rBody"></div>`;
+      <div id="rBody"></div></div>`;
     $('#rSy').onchange = e => { state.sy = e.target.value; MK.setSy(state.sy); state.unit = ''; state.level = ''; go('roaiz'); };
     $('#rImp').onclick = importFiles;
     $('#rSup').onclick = () => go('support');
     if ($('#rPrn')) $('#rPrn').onclick = () => go('roaizDoc', { sy: state.sy, unit: state.tab === 'dash' ? dstate.unit : state.unit, level: state.tab === 'dash' ? dstate.level : state.level, phase: state.phase, kind: state.tab === 'cmp' ? 'cmp' : state.tab === 'evo' ? 'evo' : state.tab === 'dash' ? 'dash' : 'stat', dash: Object.assign({}, dstate) });
-    if ($('#rClr')) $('#rClr').onclick = async () => { if (await confirmBox(`مسح معطيات «${esc(ph.n)}» لموسم <b>${esc(syDash(state.sy))}</b> (باقي الفئات لا تُمس)؟`, 'مسح')) { RD().years[state.sy] = all.filter(g => g.phase !== state.phase); persist(); go('roaiz'); } };
+    if ($('#rClr')) $('#rClr').onclick = async () => { if (await confirmBox(`مسح معطيات «${esc(ph.n)}» لموسم <b>${esc(syDash(state.sy))}</b> (باقي الفئات لا تُمس)؟`, 'مسح')) { RD().years[state.sy] = groupsAll(state.sy).filter(g => g.phase !== state.phase); persist(); go('roaiz'); } };
     $$('#rPh1 button, #rPh2 button').forEach(b => b.onclick = () => { state.phase = b.dataset.p; state.unit = ''; state.level = ''; go('roaiz'); });
     $$('#rTabs button').forEach(b => b.onclick = () => { state.tab = b.dataset.t; go('roaiz'); });
     if (state.tab === 'l1' && window.RoaizX) return RoaizX.renderL1($('#rBody'));

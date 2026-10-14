@@ -494,6 +494,21 @@
   /* ================================================================= */
   let tab = 'list';
   const flt = { q: '', unit: '', cls: '', lvl: '', g: '', est: false, fam: false };
+  { const c = document.createElement('style'); c.textContent = `
+    .pu-wrap{--stc:#0e5a4a;--stl:#e8f4ef}.pu-st-pre{--stc:#d35400;--stl:#fff1e3}.pu-st-pri{--stc:#1f5fa8;--stl:#e8f0fb}
+    .pu-stbar{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+    .pu-stb{position:relative;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;border:2px solid #d7dfdb;background:#fff;cursor:pointer;font-family:inherit;font-size:14.5px;font-weight:700;color:#334;transition:.15s}
+    .pu-stb .i{font-size:24px}.pu-stb .t{flex:1;text-align:right}.pu-stb .n{background:#eef1f0;border-radius:12px;padding:2px 10px;font-size:13px}
+    .pu-stb-all.on{background:#0e5a4a;border-color:#0e5a4a;color:#fff}.pu-stb-pre.on{background:#d35400;border-color:#d35400;color:#fff}.pu-stb-pri.on{background:#1f5fa8;border-color:#1f5fa8;color:#fff}
+    .pu-stb.on .n{background:rgba(255,255,255,.25);color:#fff}.pu-stb.on{box-shadow:0 4px 14px rgba(0,0,0,.18);transform:translateY(-1px)}
+    .pu-stb-pre:not(.on):hover{border-color:#d35400}.pu-stb-pri:not(.on):hover{border-color:#1f5fa8}.pu-stb-all:not(.on):hover{border-color:#0e5a4a}
+    .pu-stb .ck{position:absolute;top:-8px;left:-8px;background:#fff;color:var(--stc);border:2px solid var(--stc);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px}
+    .pu-stmsg{background:var(--stl);border-right:5px solid var(--stc);color:#223;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:13px}.pu-stmsg b{color:var(--stc)}
+    .pu-st-tag{display:inline-block;background:var(--stc);color:#fff;border-radius:14px;padding:2px 12px;font-size:14px;vertical-align:middle;margin-right:6px}
+    .pu-st-pre .seg button.on,.pu-st-pri .seg button.on{background:var(--stc);border-color:var(--stc);color:#fff}
+    .pu-st-pre .card,.pu-st-pri .card{border-top:3px solid var(--stc)}.pu-st-pre .k2-kpi .n,.pu-st-pri .k2-kpi .n{color:var(--stc)}
+    .pu-st-pre .tbl thead th,.pu-st-pri .tbl thead th{background:var(--stl)}
+    @media(max-width:700px){.pu-stbar{grid-template-columns:1fr}}`; document.head.appendChild(c); }
   window.pagePupils = function (v, arg) {
     migrate(DB); normSec();
     if (SECL()) stage = ''; if (SEC()) { flt.unit = ''; flt.munit = ''; flt.dunit = ''; }
@@ -503,16 +518,19 @@
     const sy = curSy(), y = Y(sy);
     const T = [['list', 'المتمدرسون (لائحة التلاميذ)'], ['moves', 'الفئات والحركية (الوافدون، المغادرون، المنقطعون...)'], ['dash', 'لوحات الإحصاء'], ['guard', 'معلومات الأولياء'], ['stats', 'الإحصائيات والمبيانات'], ['classes', SEC() ? 'اللوائح المستوردة (الأقسام)' : 'اللوائح المستوردة والوحدات']];
     const c = cnt(current(sy));
-    v.innerHTML = `<div class="page-h"><h1>بطاقة التلاميذ</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))} — ${y.pupils.length ? splitText(sy, c) : 'لا توجد لوائح بعد'}</span><span class="sp"></span>
+    stage = SECL() ? '' : (K.ST.cur || '');
+    const hasPre = !SECL() && (y.pupils.some(p => stageOf(p.lvl) === 'pre') || (y.board && (y.board.rows || []).some(r => stageOf(r.lvl) === 'pre')) || y.moves.some(m => stageOf(m.lvl) === 'pre'));
+    if (!hasPre && !y.pupils.length) stage = '';
+    v.innerHTML = `<div class="pu-wrap pu-st-${stage || 'all'}"><div class="page-h"><h1>بطاقة التلاميذ${stage ? ` <span class="pu-st-tag">${ST[stage].t}</span>` : ''}</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))} — ${y.pupils.length ? (stage ? `${curS(sy).length} ${ST[stage].one}، منهم ${cnt(curS(sy)).f} إناث` : splitText(sy, c)) : 'لا توجد لوائح بعد'}</span><span class="sp"></span>
         <button class="btn" id="puDocs">${ic('print')} الوثائق</button>
         <button class="btn" id="puExp" ${y.pupils.length ? '' : 'disabled'}>${ic('down')} تصدير Excel</button>
         <button class="btn danger" id="puWipe" title="مسح اللوائح المحمّلة من مسار (التلاميذ، الأقسام، الفئات والحركية) كليا أو جزئيا" ${hasMassar() ? '' : 'disabled'}>${ic('trash')} المسح الكلي</button>
         <button class="btn pri" id="puImp">${ic('up')} استيراد لوائح مسار</button></div>
-      ${!SECL() && y.pupils.length && Y(sy).pupils.some(p => stageOf(p.lvl) === 'pre') ? stageBar(sy) : ''}
+      ${!SECL() ? stageBar(sy) : ''}
       <div class="mk-tabs"><div class="seg" id="puTabs">${T.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-      <div id="puBody"></div>`;
+      <div id="puBody"></div></div>`;
     $$('#puTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; go('pupils'); });
-    $$('#puStage button').forEach(b => b.onclick = () => { stage = b.dataset.s; go('pupils'); });
+    $$('#puStage button').forEach(b => b.onclick = () => { stage = b.dataset.s; K.ST.cur = stage; go('pupils'); });
     $('#puImp').onclick = importMassar;
     $('#puWipe').onclick = () => wipeMassar(sy);
     $('#puExp').onclick = () => exportXlsx(sy);
@@ -524,10 +542,13 @@
     const arr = current(sy), pre = SECL() ? 0 : arr.filter(p => stageOf(p.lvl) === 'pre').length;
     return pre ? `${arr.length - pre} تلميذ(ة) بالابتدائي و${pre} طفل(ة) بالتعليم الأولي، منهم ${c.f} إناث` : `${c.t} تلميذ(ة)، منهم ${c.f} إناث`;
   }
+  // 1.9.4: three big buttons; the chosen stage colours the whole page (all / pre-school / primary) and filters every tab, board and document
+  const STI = { '': ['📊', 'الكل (الأولي + الابتدائي)'], pre: ['🧸', 'التعليم الأولي'], pri: ['🎒', 'التعليم الابتدائي'] };
   function stageBar(sy) {
     const arr = current(sy), n = st => arr.filter(p => inStage(p, st)).length;
-    return `<div class="mk-tabs" style="margin-bottom:8px"><div class="seg" id="puStage">${['', 'pre', 'pri'].map(k => `<button data-s="${k}" class="${stage === k ? 'on' : ''}">${k === '' ? 'الكل' : ST[k].t} <small>${n(k)}</small></button>`).join('')}</div>
-      <span class="muted" style="font-size:12px">يفصل البرنامج بين أطفال التعليم الأولي (روض الأطفال، الأولى أولي، الثانية أولي) وتلاميذ التعليم الابتدائي</span></div>`;
+    const msg = stage === 'pre' ? 'تعرض جميع الخانات والإحصائيات والوثائق الآن أطفال <b>التعليم الأولي</b> فقط' : stage === 'pri' ? `تعرض جميع الخانات والإحصائيات والوثائق الآن تلاميذ <b>${esc(ST.pri.t)}</b> فقط` : 'تعرض جميع الخانات والإحصائيات والوثائق الآن <b>التعليم الأولي والابتدائي معا</b>';
+    return `<div class="pu-stbar" id="puStage">${['', 'pre', 'pri'].map(k => `<button data-s="${k}" class="pu-stb pu-stb-${k || 'all'} ${stage === k ? 'on' : ''}"><span class="i">${STI[k][0]}</span><span class="t">${k === 'pri' ? esc(ST.pri.t) : STI[k][1]}</span><span class="n">${n(k)}</span>${stage === k ? '<span class="ck">✔</span>' : ''}</button>`).join('')}</div>
+      <div class="pu-stmsg">${msg}</div>`;
   }
   // 1.9.4: gives the pupils (ids) to one of the units registered in the settings (or any known unit); the classes that move entirely follow
   function linkToUnit(sy, ids, after, title) {

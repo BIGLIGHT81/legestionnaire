@@ -510,5 +510,23 @@
   }
 
   Dx.modCss += ''; // (kept for symmetry)
-  window.K = { num, r2, money, pct, tafqit, intWords, LV, U, E, PP, CATS, dl, SB, bars, COL, form, fieldHtml, crud };
+  /* 1.9.4: the stage chosen by the user (الكل / التعليم الأولي / التعليم الابتدائي): one choice shared by the pupils card, the tests and the continuous assessment;
+     big coloured buttons + a message, and a wrapper class that colours the page (green = all, orange = pre-school, blue = primary) */
+  const ST = {
+    cur: '',
+    isPre: l => { const k = LV.byK(l); if (k) return !!k.pre; const t = String(l || ''); return /أولي|اولي|روض|تمهيد|PS\d|GS|MS/i.test(t) && !/ابتدا/.test(t); },
+    ok: (l, st) => { st = st == null ? ST.cur : st; return !st || (ST.isPre(l) ? 'pre' : 'pri') === st; },
+    priName: () => { const c = (typeof S === 'function' && window.DB ? S().cycle : '') || ''; return /إعدادي/.test(c) ? 'التعليم الثانوي الإعدادي' : /تأهيلي/.test(c) ? 'التعليم الثانوي التأهيلي' : 'التعليم الابتدائي'; },
+    single: () => { const c = (typeof S === 'function' && window.DB ? S().cycle : '') || ''; return /إعدادي|تأهيلي/.test(c); },
+    cls: () => 'pu-wrap pu-st-' + (ST.cur || 'all'),
+    title: st => { st = st == null ? ST.cur : st; return st === 'pre' ? ' — التعليم الأولي' : st === 'pri' ? ' — ' + ST.priName() : ''; },
+    // counts: { '': n, pre: n, pri: n } (optional); what: the word for the data of the page
+    bar(counts, what) {
+      const I = { '': ['📊', 'الكل (الأولي + ' + ST.priName().replace('التعليم ', '') + ')'], pre: ['🧸', 'التعليم الأولي'], pri: ['🎒', ST.priName()] }, c = counts || {};
+      const msg = ST.cur === 'pre' ? `تعرض ${what || 'جميع الخانات والإحصائيات والوثائق'} الآن <b>التعليم الأولي</b> فقط` : ST.cur === 'pri' ? `تعرض ${what || 'جميع الخانات والإحصائيات والوثائق'} الآن <b>${esc(ST.priName())}</b> فقط` : `تعرض ${what || 'جميع الخانات والإحصائيات والوثائق'} الآن <b>التعليم الأولي و${esc(ST.priName().replace('التعليم ', ''))} معا</b>`;
+      return `<div class="pu-stbar" data-stbar>${['', 'pre', 'pri'].map(k => `<button data-st="${k}" class="pu-stb pu-stb-${k || 'all'} ${ST.cur === k ? 'on' : ''}"><span class="i">${I[k][0]}</span><span class="t">${esc(I[k][1])}</span>${c[k] != null ? `<span class="n">${c[k]}</span>` : ''}${ST.cur === k ? '<span class="ck">✔</span>' : ''}</button>`).join('')}</div><div class="pu-stmsg">${msg}</div>`;
+    },
+    bind(root, after) { (root || document).querySelectorAll('[data-stbar] [data-st]').forEach(b => b.onclick = () => { ST.cur = b.dataset.st; after(); }); }
+  };
+  window.K = { num, r2, money, pct, tafqit, intWords, LV, U, E, PP, CATS, dl, SB, bars, COL, form, fieldHtml, crud, ST };
 })();
