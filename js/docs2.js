@@ -565,6 +565,22 @@
     ${f.receipt === 'no' ? '' : `<div class="sep"></div><p class="b u">إشعار بالتوصل :</p><p>${F ? 'تشهد السيدة' : 'يشهد السيد'} ${V(fullName(e))} ${F ? 'أنها تسلمت' : 'أنه تسلم'} هذا الإنذار بتاريخ : ${V('')} &nbsp; التوقيع : ${V('')}</p>`}`;
   };
 
+  /* ---------- 1.9.4: absence notice («إشعار بتغيب»), the model of the schools: two copies on the sheet ---------- */
+  T.absInform = ({ s, e, f }) => {
+    const one = `<div class="ab-cp">
+      <div class="ab-h">${header(s)}</div>
+      <div class="ab-t">إشعار بتغيب</div>
+      <p class="ab-r"><span>الاسم والنسب : ${V(fullName(e))}</span><span>رقم التأجير : ${V(e.ppr)}</span></p>
+      <p class="ab-r"><span>الإطار : ${V(e.cadre)}</span><span>الدرجة : ${V(e.grade)}</span><span>الرتبة : ${V(e.echelon)}</span><span>المهمة : ${V(f.task || e.task)}</span></p>
+      <p>مقر العمل : ${V(f.post || e.unit || s.school)}</p>
+      <p>تاريخ الانقطاع عن العمل : ${DL(f.stopDate, 'b')}${f.toDate ? ` &nbsp; إلى غاية : ${DL(f.toDate, 'b')}` : ''}</p>
+      <p>سبب التغيب : ${V(f.reason)}</p>
+      <p>ملاحظات رئيس المؤسسة : ${V(f.notes)}</p>
+      <div class="ab-s"><div>${esc(f.city || s.city || '')} في : ${DL(f.date)}</div><div class="b">خاتم وتوقيع رئيس المؤسسة</div></div>
+    </div>`;
+    return `<div class="ab2">${one}${f.copies === '1' ? '' : `<div class="ab-cut">✂</div>${one}`}</div>`;
+  };
+
   /* ---------- inquiry: directorate model ---------- */
   T.inquiryDir = ({ s, e, f }) => `
     ${header(s)}
@@ -748,6 +764,7 @@
     joinWork: { title: 'محضر الالتحاق بالعمل', icon: '🏫', desc: 'التحاق موظف جديد أو منقول أو عائد بالمؤسسة، على نموذج المديرية', page: 'a4', cat: 'work' },
     resumeDir: { title: 'محضر استئناف العمل (نموذج المديرية)', icon: '☑️', desc: 'النموذج الرسمي للمديرية الإقليمية', page: 'a4', cat: 'work' },
     absenceNotice: { title: 'إعلان بانقطاع عن العمل', icon: '⛔', desc: 'يبعث في ثلاث نظائر بعد 48 أو 72 ساعة', page: 'a4', cat: 'work' },
+    absInform: { title: 'إشعار بتغيب', icon: '📝', desc: 'إشعار بتغيب موظف(ة): الإطار والدرجة والرتبة والمهمة، تاريخ الانقطاع وسببه وملاحظات رئيس المؤسسة — نسختان في الورقة', page: 'a4', cat: 'work' },
     returnWarn: { title: 'إنذار بوجوب العودة إلى العمل', icon: '⚠️', desc: 'بعد الانقطاع عن العمل: أجل سبعة أيام لاستئناف العمل (موظفو الوزارة)', page: 'a4', cat: 'work' },
     missionArrival: { title: 'إخبار بالوصول إلى مقر المأمورية', icon: '📍', desc: 'حالة تكليف', page: 'a4', cat: 'work' },
     certificate2: { title: 'طلب شهادة', icon: '📃', desc: 'شهادة العمل، الأجرة، الالتزام...', page: 'a4', pageClass: 'big-a4', cat: 'cert' },
@@ -801,6 +818,10 @@
   .lh2{line-height:2.05}.lh2 p{margin:0}
   .row2x{display:flex;justify-content:space-between;gap:4mm}.row2x>*{flex:1}
   .row3x{display:flex;justify-content:space-between;gap:3mm}.row3x>*{flex:1}
+  .ab2{display:flex;flex-direction:column;height:100%}.ab-cp{height:134mm;box-sizing:border-box;display:flex;flex-direction:column;font-size:12pt;overflow:hidden}.ab-cp p{margin:.6mm 0;line-height:1.5}
+  .ab-h{zoom:.66}.ab-t{align-self:center;border:1.5px solid #333;border-radius:3mm;padding:.6mm 10mm;font-weight:700;font-size:16pt;margin:1mm 0 3mm;box-shadow:1.5px 1.5px 0 #333}
+  .ab-r{display:flex;flex-wrap:wrap;gap:1mm 7mm}.ab-s{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-start;min-height:37mm;padding-left:12mm}
+  .ab-cut{text-align:center;color:#777;font-size:10pt;border-top:1.2px dashed #888;line-height:1;margin:1.5mm 0 2mm}
   .kv2 td{padding:1.2mm 0}.kv2 .lbc{width:28%}.kv2 .frc{width:32%;text-align:left}
   .wa-a4{font-size:12.5pt;line-height:1.75}
   .wa-title{text-align:center;font-family:'MAJT','Amiri',serif;font-weight:700;font-size:24pt;margin:12mm 0 10mm;line-height:1.3}

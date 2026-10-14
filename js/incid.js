@@ -162,11 +162,37 @@
       { html: `<div class="sb-box" style="margin-top:2mm;font-size:9.6pt;line-height:1.7"><h4>أرقام النجدة</h4>${AMB.map(([x, l]) => `<span style="display:inline-block;min-width:44%"><b><bdi dir="ltr">${x}</bdi></b> : ${esc(l)}</span>`).join('')}</div>` }],
       sign: SB.sign(s, { right: `حرر ب: ${esc(f.city || s.city || '')} في: ${dateL(f.date)}`, left: 'توقيع مدير(ة) المؤسسة' }) });
   }
+  // 1.9.4: the model of the schools — the pupil's card handed to the ambulance (two copies on the sheet), signed by the general supervisor / the director
+  const isSecC = () => { try { return typeof isSecCycle === 'function' && isSecCycle(); } catch (_) { return false; } };
+  const AMB_SIG = () => [['gs', 'إمضاء الحارس(ة) العام(ة)'], ['dir', 'إمضاء مدير(ة) المؤسسة'], ['both', 'الحارس العام ومدير المؤسسة']];
+  function ambCard(s, f, o, sy) {
+    const p = pupilOf(o.pupil), g = p.guard || {}, fa = g.father || {}, who = [fa.first, fa.last].filter(Boolean).join(' ');
+    const row = (l, v, w) => `<div class="inc-af"><b>${l} :</b> ${v ? `<span class="v">${v}</span>` : `<span class="sb-dots" style="min-width:${w || 110}mm"></span>`}</div>`;
+    const birth = [o.birth ? dateL(o.birth) : '', esc(p.place || p.birthPlace || '')].filter(Boolean).join(' ب');
+    const sig = f.sig || (isSecC() ? 'gs' : 'dir');
+    const sigH = sig === 'both' ? '<div class="inc-as two"><div>إمضاء الحارس(ة) العام(ة)</div><div>إمضاء مدير(ة) المؤسسة</div></div>' : `<div class="inc-as"><div>${sig === 'gs' ? 'إمضاء الحارس(ة) العام(ة)' : 'إمضاء مدير(ة) المؤسسة'}</div></div>`;
+    const one = `<div class="inc-amb">${hdrOnly(s)}
+      <div class="inc-amb-sy">الموسم الدراسي : <b>${esc(MK.syDash(sy).replace('-', '/'))}</b></div>
+      <div class="inc-amb-t">ورقة الاتصال بالإسعاف</div>
+      ${row('الاسم الكامل', o.pupil ? `<b>${esc(o.pupil)}</b>` : '')}${row('القسم', esc(o.cls || ''), 60)}${row('رقم مسار', o.code ? `<bdi dir="ltr">${esc(o.code)}</bdi>` : '', 60)}
+      ${row('تاريخ ومكان الازدياد', birth, 90)}${row('اسم الأب', esc(f.father || who), 90)}${row('العنوان العائلي', esc(f.addr || p.address || g.address || fa.address || ''), 100)}
+      ${row('الهاتف', (f.tel || o.parentPhone || fa.phone || g.phone) ? `<bdi dir="ltr">${esc(f.tel || o.parentPhone || fa.phone || g.phone)}</bdi>` : '', 70)}
+      ${f.more ? row('معلومات صحية / ملاحظات', esc(f.more)) : ''}
+      <div class="inc-af"><b>حرر ب${esc(f.city || s.city || '')} بتاريخ :</b> ${f.date ? dateL(f.date) : '<span class="sb-dots" style="min-width:40mm"></span>'}</div>
+      ${sigH}</div>`;
+    const n = f.copies === '1' ? 1 : 2;
+    return { page: 'a4', pages: [`<div class="page-a4 sb inc-ambp">${n === 2 ? `${one}<div class="inc-cut">✂</div>${one}` : one}</div>`] };
+  }
   add({
-    k: 'sa_amb', t: 'ورقة الاتصال بالإسعاف', grp: 'a', d: 'تسجيل الاتصال بالإسعاف: ساعة الاتصال، الرقم، المعلومات المبلغة، ساعة الوصول، وجهة النقل والمرافق.', auto: 'سجل الحوادث المدرسية', page: 'a4',
-    init: s => ({ city: s.city || '', date: Dx.todayIso(), num: '15', caller: s.director || '' }),
-    defs: () => ambDefs(saField, 'ولي الأمر'),
-    build: (s, f) => { const o = acc(f); return ambSheet(s, f, { name: o.pupil, idLabel: 'رقم مسار', id: o.code, date: o.date, time: o.time, place: o.place, injury: o.injury, hosp: o.hosp, escort: o.escort }, 'حادثة مدرسية'); }
+    k: 'sa_amb', t: 'ورقة الاتصال بالإسعاف', grp: 'a', d: 'بطاقة التلميذ(ة) المصاب(ة) التي تسلم للإسعاف (نموذج المؤسسات، نسختان في الورقة): الاسم، القسم، رقم مسار، الازدياد، اسم الأب، العنوان، الهاتف — أو ورقة مفصلة لتسجيل الاتصال والنقل.', auto: 'سجل الحوادث المدرسية وبطاقة التلاميذ', page: 'a4',
+    init: s => ({ model: 'card', copies: '2', city: s.city || '', date: Dx.todayIso(), num: '15', caller: s.director || '' }),
+    defs: f => (f && f.model === 'full' ? [{ k: 'model', l: 'النموذج', t: 'select', opts: [['card', 'نموذج المؤسسة: بطاقة التلميذ للإسعاف (نسختان)'], ['full', 'ورقة مفصلة: الاتصال والنقل وأرقام النجدة']] }].concat(ambDefs(saField, 'ولي الأمر'))
+      : [{ k: 'model', l: 'النموذج', t: 'select', opts: [['card', 'نموذج المؤسسة: بطاقة التلميذ للإسعاف (نسختان)'], ['full', 'ورقة مفصلة: الاتصال والنقل وأرقام النجدة']] }, saField,
+        { note: 'تملأ المعطيات من سجل الحوادث المدرسية وبطاقة التلاميذ (معلومات الأولياء)، ويمكن كتابتها أو تعويضها هنا.' },
+        { k: 'father', l: 'اسم الأب', half: true }, { k: 'tel', l: 'الهاتف', half: true, dir: 'ltr' }, { k: 'addr', l: 'العنوان العائلي' }, { k: 'more', l: 'معلومات صحية / ملاحظات (اختياري)' },
+        { k: 'sig', l: 'التوقيع', t: 'select', half: true, opts: () => [['', isSecC() ? 'الحارس العام (افتراضي)' : 'مدير المؤسسة (افتراضي)']].concat(AMB_SIG()) }, { k: 'copies', l: 'عدد النسخ في الورقة', t: 'select', half: true, opts: [['2', 'نسختان'], ['1', 'نسخة واحدة']] },
+        { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'بتاريخ', t: 'date', half: true }]),
+    build: (s, f, sy) => { const o = acc(f); return f.model === 'full' ? ambSheet(s, f, { name: o.pupil, idLabel: 'رقم مسار', id: o.code, date: o.date, time: o.time, place: o.place, injury: o.injury, hosp: o.hosp, escort: o.escort }, 'حادثة مدرسية') : ambCard(s, f, o, sy || MK.curSy()); }
   });
 
   /* ---------- receipt (school & service) ---------- */
@@ -325,6 +351,9 @@
   .inc-rcp{display:flex;flex-direction:column}.inc-rc{border:1.3px dashed #555;border-radius:2.5mm;padding:2.5mm 5mm;margin:1mm 0 1.5mm;font-size:11pt}
   .inc-rc-t{text-align:center;font-weight:700;font-size:14pt;text-decoration:underline;margin-bottom:1.5mm}
   .inc-rc-s{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;text-align:center;font-weight:700;font-size:10pt;margin-top:3mm;min-height:16mm}
+  .inc-ambp{display:flex;flex-direction:column;justify-content:flex-start;gap:0}.inc-ambp .inc-cut{margin:1.2mm 0}.inc-amb{border:1.2px solid #333;border-radius:2mm;padding:1.5mm 5mm 1.5mm;height:132mm;box-sizing:border-box;display:flex;flex-direction:column;font-size:11.5pt;overflow:hidden}
+  .inc-amb .mk-hdr{zoom:.7}.inc-amb-sy{text-align:left;font-weight:700;margin:-1mm 0 1.5mm}.inc-amb-t{background:#ef8f22;color:#fff;font-weight:700;text-align:center;border-radius:3mm;padding:1.6mm;font-size:14pt;margin:0 0 2.5mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .inc-af{margin:.7mm 0;line-height:1.45}.inc-af .v{border-bottom:1px dotted #777;padding:0 2mm}.inc-as{margin-top:auto;border-top:1px solid #333;padding-top:1mm;min-height:24mm;box-sizing:border-box;text-align:center;font-weight:700;display:flex;justify-content:center}.inc-as.two{justify-content:space-around}
   .inc-cut{text-align:center;color:#777;font-size:10pt;border-top:1px dashed #999;line-height:1;margin:1.5mm 0}
   .inc-rcp .mk-hdr .hdr-v2,.inc-rcp .mk-hdr{transform-origin:top center}`;
 

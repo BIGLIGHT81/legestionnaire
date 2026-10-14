@@ -16,7 +16,9 @@
   const LABEL = new RegExp('(?:توقيع|إمضاء|امضاء|خاتم|طابع)[^<>\\n]{0,28}?(?:'
     + '(?:رئيس(?:ة)?|مدير(?:ة)?)[^<>\\n]{0,14}?المؤسس[ـة]{0,3}'
     + '|(?:السيد(?:\\(ة\\)|ة)? )?المدير(?:\\(ة\\)|ة)?(?!ي)' + NOT_PROV
-    + '|الرئيس(?:\\(ة\\))? المباشر(?:\\(ة\\))?)'
+    + '|الرئيس(?:\\(ة\\))? المباشر(?:\\(ة\\))?'
+    // 1.9.4: the general supervisor signs the pupils' papers with the stamp of the school (not the certificate line «الحارس العام / الناظر المسؤول…», signed by the director too)
+    + '|الحارس(?:\\(ة\\)|ة)? العام(?:\\(ة\\)|ة)?(?![ \\u00a0]*\\/[ \\u00a0]*(?:الناظر|المدير)))'
     + '|رأي (?:السيد )?(?:رئيس|مدير)(?:\\(ة\\)|ة)? المؤسس[ـة]{0,3} و(?:توقيعه|خاتمه)'
     + '|(?:Signature|Cachet|Visa)[^<>\\n]{0,25}?(?:d[ue] (?:la |l[\'’])?)?(?:[Dd]irect(?:eur|rice)(?! provincial| régional)|[Cc]hef d[\'’]établissement)');
   const LABEL_G = new RegExp(LABEL.source, 'g');
@@ -115,27 +117,40 @@
         const r = d.createRange(); r.selectNodeContents(n);
         for (const b of r.getClientRects()) if (b.width > 1 && b.height > 1) obs.push({ l: b.left, t: b.top, r: b.right, b: b.bottom });
       }
-      const W0 = c.w * mm, H0 = c.h * mm, tol = -.8 * mm, gap = .6 * mm; // a small clear margin around the writing
+      // pictures (the emblem, a logo, a photo, a chart) are obstacles too
+      d.querySelectorAll('img,svg,canvas').forEach(e => { if (e.closest('.stm,.stm-h')) return; const b = e.getBoundingClientRect(); if (b.width > 4 && b.height > 4) obs.push({ l: b.left, t: b.top, r: b.right, b: b.bottom }); });
+      const W0 = c.w * mm, H0 = c.h * mm, tol = -.8 * mm, gap = 1 * mm; // a small clear margin around the writing
       const area = (x, y, W, H) => { let a = 0; for (const o of obs) { const w = Math.min(x + W, o.r) - Math.max(x, o.l) - tol, h = Math.min(y + H, o.b) - Math.max(y, o.t) - tol; if (w > 0 && h > 0) a += w * h; } return a; };
       const pos = [];
       for (const el of st) {
         const L = el.parentElement.getBoundingClientRect();
         if (!L.width && !L.height) { pos.push(''); continue; }
-        const pg = el.closest('.copy,.cs-copy,.iv,.ivo,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
+        const pg = el.closest('.copy,.cs-copy,.iv,.ivo,.ab-cp,.inc-amb,.page-a4,.page-a4l,.sheet,.kd-in') || d.body;
         const P0 = pg.getBoundingClientRect();
         // content that runs past its page box (printed on the next sheet): the page goes on below
-        const isCopy = pg.matches('.copy,.cs-copy,.iv,.ivo'); // a copy among several on the sheet hides what goes out of it
-        const P = { left: P0.left, right: P0.right, top: P0.top, bottom: !isCopy && L.bottom > P0.bottom - 4 * mm ? L.bottom + H0 * 2 : P0.bottom };
+        let isCopy = pg.matches('.copy,.cs-copy,.iv,.ivo,.ab-cp,.inc-amb'); // a copy among several on the sheet hides what goes out of it
+        let P = { left: P0.left, right: P0.right, top: P0.top, bottom: !isCopy && L.bottom > P0.bottom - 4 * mm ? L.bottom + H0 * 2 : P0.bottom };
+        // 1.9.4: a framed box smaller than the page around the label (a copy of a form drawn by the user, two or three on a sheet) is the limit of its stamp
+        if (!isCopy) for (let an = el.parentElement && el.parentElement.parentElement; an && an !== pg && an !== d.body; an = an.parentElement) {
+          const cs = d.defaultView.getComputedStyle(an), R = an.getBoundingClientRect();
+          if (parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderBottomWidth) > 0 && cs.borderTopStyle !== 'none' && R.height > 40 * mm && R.height < P0.height - 15 * mm && R.width > 60 * mm) { isCopy = true; P = { left: R.left, right: R.right, top: R.top, bottom: R.bottom }; break; }
+        }
         // 1.9.4: a copy of a school certificate (.cs-copy hides what goes out of it) is a page of its own: the stamp is never cut
         const cx = (L.left + L.right) / 2, cy = (L.top + L.bottom) / 2, mid = (P.left + P.right) / 2;
-        const toMid = cx > mid ? -1 : 1; // the free side is usually toward the middle of the page
+        let toMid = cx > mid ? -1 : 1; // the free side is usually toward the middle of the page
+        // a label in the middle of its line: the side with less writing next to it (with a margin, the printed text may run a little wider)
+        if (Math.abs(cx - mid) < 15 * mm) { const band = (x0, x1) => obs.reduce((t, o) => { const w = Math.min(x1, o.r) - Math.max(x0, o.l), h = Math.min(L.bottom, o.b) - Math.max(L.bottom - H0 - 2 * mm, o.t); return t + (w > 0 && h > 0 ? w * h : 0); }, 0); toMid = band(L.left - W0 - 8 * mm, L.left - .5) <= band(L.right + .5, L.right + W0 + 8 * mm) ? -1 : 1; }
         const cands = (W, H) => { const side = toMid < 0 ? L.left - gap - W : L.right + gap; return [
           [cx - W / 2, L.bottom + gap], [cx - W / 2 + toMid * W * .35, L.bottom + gap], [cx - W / 2 + toMid * W * .7, L.bottom + gap],
           [cx - W / 2, L.bottom + 5 * mm], [cx - W / 2 + toMid * W * .5, L.bottom + 5 * mm],
           // 1.9.4: under the lines written just below the label (the director's name, a date…), still close to the label
           ...(() => { let yb = 0; for (const o of obs) if (o.t >= L.bottom - 1 && o.t <= L.bottom + 12 * mm && o.r > cx - W / 2 && o.l < cx + W / 2) yb = Math.max(yb, o.b); return yb ? [[cx - W / 2, yb + gap], [cx - W / 2 + toMid * W * .35, yb + gap]] : []; })(),
-          [cx - W / 2, L.bottom + 9 * mm], [cx - W / 2, L.bottom + 12 * mm],
-          [side, cy - H / 2], [side, L.top - H * .25], [side, L.bottom - H * .75], [side, L.top], [side + toMid * W * .5, cy - H / 2], [side, L.bottom - H]
+          [cx - W / 2, L.bottom + 9 * mm], [cx - W / 2, L.bottom + 12 * mm]
+        ]; };
+        const besides = (W, H) => { const side = toMid < 0 ? L.left - gap - W : L.right + gap; return [
+          [side, cy - H / 2], [side, L.top - H * .25], [side, L.bottom - H * .75], [side, L.top], [side + toMid * W * .5, cy - H / 2], [side, L.bottom - H], [side, L.bottom - H - 1.2 * mm],
+          // the other side too (a label in the middle of its line has free room on both sides)
+          ...(() => { const o = toMid < 0 ? L.right + gap : L.left - gap - W; return [[o, cy - H / 2], [o, L.bottom - H * .75], [o, L.bottom - H], [o, L.bottom - H - 1.2 * mm]]; })()
         ]; };
         // last choices: in the free space just above the label
         const above = (W, H) => { const side = toMid < 0 ? L.left - gap - W : L.right + gap; return [
@@ -145,7 +160,8 @@
         const near = (x, y, W, H) => Math.max(L.left - (x + W), x - L.right, 0) <= 12 * mm && Math.max(L.top - (y + H), y - L.bottom, 0) <= 12 * mm;
         let best = null;
         // under or beside the label first (a smaller stamp if the box is small), above it only when there is no other free place
-        for (const [list, sc] of [[cands, 1], [cands, .85], [cands, .72], [cands, .62], [above, 1], [above, .85], [above, .72]]) {
+        // 1.9.4: under the label first, a little smaller if needed, before beside it
+        for (const [list, sc] of [[cands, 1], [cands, .85], [besides, 1], [cands, .72], [besides, .85], [cands, .62], [besides, .72], [besides, .62], [above, 1], [above, .85], [above, .72]]) {
           const W = W0 * sc, H = H0 * sc;
           for (const [x0, y] of list(W, H)) {
             const x = Math.max(P.left + 2 * mm, Math.min(x0, P.right - 2 * mm - W));

@@ -159,7 +159,7 @@
   if (Dx) Dx.modCss = (Dx.modCss || '') + GCSS;
   const GL = { '2x3': [2, 3], '3x3': [3, 3], '3x4': [3, 4], '4x4': [4, 4], '4x5': [4, 5] };
   const GF = [['ppr', 'رقم التأجير'], ['cin', 'رقم البطاقة الوطنية'], ['cadre', 'الإطار'], ['task', 'المادة / المهمة'], ['unit', 'الوحدة المدرسية'], ['phone', 'الهاتف'], ['levels', 'المستويات المسندة']];
-  const G = { layout: '3x3', cat: '', unit: '', fields: [true, false, true, true, true, false, false], title: true, onlyPhoto: false, q: '' };
+  const G = { style: 'cards', layout: '3x3', cat: '', unit: '', fields: [true, false, true, true, true, false, false], title: true, onlyPhoto: false, q: '' };
   const gCat = (e, B) => (B.a.has(e.id) ? 'admin' : B.t.has(e.id) ? 'teacher' : B.as.has(e.id) ? 'assigned' : B.p.has(e.id) ? 'preschool' : 'other');
   function galleryList() {
     const B = window.Board ? { a: new Set(Board.admins().map(e => e.id)), t: new Set(Board.teachers().map(e => e.id)), as: new Set(Board.assigned().map(e => e.id)), p: new Set(Board.preschool().map(e => e.id)) } : { a: new Set(), t: new Set(), as: new Set(), p: new Set() };
@@ -196,6 +196,56 @@
     }
     return pages;
   }
+  /* ---- 1.9.4: «الفريق التربوي والإداري للمؤسسة» — a poster: one column per school unit, a coloured card per teacher (photo, levels,
+     language, name), the director's card and a sentence at the bottom (A4 landscape) ---- */
+  const TB = { title: 'الفريق التربوي والإداري للمؤسسة', quote: 'أعظم الإنجازات في عالم التربية ليست ثمرة عمل فرد واحد، بل هي عمل فريق كامل.', admins: true, theme: 'blue' };
+  const TB_COL = { 12: ['#4a7ff0', '#1c56d6'], 34: ['#b77cf2', '#8e44d6'], 56: ['#12d6e0', '#0aa8b5'], mix: ['#6bc9c4', '#2f9d96'], dir: ['#e612e6', '#a10aa1'], adm: ['#f2a03d', '#c97810'] };
+  const TB_CSS = `
+  .tb{height:100%;display:flex;flex-direction:column;gap:2.2mm;font-family:'MAJT','NSA','Amiri',sans-serif;box-sizing:border-box}
+  .tb-top{display:flex;align-items:center;gap:4mm}.tb-top img{height:20mm}.tb-ttl{flex:1;border:1.6px solid #111;border-radius:7mm;background:#79c2fb;text-align:center;font-weight:900;font-size:25pt;line-height:1.35;padding:1mm 4mm;color:#111;-webkit-text-stroke:.3px #fff;text-shadow:1px 1px 0 #fff,2px 2px 0 rgba(0,0,0,.25);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tb-sch{text-align:center;font-weight:700;font-size:11pt;margin-top:-1.4mm;color:#123}
+  .tb-cols{flex:1;min-height:0;display:flex;gap:2.4mm}.tb-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:1.8mm}
+  .tb-uh{border:1.6mm solid #4a7ff0;background:#fff;text-align:center;font-weight:900;font-size:13pt;line-height:1.15;padding:1.2mm 1mm;min-height:12mm;display:flex;align-items:center;justify-content:center;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tb-c{border-radius:4.5mm;padding:1.6mm;display:flex;flex-direction:column;gap:1.2mm;box-sizing:border-box;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tb-r{flex:1;min-height:0;display:flex;align-items:center;gap:1.6mm}
+  .tb-lv{background:#fff;border-radius:3.2mm;align-self:stretch;flex:0 0 32%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;line-height:1.05;color:#111;font-family:Arial,'NSA',sans-serif}
+  .tb-lv i{font-style:normal;font-family:'MAJT','NSA',sans-serif;font-size:.8em}
+  .tb-ph{flex:1;align-self:stretch;display:flex;align-items:center;justify-content:center;min-width:0}
+  .tb-ph div{aspect-ratio:1/1;height:100%;max-width:100%;border-radius:50%;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1mm solid #fff}
+  .tb-ph img{width:100%;height:100%;object-fit:cover;border-radius:50%}.tb-ph span{color:#9aa;font-weight:700}
+  .tb-n{background:#fff;border-radius:4mm;text-align:center;font-weight:900;color:#1268d8;line-height:1.2;padding:.9mm 1mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .tb-q{border-radius:5mm;padding:2mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tb-q div{background:#fff;border-radius:4mm;text-align:center;font-weight:900;font-size:14pt;line-height:1.45;padding:2mm 4mm;color:#111}`;
+  if (Dx) Dx.modCss = (Dx.modCss || '') + TB_CSS;
+  function teamBoard(s, sy) {
+    const B = window.Board, all = galleryList(), ids = new Set(all.map(e => e.id));
+    const T = (B ? B.teachers().concat(B.assigned()) : all).filter(e => ids.has(e.id));
+    const dir = B ? B.director() : null;
+    const adm = TB.admins && B ? B.admins().filter(e => ids.has(e.id) && (!dir || e.id !== dir.id)) : [];
+    // the units of the teachers (in the order of the units list, then the others as written on the employees)
+    const known = B ? B.unitNames() : [], unitsL = [];
+    known.concat(T.map(e => String(e.unit || '').trim())).forEach(u => { if (u && T.some(e => K.U.same(e.unit, u)) && !unitsL.some(x => K.U.same(x, u))) unitsL.push(u); });
+    let cols = (window.Cyc && Cyc.single()) || !unitsL.length ? [['', T]] : unitsL.map(u => [u, T.filter(e => K.U.same(e.unit, u))]).concat(T.some(e => !String(e.unit || '').trim()) ? [['آخرون', T.filter(e => !String(e.unit || '').trim())]] : []);
+    // a long column (one institution without units) is shared on several columns
+    if (cols.length === 1 && cols[0][1].length > 5) { const L0 = cols[0][1], n = Math.min(6, Math.ceil(L0.length / 4)), per = Math.ceil(L0.length / n); cols = Array.from({ length: n }, (_, i) => [i ? '' : cols[0][0], L0.slice(i * per, (i + 1) * per)]); }
+    const lv = e => (B ? B.levelDigits(e) : []);
+    const key = e => { const d = lv(e); return d.length ? d[0] * 10 + (d[d.length - 1] || 0) : 99; };
+    cols.forEach(c => c[1].sort((a, b) => key(a) - key(b)));
+    const maxN = Math.max(1, ...cols.map(c => c[1].length), (dir ? 1 : 0) + adm.length + (dir || adm.length ? 1 : 0));
+    const cardH = Math.max(22, Math.min(58, (150 - 14) / maxN - 1.8));
+    const lang = e => { const t = String(e.teachLang || '').trim(); return /مزدوج|ثنائي/.test(t) ? 'مزدوج' : /فرنس/.test(t) ? 'فرنسية' : /عرب/.test(t) ? 'عربية' : /أمازيغ|امازيغ/.test(t) ? 'أمازيغية' : ''; };
+    const colorOf = e => { const d = lv(e); if (!d.length) return TB_COL.mix; const a = d[0], b = d[d.length - 1]; return b <= 2 ? TB_COL[12] : a >= 3 && b <= 4 ? TB_COL[34] : a >= 5 ? TB_COL[56] : TB_COL.mix; };
+    const name = e => (Dx.fullName ? Dx.fullName(e) : [e.firstAr, e.lastAr].filter(Boolean).join(' '));
+    const fs = Math.max(8, Math.min(14, cardH * .3));
+    const card = (e, col, lvHtml) => `<div class="tb-c" style="height:${cardH.toFixed(1)}mm;background:${col[0]}">
+        <div class="tb-r">${lvHtml != null ? (lvHtml ? `<div class="tb-lv" style="font-size:${(fs * 1.05).toFixed(1)}pt">${lvHtml}</div>` : '') : ''}<div class="tb-ph"><div>${e.photo ? `<img src="${e.photo}" alt="">` : `<span style="font-size:${(fs * 1.1).toFixed(1)}pt">${esc(initials(e) || '')}</span>`}</div></div></div>
+        <div class="tb-n" style="font-size:${fs.toFixed(1)}pt">${esc(name(e))}</div></div>`;
+    const lvTxt = e => { const d = lv(e), l = lang(e); return d.length ? d.join('<br>+<br>') + (l ? `<i>${l}</i>` : '') : (l ? `<i>${l}</i>` : (esc(e.subject || '') || '')); };
+    const colsHtml = cols.map(([u, L]) => `<div class="tb-col">${u ? `<div class="tb-uh">${esc(u)}</div>` : ''}${L.map(e => card(e, colorOf(e), lvTxt(e))).join('')}</div>`).join('');
+    const side = dir || adm.length ? `<div class="tb-col">${dir ? `<div class="tb-uh" style="border-color:#c58ae8">مدير المؤسسة</div>${card(dir, TB_COL.dir, '')}` : ''}${adm.length ? `<div class="tb-uh" style="border-color:#f2a03d">الإدارة التربوية</div>${adm.map(e => card(e, TB_COL.adm, `<i>${esc(String(e.task || e.cadre || '').split(/\s+/).slice(0, 3).join(' '))}</i>`)).join('')}` : ''}</div>` : '';
+    const emb = '<img src="assets/emblem.png" alt="">';
+    return [`<div class="tb"><div class="tb-top">${emb}<div class="tb-ttl">${esc(TB.title || '')}</div>${emb}</div><div class="tb-sch">${esc(s.school || '')} — الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}</div>
+      <div class="tb-cols">${colsHtml}${side}</div>${TB.quote ? `<div class="tb-q" style="background:#4a7ff0"><div>«${esc(TB.quote)}»</div></div>` : ''}</div>`];
+  }
   window.pageEmpGallery = function (v, arg) {
     arg = arg || {};
     if (arg.q != null) G.q = arg.q;
@@ -210,18 +260,29 @@
           (window.Cyc && Cyc.single()) ? null : { k: 'unit', l: 'الوحدة المدرسية', t: 'select', half: true, opts: units },
           { k: 'onlyPhoto', l: '', t: 'checks', opts: ['الموظفون الذين لهم صورة فقط'], map: true },
           { sec: 'التصميم' },
-          { k: 'layout', l: 'عدد البطاقات في الصفحة', t: 'select', opts: [['2x3', '6 بطاقات (2 × 3) — صور كبيرة'], ['3x3', '9 بطاقات (3 × 3)'], ['3x4', '12 بطاقة (3 × 4)'], ['4x4', '16 بطاقة (4 × 4)'], ['4x5', '20 بطاقة (4 × 5) — صور صغيرة']] },
-          { k: 'fields', l: 'المعطيات المعروضة تحت الصورة', t: 'checks', opts: GF.map(x => x[1]) },
-          { k: 'title', l: '', t: 'checks', opts: ['عنوان أعلى كل صفحة (المؤسسة والموسم)'], map: true },
+          { k: 'style', l: 'النموذج', t: 'select', opts: [['cards', 'بطاقات بالصور (شبكة، A4 عمودي)'], ['board', 'لوحة «الفريق التربوي والإداري للمؤسسة» حسب الوحدات (A4 أفقي)']] },
+          G.style === 'board' ? { k: 'tbTitle', l: 'عنوان اللوحة', t: 'text' } : null,
+          G.style === 'board' ? { k: 'tbQuote', l: 'العبارة في أسفل اللوحة (اتركها فارغة لحذفها)', t: 'text' } : null,
+          G.style === 'board' ? { k: 'tbAdm', l: '', t: 'checks', opts: ['إظهار الأطر الإدارية تحت مدير المؤسسة'], map: true } : null,
+          G.style === 'board' ? { note: 'لون البطاقة حسب المستويات المسندة: الأول والثاني أزرق، الثالث والرابع بنفسجي، الخامس والسادس فيروزي، ومدير المؤسسة وردي. المستويات ولغة التدريس من بطاقة الموظف (المستويات المسندة، لغة التدريس).' } : null,
+          G.style === 'board' ? null : { k: 'layout', l: 'عدد البطاقات في الصفحة', t: 'select', opts: [['2x3', '6 بطاقات (2 × 3) — صور كبيرة'], ['3x3', '9 بطاقات (3 × 3)'], ['3x4', '12 بطاقة (3 × 4)'], ['4x4', '16 بطاقة (4 × 4)'], ['4x5', '20 بطاقة (4 × 5) — صور صغيرة']] },
+          G.style === 'board' ? null : { k: 'fields', l: 'المعطيات المعروضة تحت الصورة', t: 'checks', opts: GF.map(x => x[1]) },
+          G.style === 'board' ? null : { k: 'title', l: '', t: 'checks', opts: ['عنوان أعلى كل صفحة (المؤسسة والموسم)'], map: true },
           { note: 'لإضافة صورة لموظف(ة): افتح «البطاقة» الخاصة به أو بطاقته الشخصية ثم «إضافة صورة». المحاذاة والقص (3:4) تتم تلقائيا.' }].filter(Boolean);
         // booleans edited as one-box «checks» fields
-        const st2 = Object.assign({}, G, { onlyPhoto: [!!G.onlyPhoto], title: [!!G.title] });
+        const st2 = Object.assign({}, G, { onlyPhoto: [!!G.onlyPhoto], title: [!!G.title], tbTitle: TB.title, tbQuote: TB.quote, tbAdm: [!!TB.admins], style: G.style || 'cards' });
         let tm = null;
-        const sync = k => { if (k === 'onlyPhoto') G.onlyPhoto = !!st2.onlyPhoto[0]; else if (k === 'title') G.title = !!st2.title[0]; else G[k] = st2[k]; clearTimeout(tm); tm = setTimeout(refresh, k === 'q' ? 350 : 0); };
+        const sync = k => {
+          if (k === 'onlyPhoto') G.onlyPhoto = !!st2.onlyPhoto[0]; else if (k === 'title') G.title = !!st2.title[0];
+          else if (k === 'tbTitle') TB.title = st2.tbTitle; else if (k === 'tbQuote') TB.quote = st2.tbQuote; else if (k === 'tbAdm') TB.admins = !!st2.tbAdm[0];
+          else G[k] = st2[k];
+          if (k === 'style') { box.innerHTML = ''; K.form(box, defs, st2, sync); }
+          clearTimeout(tm); tm = setTimeout(refresh, k === 'q' || k === 'tbTitle' || k === 'tbQuote' ? 350 : 0);
+        };
         K.form(box, defs, st2, sync);
       },
-      build: st => ({ page: 'a4', pages: galleryPages(S(), st.sy) }),
-      fname: () => 'بطاقات_الموظفين_بالصور'
+      build: st => (G.style === 'board' ? { page: 'a4l', pages: teamBoard(S(), st.sy) } : { page: 'a4', pages: galleryPages(S(), st.sy) }),
+      fname: () => (G.style === 'board' ? 'الفريق_التربوي_والإداري' : 'بطاقات_الموظفين_بالصور')
     });
   };
   window.EmpPhoto = { pick: pickPhoto, fit: fitPhoto, initials, galleryList, G };

@@ -270,7 +270,7 @@ const NAV = [
 const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
   pupilDoc: 'pupils', boardDoc: 'board', councilDoc: 'councils', budgetDoc: 'budget', clubsDoc: 'clubs', eventsDoc: 'events', kudosDoc: 'kudos', memosDoc: 'memos', examsDoc: 'exams', supportDoc: 'support',
   teachDoc: 'teach', receiptDoc: 'license', duesDoc: 'dues', absregDoc: 'absreg', vigilDoc: 'vigil', listenDoc: 'listen', empCard: 'employees', empGallery: 'employees', filesDoc: 'documents:files',
-  track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
+  visits: 'documents:peda', visitsDoc: 'documents:peda', track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
 let current = 'home', currentArg = null;
 const lastTab = {};
 const visibleTabs = g => g.tabs().filter(t => !t.w || t.w());
@@ -360,6 +360,7 @@ function go(page, arg) {
     kudos: (vv, a) => window.pageKudos(vv, a), kudosDoc: (vv, a) => window.pageKudosDoc(vv, a),
     memos: (vv, a) => window.pageMemos(vv, a), memosDoc: (vv, a) => window.pageMemosDoc(vv, a),
     track: (vv, a) => window.pageTrack(vv, a), trackDoc: (vv, a) => window.pageTrackDoc(vv, a),
+    visits: (vv, a) => window.pageVisits(vv, a), visitsDoc: (vv, a) => window.pageVisitsDoc(vv, a),
     guard: (vv, a) => window.pageGuard(vv, a), guardDoc: (vv, a) => window.pageGuardDoc(vv, a), dayrep: (vv, a) => window.pageDayRep(vv, a), dayrepDoc: (vv, a) => window.pageDayRepDoc(vv, a), vschool: (vv, a) => window.pageVSchool(vv, a), vschoolDoc: (vv, a) => window.pageVSchoolDoc(vv, a),
     filesDoc: (vv, a) => window.pageFilesDoc(vv, a),
     receiptDoc: (vv, a) => window.pageReceiptDoc(vv, a),
@@ -1085,8 +1086,10 @@ function pageDocuments(v, arg) {
     const showV = !q || (vt + ' ' + vd + ' حراسة غياب استدعاء التزام').includes(q);
     return `${showT ? `<div class="card doc-card" data-trk="1"><div class="e">🙂</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} شبكة، الإنجاز ${sm.avg}%` : ''}</p></div></div>` : ''}${showG ? `<div class="card doc-card" data-grd="1"><div class="e">🛡️</div><div><h3>${gt}</h3><p>${gd}${gs.teachers ? ` — ${gs.teachers} أستاذ(ة) مكلف(ة)` : ''}</p></div></div>` : ''}${showR ? `<div class="card doc-card" data-drp="1"><div class="e">📋</div><div><h3>${rt}</h3><p>${rd}</p></div></div>` : ''}${showV ? `<div class="card doc-card" data-vsc="1"><div class="e">📨</div><div><h3>${vt}</h3><p>${vd}</p></div></div>` : ''}`;
   };
-  const cardsOf = (id, q) => id === 'files' ? fileCards(q) : id === 'follow' ? followCards(q) : typeCards(id, q);
-  const nOf = id => (id === 'files' ? (window.Files ? Files.DOCS().length : 0) : id === 'follow' ? 4 : Object.values(TYPES).filter(t => !t.hidden && (t.cat || 'all') === id).length);
+  // 1.9.4: the digital register of the inspection and follow-up visits, first card of «التأطير والتتبع»
+  const visitCard = q => { const t = 'سجل الزيارات التفقدية والتتبع التربوي', d = 'توثيق زيارات أساتذة الوحدات المدرسية: التاريخ، الأستاذ(ة)، الوحدة، التأشير على المذكرة اليومية وسجل الغياب ودفاتر التلاميذ والجذاذات واستعمال الزمن واحترام التوصيات السابقة، الملاحظات والتوصيات'; if (q && !(t + ' ' + d + ' زيارة').includes(q)) return ''; const sm = window.Visits ? Visits.summary() : { n: 0 }; return `<div class="card doc-card" data-vst="1"><div class="e">🗂️</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} زيارة` : ''}</p></div></div>`; };
+  const cardsOf = (id, q) => id === 'files' ? fileCards(q) : id === 'follow' ? followCards(q) : id === 'peda' ? visitCard(q) + typeCards(id, q) : typeCards(id, q);
+  const nOf = id => (id === 'files' ? (window.Files ? Files.DOCS().length : 0) : id === 'follow' ? 4 : id === 'peda' ? 1 + Object.values(TYPES).filter(t => !t.hidden && t.cat === 'peda').length : Object.values(TYPES).filter(t => !t.hidden && (t.cat || 'all') === id).length);
   const cur = SECS.find(x => x.id === cat);
   v.innerHTML = `<div class="page-h"><h1>${cur.title}</h1><span class="sub">اختر الوثيقة المطلوب إنشاؤها (${nOf(cat)} نموذجا في هذا الصنف)</span><span class="sp"></span>
       <div class="search" style="width:280px">${ic('search')}<input class="inp" id="dq" placeholder="بحث في كل الوثائق..."></div></div>
@@ -1100,6 +1103,7 @@ function pageDocuments(v, arg) {
     $$('[data-doc]', v).forEach(c => c.onclick = () => go('editor', { type: c.dataset.doc, variant: c.dataset.var || '' }));
     $$('[data-fl]', v).forEach(c => c.onclick = () => go('filesDoc', { kind: c.dataset.fl }));
     $$('[data-trk]', v).forEach(c => c.onclick = () => go('track'));
+    $$('[data-vst]', v).forEach(c => c.onclick = () => go('visits'));
     $$('[data-grd]', v).forEach(c => c.onclick = () => go('guard'));
     $$('[data-drp]', v).forEach(c => c.onclick = () => go('dayrep'));
     $$('[data-vsc]', v).forEach(c => c.onclick = () => go('vschool'));
@@ -1308,6 +1312,15 @@ const FORMS = {
     { k: 'lastAddress', l: 'آخر عنوان أدلى به الموظف', t: 'text', auto: (f, e) => e.address || '', full: true },
     { sec: 'الإرسال' },
     { k: 'sendDate', l: 'تاريخ الإرسال إلى المديرية', t: 'date' }, { k: 'sendNo', l: 'تحت رقم', t: 'text' }
+  ],
+  absInform: [
+    { sec: 'التغيب' },
+    { k: 'stopDate', l: 'تاريخ الانقطاع عن العمل', t: 'date', d: todayIso }, { k: 'toDate', l: 'إلى غاية (اختياري)', t: 'date' },
+    { k: 'reason', l: 'سبب التغيب', t: 'combo', o: ['مرض', 'مرافقة أحد الأبناء إلى المستشفى', 'ظروف عائلية', 'سبب غير معروف', 'وفاة أحد الأقارب'], full: true },
+    { k: 'notes', l: 'ملاحظات رئيس المؤسسة', t: 'text', full: true, d: () => '' },
+    { k: 'task', l: 'المهمة', t: 'text', auto: (f, e) => e.task || (isTeacher(e) ? 'التدريس' : '') }, { k: 'post', l: 'مقر العمل', t: 'text', auto: (f, e) => e.unit || S().school },
+    { k: 'copies', l: 'عدد النسخ في الورقة', t: 'select', o: [['2', 'نسختان'], ['1', 'نسخة واحدة']], d: () => '2' },
+    { k: 'city', l: 'حرر في', t: 'text', d: () => S().city }, { k: 'date', l: 'بتاريخ', t: 'date', d: todayIso }
   ],
   returnWarn: [
     { sec: 'الانقطاع والإنذار' },
