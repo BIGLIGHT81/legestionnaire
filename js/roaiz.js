@@ -11,7 +11,7 @@
   const SUBJ = [
     { k: 'ar', name: 'اللغة العربية', order: ['مبتدئ', 'حرف', 'مقطع', 'كلمة', 'جملة', 'فقرة', 'أقصوصة', 'نص'] },
     { k: 'fr', name: 'اللغة الفرنسية', order: ['débutant', 'lettre', 'graphème complexe', 'syllabe', 'mot simple', 'mot avancé', 'phrase (d.p)', 'phrase', 'texte'] },
-    { k: 'math', name: 'الرياضيات', order: ['مبتدئ', 'رقم واحد', 'رقمان', 'جمع', 'طرح', 'ضرب', 'قسمة', 'تحدي'] }
+    { k: 'math', name: 'الرياضيات', order: ['مبتدئ', 'رقم واحد', 'رقمان', 'جمع', 'طرح', 'ضرب', 'قسمة', 'مسألة', 'تحدي'] }
   ];
   const SUBJ_BY = Object.fromEntries(SUBJ.map(s => [s.k, s]));
   const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
@@ -62,7 +62,10 @@
     const head = {}; (rows[hi] || []).forEach((c, j) => { const t = String(c == null ? '' : c).trim(); if (t && head[t] == null) head[t] = j; });
     const idc = head['رقم التلميذ'], nmc = head['الإسم الكامل'] != null ? head['الإسم الكامل'] : head['الاسم الكامل'], gc = head['النوع'];
     const sc = { ar: head['اللغة العربية'], fr: head['اللغة الفرنسية'], math: head['الرياضيات'] };
-    if (idc == null || (sc.ar == null && sc.fr == null && sc.math == null)) return null;
+    if (idc == null) return null;
+    // 1.9.4: «Résultats de Soutien des élèves» (ListResultSoutien): the subjects are on the row above, one column per category marked «X»,
+    // the kind of test in «نوع الاختبار» (رائز الموضعة القبلي / البعدي) and the group of levels in «مجموعة الاختبار»
+    if (sc.ar == null && sc.fr == null && sc.math == null) return (rows[hi] || []).some(c => /رائز الموضعة/.test(String(c))) ? parseDual(rows, hi, idc, nmc) : parseMarks(rows, hi, head, idc, nmc);
     // meta above the header: المؤسسة / السنة الدراسية (value in the next non-empty cell of the same row)
     const meta = lbl => { for (let i = 0; i < hi; i++) { const row = rows[i] || []; for (let j = 0; j < row.length; j++) { if (String(row[j]).trim() === lbl) { for (let k = j + 1; k < row.length; k++) { const v = String(row[k] == null ? '' : row[k]).trim(); if (v) return v; } } } } return ''; };
     // parcours row (contains "parcours" / "المسار") just above the header
@@ -82,6 +85,48 @@
     return { top, unit: meta('المؤسسة'), sy: meta('السنة الدراسية'), parcours: { ar: parc('ar'), fr: parc('fr'), math: parc('math') }, pupils };
   }
 
+  function parseMarks(rows, hi, head, idc, nmc) {
+    const top = rows[hi - 1] || [], cats = rows[hi] || [], txt = c => String(c == null ? '' : c).trim();
+    const KEYS = [['ar', /^اللغة العربية$/], ['fr', /^اللغة الفرنسية$/], ['math', /^الرياضيات$/]];
+    const starts = []; top.forEach((c, j) => { const t = txt(c); if (t) starts.push([j, t]); });
+    const spans = {}; KEYS.forEach(([k, rx]) => { const i = starts.findIndex(x => rx.test(x[1])); if (i < 0) return; const a = starts[i][0], b = i + 1 < starts.length ? starts[i + 1][0] : a + 12; spans[k] = []; for (let j = a; j < b; j++) if (txt(cats[j])) spans[k].push([j, txt(cats[j])]); });
+    if (!Object.keys(spans).length) return null;
+    const absc = starts.find(x => /^الغياب$/.test(x[1])), tc = starts.find(x => /^الأستاذ|^الاستاذ/.test(x[1]));
+    const meta = lbl => { for (let i = 0; i < hi; i++) { const row = rows[i] || []; for (let j = 0; j < row.length; j++) { if (txt(row[j]) === lbl) { for (let k = j + 1; k < row.length; k++) { const v = txt(row[k]); if (v) return v; } } } } return ''; };
+    const pupils = [];
+    for (let i = hi + 1; i < rows.length; i++) {
+      const row = rows[i] || [], id = txt(row[idc]); if (!id || id === 'رقم التلميذ') continue;
+      const name = nmc != null ? txt(row[nmc]) : ''; if (!name) continue;
+      const val = k => { const f = (spans[k] || []).filter(([j]) => /^x$/i.test(txt(row[j]))).pop(); return f ? f[1] : ''; };   // several «X»: the highest category
+      pupils.push({ id, name, g: '', ar: val('ar'), fr: val('fr'), math: val('math'), abs: absc ? /^x$/i.test(txt(row[absc[0]])) : false, teacher: tc ? txt(row[tc[0]]) : '', cls: head['القسم'] != null ? txt(row[head['القسم']]) : '' });
+    }
+    const t = rows.slice(0, hi + 1).map(r => (r || []).join(' ')).join(' ');
+    return { top: t + ' ' + meta('نوع الاختبار'), unit: meta('المؤسسة'), sy: meta('السنة الدراسية'), level: meta('مجموعة الاختبار'), parcours: { ar: '', fr: '', math: '' }, pupils };
+  }
+  // 1.9.4: «ExportNiveauxApprentissage» (sheets TARL-1APG-2APG…): for every subject two columns «رائز الموضعة القبلي» and «رائز الموضعة البعدي»
+  // with the category of each pupil, and the level expected for the group («TaRL المستوى المتوقع»): one sheet gives the before AND the after groups
+  function parseDual(rows, hi, idc, nmc) {
+    const txt = c => String(c == null ? '' : c).trim(), top = rows[hi - 1] || [], H = rows[hi] || [];
+    const KEYS = [['ar', /^اللغة العربية$/], ['fr', /^اللغة الفرنسية$/], ['math', /^الرياضيات$/]];
+    const starts = []; top.forEach((c, j) => { if (txt(c)) starts.push([j, txt(c)]); });
+    const col = { pre: {}, post: {} };
+    KEYS.forEach(([k, rx]) => { const i = starts.findIndex(x => rx.test(x[1])); if (i < 0) return; const a = starts[i][0], b = i + 1 < starts.length ? starts[i + 1][0] : a + 3;
+      for (let j = a; j < b; j++) { const t = txt(H[j]); if (/القبلي/.test(t)) col.pre[k] = j; else if (/البعدي/.test(t)) col.post[k] = j; } });
+    const meta = lbl => { for (let i = 0; i < hi; i++) { const row = rows[i] || []; for (let j = 0; j < row.length; j++) { if (txt(row[j]) === lbl) { for (let k = j + 1; k < row.length; k++) { const v = txt(row[k]); if (v) return v; } } } } return ''; };
+    // expected level: the row of «المستوى المتوقع» names the subjects, the next row gives the category
+    const parc = { ar: '', fr: '', math: '' };
+    const er = rows.findIndex((r, i) => i < hi && (r || []).some(c => /المستوى المتوقع/.test(txt(c))));
+    if (er >= 0) (rows[er] || []).forEach((c, j) => { const k = (KEYS.find(([, rx]) => rx.test(txt(c))) || [])[0]; if (k) parc[k] = txt((rows[er + 1] || [])[j]); });
+    const mk = ph => { const out = []; for (let i = hi + 1; i < rows.length; i++) { const row = rows[i] || [], id = txt(row[idc]), name = nmc != null ? txt(row[nmc]) : ''; if (!id || !name || id === 'رقم التلميذ') continue;
+      const v = k => (col[ph][k] != null ? txt(row[col[ph][k]]) : ''); const p = { id, name, g: '', ar: v('ar'), fr: v('fr'), math: v('math') }; if (p.ar || p.fr || p.math) out.push(p); } return out; };
+    const t = rows.slice(0, hi + 1).map(r => (r || []).join(' ')).join(' ');
+    return { dual: true, top: t, unit: meta('المؤسسة'), sy: meta('السنة الدراسية'), level: '', parcours: parc, pre: mk('pre'), post: mk('post'), pupils: [{}] };
+  }
+  // the gender of the pupils of a file without a gender column: from the pupils card (Massar code)
+  function fillGender(groups) {
+    const P = window.Pupils && Pupils.people ? Pupils.people(curSy()) : [], by = new Map(P.map(p => [String(p.code).toUpperCase(), p]));
+    groups.forEach(g => g.pupils.forEach(p => { if (!p.g) { const q = by.get(String(p.id).toUpperCase()); if (q) p.g = q.g === 'F' ? 'أنثى' : q.g === 'M' ? 'ذكر' : ''; } }));
+  }
   async function importFiles() {
     if (!window.api.openTables) return toast('الاستيراد المتعدد غير متوفر في هذه النسخة', true);
     const res = await window.api.openTables();
@@ -95,14 +140,19 @@
         const p = parseSheet(rows);
         if (!p || !p.pupils.length) { const q = window.RoaizX && RoaizX.parseL1 ? RoaizX.parseL1(rows, sh.name, f.name, f.b64) : null; if (q) l1.push(q); return; }
         if (!syFound && /^\d{4}\s*\/\s*\d{4}$/.test(p.sy)) syFound = p.sy.replace(/\s/g, '');
-        groups.push({ id: uid('rg'), file: f.name, sheet: sh.name, phase: detectPhase(f.name, sh.name, p.top), unit: p.unit || f.name.replace(/\.xlsx?$/i, ''), level: levelFromSheet(sh.name), parcours: p.parcours, pupils: p.pupils });
+        if (p.dual) { ['pre', 'post'].forEach(ph => { if (p[ph].length) groups.push({ id: uid('rg'), file: f.name, sheet: sh.name, phase: ph, unit: p.unit || f.name.replace(/\.xlsx?$/i, ''), level: levelFromSheet(sh.name), parcours: p.parcours, pupils: p[ph] }); }); if (!syFound && /^\d{4}\s*\/\s*\d{4}$/.test(p.sy)) syFound = p.sy.replace(/\s/g, ''); return; }
+        groups.push({ id: uid('rg'), file: f.name, sheet: sh.name, phase: detectPhase(f.name, sh.name, p.top), unit: p.unit || f.name.replace(/\.xlsx?$/i, ''), level: levelFromSheet(p.level || sh.name), parcours: p.parcours, pupils: p.pupils });
       });
     });
+    fillGender(groups);
+    // 1.9.4: the same Massar export downloaded several times (…_1, …_5…) must not double the pupils
+    let nDup = 0;
+    { const seen = new Set(); const keep = []; groups.forEach(g => { const k = [g.phase, g.unit, g.level, g.pupils.map(x => x.id || x.name).sort().join(',')].join('|'); if (seen.has(k)) { nDup++; return; } seen.add(k); keep.push(g); }); groups.length = 0; keep.forEach(g => groups.push(g)); }
     if (!groups.length && l1.length) {
       const n = RoaizX.applyL1(curSy(), l1); persist(); state.tab = 'l1'; go('roaiz', { tab: 'l1' });
-      return toast(`تم استيراد نتائج رائز المستوى الأول: ${l1.length} ملف — ${RoaizX.l1Pupils(curSy()).length} تلميذ(ة) في ${(DB.roaizx.years[curSy()].l1.src || []).length} قسم`);
+      return toast(`تم استيراد نتائج رائز المستوى الأول: ${l1.filter(q => q.phase !== 'post').length} ملف للتقييم القبلي و${l1.filter(q => q.phase === 'post').length} ملف للتقييم البعدي (تمييز تلقائي من الخانة D4 لملف مسار)`);
     }
-    if (!groups.length) return toast(`لم يتم العثور على معطيات الروائز في ${res.files.length} ملف. تأكد من ملفات «Export Groupe de Soutien».${res.errors && res.errors.length ? ' (تعذرت قراءة ' + res.errors.length + ' ملف)' : ''}`, true);
+    if (!groups.length) return toast(`لم يتم العثور على معطيات الروائز في ${res.files.length} ملف. تأكد من ملفات «Export Groupe de Soutien» أو ملفات مسار: الدعم التربوي TARL ← 6- نتائج رائز الموضعة القبلي والبعدي ← تصدير.${res.errors && res.errors.length ? ' (تعذرت قراءة ' + res.errors.length + ' ملف)' : ''}`, true);
     const sy = syFound || curSy();
     const nP = groups.reduce((s, g) => s + g.pupils.length, 0);
     const units = Array.from(new Set(groups.map(g => g.unit)));
@@ -112,7 +162,8 @@
     body.innerHTML = `<p style="margin:0 0 8px;line-height:1.8">تم العثور على <b>${groups.length}</b> مجموعة دعم (${units.length} وحدة مدرسية، ${nP} تلميذ(ة)) من <b>${res.files.length}</b> ملف، للموسم <b>${esc(syDash(sy))}</b>.</p>
       ${undet.length ? `<div class="fld"><label>${undet.length === groups.length ? 'فئة هذه الروائز' : `فئة الملفات التي لم يتعرف عليها البرنامج (${undet.length})`}</label>
         <select class="inp" id="iPh">${PH.map(p => `<option value="${p.k}" ${p.k === state.phase ? 'selected' : ''}>${esc(p.n)}</option>`).join('')}</select></div>` : ''}
-      ${l1.length ? `<p style="margin:0 0 8px">ونتائج <b>رائز المستوى الأول (تقييم التعليم الأولي)</b>: ${l1.length} قسم — ${l1.reduce((t, q) => t + q.pupils.length, 0)} تلميذ(ة) (تُضاف إلى تبويب «المستوى الأول»).</p>` : ''}
+      ${l1.length ? `<p style="margin:0 0 8px">ونتائج <b>رائز المستوى الأول (تقييم التعليم الأولي)</b>: ${l1.filter(q => q.phase !== 'post').length} ملف قبلي و${l1.filter(q => q.phase === 'post').length} ملف بعدي — ${l1.reduce((t, q) => t + q.pupils.length, 0)} تلميذ(ة) (تُضاف إلى تبويب «المستوى الأول»).</p>` : ''}
+      ${nDup ? `<p class="muted" style="margin:0 0 8px;font-size:12.5px">تم تجاهل ${nDup} مجموعة مكررة (نفس الملف مستورد أكثر من مرة).</p>` : ''}
       <div id="iSum" class="muted" style="font-size:12.5px;line-height:1.9"></div>`;
     const sum = () => {
       undet.forEach(g => { g.phase = ($('#iPh', body) || {}).value || state.phase; });
@@ -236,7 +287,7 @@
         ? card('تقرير المقارنة بين المراحل المختارة', `المراحل: ${st.map(k => esc(phOf(k).s)).join(' ، ') || '—'} (غيّرها من خانات الاختيار أعلاه)`, '#1f3864', { kind: 'cmp', stages: st }, st.length < 2)
           + card('تقرير المراحل الست', 'تتبع تطور الكفايات: المؤشرات، تطور الفئات A/B/C/D ونسبة التحكم عبر المراحل، حسب المادة والمستوى', '#0e5a4a', { kind: 'rep6', stages: st }, !st.length)
         : card('تقرير المقارنة بين الموضعة القبلية والبعدية', 'لكل مادة: نسبة التلاميذ في كل فئة في الرائزين، مع المبيانات', '#1f3864', { kind: 'cmp' }, !(groupsIn(state.sy, 'pre').length && groupsIn(state.sy, 'post').length))
-          + card('رائز المستوى الأول والقبلي والبعدي حسب المستويات', 'نسبة التحكم الموحدة: رائز المستوى الأول (تقييم التعليم الأولي) والموضعة القبلية والبعدية حسب المستويات، ثم التفاصيل لكل مادة', '#0e5a4a', { kind: 'evo' }, !l1M(state.sy) && !(groupsIn(state.sy, 'pre').length || groupsIn(state.sy, 'post').length))}</div></div><div id="r6Body"></div>`;
+          + card('رائز المستوى الأول والقبلي والبعدي حسب المستويات', 'نسبة التحكم الموحدة: رائز المستوى الأول (تقييم التعليم الأولي) والموضعة القبلية والبعدية حسب المستويات، ثم التفاصيل لكل مادة', '#0e5a4a', { kind: 'evo' }, !l1M(state.sy) && !l1M(state.sy, 'post') && !(groupsIn(state.sy, 'pre').length || groupsIn(state.sy, 'post').length))}</div></div><div id="r6Body"></div>`;
     if (CC) stagePicker(b);
     $$('[data-rep]', b).forEach(x => x.onclick = () => { const a = JSON.parse(x.dataset.rep); go('roaizDoc', Object.assign({ sy: state.sy, unit: state.unit, phase: a.phase || state.phase, by: 'subj' }, a)); });
     if (CC) tabEvo($('#r6Body'), 'cc', true);
@@ -416,28 +467,29 @@
   }
   const kpi = (t, v, c, sub) => `<div class="rz-k" style="border-top:4px solid ${c || '#1f3864'}"><div class="rz-kt">${t}</div><div class="rz-kv" style="color:${c || '#1f3864'}">${v}</div>${sub ? `<div class="rz-ks">${sub}</div>` : ''}</div>`;
   // 1.9.4: the level-one test (تقييم التعليم الأولي) merged with the placement tests: its mastery rate next to the before / after rates
-  const l1M = sy => { try { if (!window.RoaizX || !RoaizX.l1Mastery) return null; const m = RoaizX.l1Mastery(sy); return m && m.n ? m : null; } catch (_) { return null; } };
+  const l1M = (sy, which) => { try { if (!window.RoaizX || !RoaizX.l1Mastery) return null; const m = RoaizX.l1Mastery(sy, '', which); return m && m.n ? m : null; } catch (_) { return null; } };
   const L1C = '#16a085';
   function l1Parts(sy) {
-    const m = l1M(sy); if (!m) return [];
-    const kp = `<div class="rz-kpis">${kpi('نسبة التحكم — رائز المستوى الأول', pcH(m.rate), L1C, `${m.pupils} تلميذ(ة) مقيم(ة)${m.abs ? ` — ${m.abs} غائب(ة)` : ''}`)}${kpi('الإناث', pcH(m.rateF), '#c2185b')}${kpi('الذكور', pcH(m.rateM), '#1f5fa8')}${m.yes != null ? kpi('استفادوا من التعليم الأولي', pcH(m.yes), '#d35400', `${m.nYes} تلميذ(ة)`) : ''}${m.no != null ? kpi('لم يستفيدوا من التعليم الأولي', pcH(m.no), '#7f8c8d', `${m.nNo} تلميذ(ة)`) : ''}</div>`;
-    const ch = hbarsSvg(m.domains.filter(d => d.total).map(d => ({ label: d.n.length > 34 ? d.n.slice(0, 33) + '…' : d.n, v: d.rate, c: L1C })), { w: 560, labW: 230 });
-    return [kp, `<div class="rz-one" style="max-width:620px">${ch}<div class="rz-cap">رائز المستوى الأول — نسبة التحكم (مكتسب) حسب المجال</div></div>`];
+    const m0 = l1M(sy), m1 = l1M(sy, 'post'), m = m1 || m0; if (!m) return [];
+    const kp = `<div class="rz-kpis">${m0 ? kpi('المستوى الأول — التقييم القبلي', pcH(m0.rate), PH_BY.pre.c, `${m0.pupils} تلميذ(ة)${m0.abs ? ` — ${m0.abs} غائب(ة)` : ''}`) : ''}${m1 ? kpi('المستوى الأول — التقييم البعدي', pcH(m1.rate), PH_BY.post.c, `${m1.pupils} تلميذ(ة)`) : ''}${m0 && m1 ? kpi('التطور (نقطة)', sgn(m1.rate - m0.rate), gainC(m1.rate - m0.rate)) : ''}${m.rateF != null ? kpi('الإناث', pcH(m.rateF), '#c2185b') : ''}${m.rateM != null ? kpi('الذكور', pcH(m.rateM), '#1f5fa8') : ''}${m.yes != null ? kpi('استفادوا من التعليم الأولي', pcH(m.yes), '#d35400', `${m.nYes} تلميذ(ة)`) : ''}${m.no != null ? kpi('لم يستفيدوا من التعليم الأولي', pcH(m.no), '#7f8c8d', `${m.nNo} تلميذ(ة)`) : ''}</div>`;
+    const D = (m0 || m1).domains.map((d, i) => ({ n: d.n, a: m0 ? m0.domains[i].rate : null, b: m1 ? m1.domains[i].rate : null })).filter(d => d.a != null || d.b != null);
+    const ch = K.bars(D.map(d => (d.n.length > 22 ? d.n.slice(0, 21) + '…' : d.n)), [m0 ? { name: 'القبلي', color: PH_BY.pre.c, vals: D.map(d => (d.a == null ? 0 : +d.a.toFixed(1))) } : null, m1 ? { name: 'البعدي', color: PH_BY.post.c, vals: D.map(d => (d.b == null ? 0 : +d.b.toFixed(1))) } : null].filter(Boolean), { w: 600, h: 230, fs: 8.5, fmt: v => (v ? v : '') });
+    return [kp, `<div class="rz-one" style="max-width:640px">${ch}<div class="rz-cap">رائز المستوى الأول — نسبة الكفايات المكتسبة حسب المجال (القبلي والبعدي)</div></div>`];
   }
   // one table of the mastery rates of every placement test: level one (L1 test), before and after (TaRL) per level
   function mergedRows(sy, f) {
-    const m = l1M(sy), K3 = SUBJ.map(x => x.k), base = { unit: (f && f.unit) || '' };
+    const m = l1M(sy), mp = l1M(sy, 'post'), K3 = SUBJ.map(x => x.k), base = { unit: (f && f.unit) || '' };
     const lv = Array.from(new Set(LV_ORD.concat(groupsOf(sy).filter(g => famOf(g.phase) === 'pp').map(g => g.level)))).sort((a, b) => lvRank(a) - lvRank(b));
-    const rows = lv.map(l => { const a = dstat(dpupils(sy, Object.assign({}, base, { level: l }), 'pre'), K3), b = dstat(dpupils(sy, Object.assign({}, base, { level: l }), 'post'), K3); return { l, l1: lvRank(l) === 0 && m ? m.rate : null, a: a.rate, b: b.rate, na: a.pupils, nb: b.pupils, n1: lvRank(l) === 0 && m ? m.pupils : 0 }; })
-      .filter(r => r.l1 != null || r.a != null || r.b != null);
+    const rows = lv.map(l => { const a = dstat(dpupils(sy, Object.assign({}, base, { level: l }), 'pre'), K3), b = dstat(dpupils(sy, Object.assign({}, base, { level: l }), 'post'), K3); const one = lvRank(l) === 0; return { l, l1: one && m ? m.rate : null, l1p: one && mp ? mp.rate : null, a: a.rate, b: b.rate, na: a.pupils, nb: b.pupils, n1: one && m ? m.pupils : 0, n1p: one && mp ? mp.pupils : 0 }; })
+      .filter(r => r.l1 != null || r.l1p != null || r.a != null || r.b != null);
     return { rows, m };
   }
-  const mergedHead = '<tr><th>المستوى</th><th style="border-bottom:3px solid ' + L1C + '">رائز المستوى الأول</th><th style="border-bottom:3px solid #c0392b">الموضعة القبلية</th><th style="border-bottom:3px solid #27ae60">الموضعة البعدية</th><th>التطور (نقطة)</th></tr>';
-  const mergedRow = r => { const first = r.a != null ? r.a : r.l1, d = first != null && r.b != null ? r.b - first : null; return `<tr><td class="b">${esc(r.l)}</td><td class="num">${r.l1 == null ? '—' : pcH(r.l1) + ` <small class="muted">(${r.n1})</small>`}</td><td class="num">${r.a == null ? '—' : pcH(r.a) + ` <small class="muted">(${r.na})</small>`}</td><td class="num">${r.b == null ? '—' : pcH(r.b) + ` <small class="muted">(${r.nb})</small>`}</td><td class="num"><b>${sgn(d)}</b></td></tr>`; };
+  const mergedHead = '<tr><th>المستوى</th><th style="border-bottom:3px solid ' + L1C + '">رائز المستوى الأول — القبلي</th><th style="border-bottom:3px solid ' + L1C + '">رائز المستوى الأول — البعدي</th><th style="border-bottom:3px solid #c0392b">الموضعة القبلية</th><th style="border-bottom:3px solid #27ae60">الموضعة البعدية</th><th>التطور (نقطة)</th></tr>';
+  const mergedRow = r => { const first = r.a != null ? r.a : r.l1, last = r.b != null ? r.b : r.l1p, d = first != null && last != null ? last - first : null; return `<tr><td class="b">${esc(r.l)}</td><td class="num">${r.l1 == null ? '—' : pcH(r.l1) + ` <small class="muted">(${r.n1})</small>`}</td><td class="num">${r.l1p == null ? '—' : pcH(r.l1p) + ` <small class="muted">(${r.n1p})</small>`}</td><td class="num">${r.a == null ? '—' : pcH(r.a) + ` <small class="muted">(${r.na})</small>`}</td><td class="num">${r.b == null ? '—' : pcH(r.b) + ` <small class="muted">(${r.nb})</small>`}</td><td class="num"><b>${sgn(d)}</b></td></tr>`; };
   function mergedCard(sy, f) {
     const R = mergedRows(sy, f); if (!R.rows.length) return '';
-    const ch = K.bars(R.rows.map(r => r.l), [{ name: 'رائز المستوى الأول', color: L1C, vals: R.rows.map(r => (r.l1 == null ? 0 : +r.l1.toFixed(1))) }, { name: 'القبلية', color: PH_BY.pre.c, vals: R.rows.map(r => (r.a == null ? 0 : +r.a.toFixed(1))) }, { name: 'البعدية', color: PH_BY.post.c, vals: R.rows.map(r => (r.b == null ? 0 : +r.b.toFixed(1))) }], { w: 600, h: 220, fs: 10, fmt: v => (v ? v : '') });
-    return `<div class="card"><div class="card-h"><h3>نسبة التحكم الموحدة: رائز المستوى الأول والموضعة القبلية والبعدية حسب المستويات</h3></div><div class="card-b">${RZK_CSS}${screenParts(l1Parts(sy))}<div class="roz-two"><div style="overflow:auto"><table class="tbl compact"><thead>${mergedHead}</thead><tbody>${R.rows.map(mergedRow).join('')}</tbody></table><p class="muted" style="font-size:11.5px;line-height:1.7">رائز المستوى الأول: نسبة الكفايات «المكتسبة» (13 كفاية في 6 مجالات). الموضعة: نسبة التحكم في المواد الثلاث. التطور = البعدية − القبلية (أو − رائز المستوى الأول للمستوى الأول عند غياب القبلية).</p></div><div>${ch}</div></div></div></div>`;
+    const ch = K.bars(R.rows.map(r => r.l), [{ name: 'المستوى الأول القبلي', color: '#76d7c4', vals: R.rows.map(r => (r.l1 == null ? 0 : +r.l1.toFixed(1))) }, { name: 'المستوى الأول البعدي', color: L1C, vals: R.rows.map(r => (r.l1p == null ? 0 : +r.l1p.toFixed(1))) }, { name: 'القبلية', color: PH_BY.pre.c, vals: R.rows.map(r => (r.a == null ? 0 : +r.a.toFixed(1))) }, { name: 'البعدية', color: PH_BY.post.c, vals: R.rows.map(r => (r.b == null ? 0 : +r.b.toFixed(1))) }], { w: 600, h: 220, fs: 10, fmt: v => (v ? v : '') });
+    return `<div class="card"><div class="card-h"><h3>نسبة التحكم الموحدة: رائز المستوى الأول والموضعة القبلية والبعدية حسب المستويات</h3></div><div class="card-b">${RZK_CSS}${screenParts(l1Parts(sy))}<div class="roz-two"><div style="overflow:auto"><table class="tbl compact"><thead>${mergedHead}</thead><tbody>${R.rows.map(mergedRow).join('')}</tbody></table><p class="muted" style="font-size:11.5px;line-height:1.7">رائز المستوى الأول: نسبة الكفايات «المكتسبة» (13 كفاية في 6 مجالات). الموضعة: نسبة التحكم في المواد الثلاث. التطور = البعدي − القبلي (للمستوى الأول: رائز المستوى الأول البعدي − القبلي عند غياب روائز الموضعة). يميز البرنامج ملفات القبلي والبعدي تلقائيا: «نوع الاختبار» في ملفات نتائج الدعم، والخانة D4 في ملفات تقييم التعليم الأولي (1 = قبلي، 2 = بعدي).</p></div><div>${ch}</div></div></div></div>`;
   }
   const gainC = d => (d == null ? '#7f8c8d' : d >= 0 ? '#1e8449' : '#c0392b');
   const mvBars = (mv, w) => hbarsSvg([{ label: 'تحسن مستواهم', v: mv.pup, c: '#27ae60' }, { label: 'حافظوا على مستواهم', v: mv.psame, c: '#2e86c1' }, { label: 'تراجع مستواهم', v: mv.pdown, c: '#c0392b' }], { w: w || 480, labW: 140 });

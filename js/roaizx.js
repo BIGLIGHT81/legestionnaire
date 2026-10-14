@@ -49,6 +49,15 @@
     const l1 = o.l1 = o.l1 || {};
     if (!l1.items || !l1.items.d1) l1.items = defItems();   // former draft (ar / fr / math) replaced by the Massar model
     l1.marks = l1.marks || {}; l1.extra = Array.isArray(l1.extra) ? l1.extra : []; l1.info = l1.info || {}; l1.src = Array.isArray(l1.src) ? l1.src : []; return o; };
+  // 1.9.4: the level-one test has two sittings (Massar: 1 = القبلي at the start of the year, 2 = البعدي); the after-test is kept in «l1p»
+  // with the same structure, and every function works on one of them through this swap (the objects themselves are never copied)
+  function withL1(sy, which, fn) {
+    if (which !== 'post') return fn();
+    const o = Y(sy), keep = o.l1, q = o.l1p = o.l1p || {};
+    if (!q.items || !q.items.d1) q.items = defItems(); q.marks = q.marks || {}; q.extra = Array.isArray(q.extra) ? q.extra : []; q.info = q.info || {}; q.src = Array.isArray(q.src) ? q.src : [];
+    o.l1 = q; try { return fn(); } finally { o.l1p = o.l1; o.l1 = keep; }
+  }
+  const hasL1 = (sy, which) => withL1(sy, which, () => { const L = Y(sy).l1; return Object.keys(L.marks).length > 0 || L.src.length > 0; });
   const pupils = (sy, lvl) => { const P = window.Pupils ? Pupils.current(sy) : []; return P.filter(p => !lvl || p.lvl === lvl).map(p => ({ code: p.code, name: nm(`${p.last || ''} ${p.first || ''}`) || p.name || '', g: p.g === 'F' ? 'F' : 'M', cls: p.cls || '', unit: p.unit || '', lvl: p.lvl })); };
   const l1Pupils = sy => {
     const L1 = Y(sy).l1, all = pupils(sy), seen = new Set();
@@ -61,8 +70,9 @@
   const gAr = g => (g === 'F' ? 'أنثى' : g === 'M' ? 'ذكر' : '—');
 
   /* ---------- level 1: entry page ---------- */
-  const st1 = { cls: '' };
-  function pageL1(v, emb) {
+  const st1 = { cls: '', which: 'pre' };
+  function pageL1(v, emb) { return withL1(MK.curSy(), st1.which, () => pageL1_(v, emb)); }
+  function pageL1_(v, emb) {
     if (emb !== undefined) st1.emb = !!emb;
     const sy = MK.curSy(), y = Y(sy), L1 = y.l1;
     const all = l1Pupils(sy), cls = classesOf(all);
@@ -75,7 +85,8 @@
     v.innerHTML = `<div class="${st1.emb ? 'btn-row' : 'page-h'}" style="${st1.emb ? 'margin:0 0 10px;align-items:center' : ''}">${st1.emb ? '<b style="font-size:15px">رائز المستوى الأول (تقييم التعليم الأولي)</b>' : '<h1>رائز المستوى الأول (تقييم التعليم الأولي)</h1>'}<span class="sub">الموسم ${esc(MK.syDash(sy))}</span><span class="sp"></span>
         <button class="btn" id="l1Imp">${ic('up')} استيراد ملفات مسار</button>${L1.src.length ? `<button class="btn" id="l1Exp">${ic('down')} ملفات مسار المعبأة (${L1.src.length})</button>` : ''}
         <button class="btn" id="l1Items">${ic('edit')} الكفايات</button><button class="btn" id="l1Add">${ic('plus')} تلميذ(ة)</button><button class="btn pri" id="l1Doc">${ic('print')} النتائج والشبكات</button></div>
-      <div class="card" style="padding:10px 14px;margin-bottom:10px;line-height:1.85;font-size:12.8px">استورد ملفات «تقييم التعليم الأولي» (EvaluationPrescolaire) المحملة من مسار لكل قسم — مع باقي ملفات الروائز أو من هنا — ثم انقر على الخانات: فارغة ← <b style="color:#27ae60">✔ مكتسب</b> ← <b style="color:#c0392b">✘ غير مكتسب</b>. زر «ملفات مسار المعبأة» يعيد نفس ملفات مسار مملوءة بالنتائج (Aquis / Non aquis، والغياب X) جاهزة للرفع في منظومة مسار.</div>
+      <div class="rz-row two" style="margin-bottom:10px;max-width:640px">${[['pre', 'التقييم القبلي (بداية السنة)', '#c0392b'], ['post', 'التقييم البعدي', '#27ae60']].map(([k, t, c]) => `<button class="rz-b ${st1.which === k ? 'on' : ''}" data-l1w="${k}" style="--c:${c};--cl:${c}24"><span class="t">${t}</span><span class="n">${hasL1(MK.curSy(), k) ? '✓' : '—'}</span>${st1.which === k ? '<span class="ck">✔</span>' : ''}</button>`).join('')}</div>
+      <div class="card" style="padding:10px 14px;margin-bottom:10px;line-height:1.85;font-size:12.8px">يميز البرنامج تلقائيا بين ملفات التقييم القبلي والبعدي (الخانة D4 في ملف مسار: 1 = قبلي، 2 = بعدي). استورد ملفات «تقييم التعليم الأولي» (EvaluationPrescolaire) المحملة من مسار لكل قسم — مع باقي ملفات الروائز أو من هنا — ثم انقر على الخانات: فارغة ← <b style="color:#27ae60">✔ مكتسب</b> ← <b style="color:#c0392b">✘ غير مكتسب</b>. زر «ملفات مسار المعبأة» يعيد نفس ملفات مسار مملوءة بالنتائج (Aquis / Non aquis، والغياب X) جاهزة للرفع في منظومة مسار.</div>
       <div class="card" style="margin-bottom:10px"><div class="card-b btn-row" style="gap:8px;flex-wrap:wrap">
         ${cls.length ? `<select class="inp" id="l1C" style="width:auto">${cls.map(c => `<option ${c === st1.cls ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>` : ''}<span class="sp"></span><span class="muted">${list.length} تلميذ(ة) في القسم — انقر على عنوان كفاية لوضع «مكتسب» لكل القسم</span></div></div>
       ${list.length ? `<div class="card"><div class="tk-scroll"><table class="tk-grid l1g"><thead>
@@ -86,6 +97,7 @@
           ${items.map(it => cell(p.code, it)).join('')}<td class="b">${nOk(p.code)}/${items.length}</td></tr>`; }).join('')}</tbody></table></div></div>`
       : `<div class="empty-state">لا يوجد تلاميذ في المستوى الأول. استورد ملفات «تقييم التعليم الأولي» من مسار، أو لوائح التلاميذ في «بطاقة التلاميذ».</div>`}`;
     const again = () => pageL1(v);
+    $$('[data-l1w]', v).forEach(b => b.onclick = () => { st1.which = b.dataset.l1w; pageL1(v); });
     if ($('#l1C')) $('#l1C').onchange = e => { st1.cls = e.target.value; again(); };
     $$('.l1c', v).forEach(td => td.onclick = () => {
       const m = L1.marks[td.dataset.p] = L1.marks[td.dataset.p] || {};
@@ -98,7 +110,7 @@
     $$('[data-abs]', v).forEach(td => td.onclick = () => { const f = L1.info[td.dataset.abs] = L1.info[td.dataset.abs] || {}; f.abs = !f.abs; persist(); again(); });
     $$('[data-pre]', v).forEach(td => td.onclick = () => { const f = L1.info[td.dataset.pre] = L1.info[td.dataset.pre] || {}; const i = PRE_OPTS.indexOf(f.pre); f.pre = PRE_OPTS[(i + 1) % PRE_OPTS.length]; persist(); again(); });
     $$('.l1h', v).forEach(th => th.onclick = () => { list.forEach(p => { if (!info(p.code).abs) (L1.marks[p.code] = L1.marks[p.code] || {})[th.dataset.col] = 3; }); persist(); again(); });
-    $('#l1Doc').onclick = () => go('roaizxDoc', { kind: 'l1_res' });
+    $('#l1Doc').onclick = () => go('roaizxDoc', { kind: 'l1_res', which: st1.which });
     $('#l1Imp').onclick = () => (window.Roaiz && Roaiz.importFiles ? Roaiz.importFiles() : null);
     if ($('#l1Exp')) $('#l1Exp').onclick = () => exportMassar(sy);
     $('#l1Add').onclick = () => {
@@ -166,7 +178,16 @@
   /* ---------- documents ---------- */
   const store = sy => Y(sy).docs;
   const DOCS = [];
-  const add = d => DOCS.push(d);
+  // the documents of the level-one test choose the sitting (القبلي / البعدي)
+  const add = d => {
+    if (d.grp === 'l1') {
+      const i0 = d.init, df = d.defs, b0 = d.build;
+      d.init = s => Object.assign({ which: st1.which || 'pre' }, i0 ? i0(s) : {});
+      d.defs = (f, sy) => [{ k: 'which', l: 'التقييم', t: 'select', opts: [['pre', 'التقييم القبلي (بداية السنة)'], ['post', 'التقييم البعدي']], half: true }].concat(withL1(sy, f.which, () => (df ? df(f, sy) : [])));
+      d.build = (s, f, sy) => { const o = withL1(sy, f.which, () => b0(s, f, sy)); if (o && o.title) o.title += f.which === 'post' ? ' — التقييم البعدي' : ' — التقييم القبلي'; return o; };
+    }
+    DOCS.push(d);
+  };
   const hd = cells => thr(cells.map(c => (typeof c === 'object' ? c : { t: c, c: 'd' })));
   const levelOpts = () => [['', 'كل المستويات']].concat(K.LV.ALL.filter(l => /^P[1-6]$|^C[1-3]$/.test(l.k)).map(l => [l.k, l.ar]));
   const clsOpts = (sy, lvl) => [['', 'كل الأقسام']].concat(classesOf(pupils(sy, lvl)).map(c => [c, c]));
@@ -297,7 +318,9 @@
     const idRow = T.slice(0, hi).reverse().find(r => r.filter(c => /^\d{2,6}$/.test(c)).length >= 3) || [];
     let dom = '';
     const cols = T[ir].map((c, j) => { const d = nm((T[ir - 1] || [])[j]); if (d && ir - 1 > hi - 1) dom = d; const m = / - (\S+)$/.exec(c); return m ? { j, t: nm(c.slice(0, m.index)), code: m[1], mid: /^\d+$/.test(idRow[j] || '') ? +idRow[j] : 0, dom } : null; }).filter(Boolean);
-    const cid = (T.slice(0, hi).find(r => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(r[0] || '')) || [])[0] || '';
+    const idr = T.slice(0, hi).find(r => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(r[0] || '')) || [], cid = idr[0] || '';
+    // the sitting: 4th cell of the Massar id row (1 = القبلي, 2 = البعدي), or the name of the file / sheet
+    const phase = /بعدي|post/i.test(fileName + ' ' + sheetName) ? 'post' : /قبلي|pr[eé]-?test/i.test(fileName + ' ' + sheetName) ? 'pre' : nm(idr[3]) === '2' ? 'post' : 'pre';
     let cls = ''; T.slice(0, hi).forEach(r => r.forEach((c, j) => { if (/^Classe\s*:?$/i.test(c)) cls = r.slice(j + 1).find(Boolean) || cls; }));
     const pupils = [];
     for (let i = ir + 1; i < T.length; i++) {
@@ -305,9 +328,13 @@
       const marks = {}; cols.forEach(c => { const m = markOf(r[c.j]); if (m) marks[c.j] = m; });
       pupils.push({ code, name: nm(`${lc >= 0 ? r[lc] : ''} ${fc >= 0 ? r[fc] : ''}`), abs: ac >= 0 && /^x$/i.test(r[ac] || ''), pre: pc0 >= 0 ? (r[pc0] || '') : '', row: i + 1, marks });
     }
-    return pupils.length || cols.length ? { cols, pupils, cls, cid, file: fileName, sheet: sheetName, b64: b64 || '', absCol: ac >= 0 ? colL(ac) : '' } : null;
+    return pupils.length || cols.length ? { cols, pupils, cls, cid, phase, file: fileName, sheet: sheetName, b64: b64 || '', absCol: ac >= 0 ? colL(ac) : '' } : null;
   }
   function applyL1(sy, parsed) {
+    const pre = parsed.filter(q => q.phase !== 'post'), post = parsed.filter(q => q.phase === 'post');
+    return (pre.length ? applyL1_(sy, pre) : 0) + (post.length ? withL1(sy, 'post', () => applyL1_(sy, post)) : 0);
+  }
+  function applyL1_(sy, parsed) {
     const L1 = Y(sy).l1; let n = 0;
     const P = window.Pupils ? Pupils.current(sy) : [];
     parsed.forEach(Q => {
@@ -337,13 +364,14 @@
     return n;
   }
   // 1.9.4: the level-one test as a mastery rate (share of «مكتسب» among the competences marked), overall, by domain, by gender and by pre-school attendance
-  function l1Mastery(sy, cls) {
+  function l1Mastery(sy, cls, which) { return withL1(sy, which, () => l1Mastery_(sy, cls)); }
+  function l1Mastery_(sy, cls) {
     const st = l1Stats(sy, cls), sm = l1Summary(sy, cls), pc = (a, b) => (b ? a / b * 100 : null);
     let ok = 0, n = 0, okF = 0, nF = 0, okM = 0, nM = 0;
     const domains = st.map(d => { let o = 0, t = 0; d.items.forEach(x => { [3, 2, 1].forEach(k => { const c = x.c[k], s2 = c.M + c.F + c.U; t += s2; if (k === 3) { o += s2; okF += c.F; okM += c.M; } nF += c.F; nM += c.M; }); }); ok += o; n += t; return { k: d.s.k, n: d.s.n, ok: o, total: t, rate: pc(o, t) }; });
     return { pupils: sm.pres, all: sm.all, abs: sm.abs, rate: pc(ok, n), n, rateF: pc(okF, nF), rateM: pc(okM, nM), domains, yes: pc(sm.yes.ok, sm.yes.n), no: pc(sm.no.ok, sm.no.n), nYes: sm.yes.p, nNo: sm.no.p };
   }
-  window.RoaizX = { migrate, l1Pupils, l1Stats, l1Summary, l1Mastery, participation, DOCS: () => DOCS, parseL1, applyL1, exportMassar, renderL1: v => { migrate(DB); pageL1(v, true); } };
+  window.RoaizX = { migrate, l1Pupils, l1Stats, l1Summary, l1Mastery, withL1, hasL1, participation, DOCS: () => DOCS, parseL1, applyL1, exportMassar, renderL1: v => { migrate(DB); pageL1(v, true); } };
   window.pageRoaizx = (v, a) => { migrate(DB); C.hub(v, a); };
   window.pageRoaizxDoc = (v, a) => { migrate(DB); C.doc(v, a); };
   window.pageLevel1 = v => { migrate(DB); pageL1(v, false); };
