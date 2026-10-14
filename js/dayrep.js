@@ -34,9 +34,9 @@
     if (!iso) return out;
     const P = window.Pupils;
     if (P) {
-      const cnt = cat => P.movesOf(sy, cat).filter(m => m.date === iso && (!unit || m.unit === unit)).length;
+      const cnt = cat => P.movesOf(sy, cat).filter(m => m.date === iso && (!unit || K.U.same(m.unit, unit))).length;
       out.arr = cnt('joined'); out.dep = cnt('left'); out.nj = cnt('notjoined'); out.dr = cnt('drop');
-      out.pup = P.current(sy).filter(p => !unit || p.unit === unit).length;
+      out.pup = P.current(sy).filter(p => !unit || K.U.same(p.unit, unit)).length;
     }
     if (window.AbsReg) { const c = AbsReg.dayCount(sy, iso, unit); out.abs = c.abs; out.absLate = c.late; out.hasAbs = c.classes > 0; }
     // staff away on that date (leave, medical certificate, unjustified absence, …)

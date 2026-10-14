@@ -56,8 +56,8 @@
     const all = pupils(sy);
     const stages = STAGES.filter(([k]) => all.some(p => STG_OF(p.lvl) === k) || k === cycleStage());
     const units = Array.from(new Set(all.map(p => p.unit).filter(Boolean)));
-    const classes = Array.from(new Set(all.filter(p => !st.unit || p.unit === st.unit).map(p => p.cls).filter(Boolean)));
-    const rows = all.filter(p => (!st.unit || p.unit === st.unit) && (!st.cls || p.cls === st.cls) && (!st.q || MK.hkey(nameOf(p) + p.code).includes(MK.hkey(st.q))));
+    const classes = Array.from(new Set(all.filter(p => !st.unit || K.U.same(p.unit, st.unit)).map(p => p.cls).filter(Boolean)));
+    const rows = all.filter(p => (!st.unit || K.U.same(p.unit, st.unit)) && (!st.cls || p.cls === st.cls) && (!st.q || MK.hkey(nameOf(p) + p.code).includes(MK.hkey(st.q))));
     const tot = stats(sy, all);
     const a0 = 'التعليم الأولي: التأمين المدرسي فقط (اختياري)؛ الانخراط في التعاونية يخص التعليم الابتدائي فقط؛ التأمين والانخراط في الجمعية الرياضية يخصان الابتدائي والإعدادي والتأهيلي.';
     v.innerHTML = `<div class="page-h"><div><h2>الاشتراكات والتسجيل</h2><div class="muted">${window.Cyc && Cyc.isSec() ? 'التأمين المدرسي، والانخراط في الجمعية الرياضية المدرسية' : 'التأمين المدرسي، والانخراط في التعاونية المدرسية (للابتدائي)، والانخراط في الجمعية الرياضية المدرسية'}</div></div>
@@ -193,7 +193,7 @@
   /* ---------- printable lists ---------- */
   const KINDS = [['list', 'لائحة المنخرطين / المؤدين'], ['miss', 'لائحة غير المؤدين'], ['sum', 'حصيلة حسب الأقسام']];
   function build(s, f) {
-    const sy = f.sy, all = pupils(sy).filter(p => (!f.unit || p.unit === f.unit) && (!f.cls || p.cls === f.cls) && (!f.stage || STG_OF(p.lvl) === f.stage));
+    const sy = f.sy, all = pupils(sy).filter(p => (!f.unit || K.U.same(p.unit, f.unit)) && (!f.cls || p.cls === f.cls) && (!f.stage || STG_OF(p.lvl) === f.stage));
     const it = f.item, name = (ITEMS.find(x => x[0] === it) || ITEMS[0])[1];
     const sub = `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}${f.unit ? ' — ' + esc(f.unit) : ''}${f.cls ? ' — القسم ' + esc(f.cls) : ''}`;
     const mem = all.filter(p => hasItem(STG_OF(p.lvl), it));

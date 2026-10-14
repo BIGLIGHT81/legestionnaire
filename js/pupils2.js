@@ -38,9 +38,9 @@
 
   /* ---------- data of the schooling board ---------- */
   function schoolData(sy, unit) {
-    const x = X(), y = x.Y(sy), cur = x.current(sy).filter(p => !unit || p.unit === unit);
+    const x = X(), y = x.Y(sy), cur = x.current(sy).filter(p => !unit || K.U.same(p.unit, unit));
     const rep = new Set(x.movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
-    const mv = c => x.movesOf(sy, c).filter(m => !unit || m.unit === unit);
+    const mv = c => x.movesOf(sy, c).filter(m => !unit || K.U.same(m.unit, unit));
     const lv = LV.sort(uniq(cur.map(p => p.lvl).concat(mv('notjoined').map(m => m.lvl), mv('transit').map(m => m.lvl)).filter(Boolean)));
     const nc = l => y.lists.filter(c => (!unit || c.unit === unit) && (c.levels || []).includes(l)).reduce((a, c) => a + 1 / ((c.levels || []).length || 1), 0);
     const rows = lv.map(l => {
@@ -83,17 +83,17 @@
 
   /* ---------- statistics of one category by level and gender (threatened, disabilities…) ---------- */
   function catStats(sy, cat, unit) {
-    const x = X(), L = x.movesOf(sy, cat).filter(m => !unit || m.unit === unit);
+    const x = X(), L = x.movesOf(sy, cat).filter(m => !unit || K.U.same(m.unit, unit));
     const lv = LV.sort(uniq(L.map(m => m.lvl).filter(Boolean)));
     const types = uniq(L.map(m => m.dis).filter(Boolean));
     return { L, lv, types, tot: x.cnt(L) };
   }
   function docCatDash(s, sy, o, cat) {
-    const x = X(), st = catStats(sy, cat, SEC() ? '' : (o.unit || '')), C = x.CAT[cat], units = SEC() ? [] : x.unitsOf(sy).filter(u => st.L.some(m => m.unit === u));
+    const x = X(), st = catStats(sy, cat, SEC() ? '' : (o.unit || '')), C = x.CAT[cat], units = SEC() ? [] : x.unitsOf(sy).filter(u => st.L.some(m => K.U.same(m.unit, u)));
     const g3 = c => `<td>${c.m}</td><td>${c.f}</td><td class="s">${c.t}</td>`;
     const head = `<tr><th rowspan="2" class="d">المستوى</th>${units.map(u => `<th colspan="3" class="d">${esc(u)}</th>`).join('')}<th colspan="3" class="d">المجموع</th></tr><tr>${units.concat(['']).map(() => '<th>ذ</th><th>إ</th><th>م</th>').join('')}</tr>`;
-    const rows = st.lv.map(l => `<tr><td class="k">${esc(LV.sh(l))}</td>${units.map(u => g3(x.cnt(st.L, m => m.lvl === l && m.unit === u))).join('')}${g3(x.cnt(st.L, m => m.lvl === l))}</tr>`)
-      .concat([`<tr><td class="k">المجموع</td>${units.map(u => g3(x.cnt(st.L, m => m.unit === u))).join('')}${g3(st.tot)}</tr>`]);
+    const rows = st.lv.map(l => `<tr><td class="k">${esc(LV.sh(l))}</td>${units.map(u => g3(x.cnt(st.L, m => m.lvl === l && K.U.same(m.unit, u)))).join('')}${g3(x.cnt(st.L, m => m.lvl === l))}</tr>`)
+      .concat([`<tr><td class="k">المجموع</td>${units.map(u => g3(x.cnt(st.L, m => K.U.same(m.unit, u)))).join('')}${g3(st.tot)}</tr>`]);
     const blocks = [SB.tbl(head, rows, units.length > 4 ? 'cmp' : '')];
     if (cat === 'disab' && st.types.length) {
       blocks.push({ html: `<div class="sb-cap r" style="margin-top:3mm">التوزيع حسب نوع الإعاقة</div>`, keepNext: true });
@@ -242,9 +242,9 @@
   }
   function viewMove(box, sy, unit) {
     const x = X(), y = x.Y(sy), C = ['joined', 'left', 'transit', 'notjoined', 'drop', 'merged', 'expelled'];
-    const mv = y.moves.filter(m => !unit || m.unit === unit);
-    const lv = LV.sort(uniq(mv.map(m => m.lvl).filter(Boolean).concat(x.current(sy).filter(p => !unit || p.unit === unit).map(p => p.lvl))));
-    const cur = x.cnt(x.current(sy).filter(p => !unit || p.unit === unit));
+    const mv = y.moves.filter(m => !unit || K.U.same(m.unit, unit));
+    const lv = LV.sort(uniq(mv.map(m => m.lvl).filter(Boolean).concat(x.current(sy).filter(p => !unit || K.U.same(p.unit, unit)).map(p => p.lvl))));
+    const cur = x.cnt(x.current(sy).filter(p => !unit || K.U.same(p.unit, unit)));
     const c = k => x.cnt(mv, m => m.cat === k);
     // by month (September → August) of the transfer date
     const MN = ['شتنبر', 'أكتوبر', 'نونبر', 'دجنبر', 'يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'يونيو', 'يوليوز', 'غشت'], mi = d => { const m = /^\d{4}-(\d{2})/.exec(d || ''); return m ? (+m[1] + 3) % 12 : -1; };
@@ -252,7 +252,7 @@
     const types = uniq(mv.filter(m => TR.includes(m.cat) && m.ttype).map(m => m.ttype));
     const head = `<tr><th rowspan="2" class="d">المستوى</th>${C.slice(0, 6).map(k => `<th colspan="3" class="d">${esc(x.CAT[k].sh)}</th>`).join('')}<th colspan="3" class="d">المتمدرسون حاليا</th></tr><tr>${C.slice(0, 6).concat(['']).map(() => '<th>ذ</th><th>إ</th><th>م</th>').join('')}</tr>`;
     const g3 = q => `<td>${q.m}</td><td>${q.f}</td><td class="s">${q.t}</td>`;
-    const curL = x.current(sy).filter(p => !unit || p.unit === unit);
+    const curL = x.current(sy).filter(p => !unit || K.U.same(p.unit, unit));
     const rows = lv.map(l => `<tr><td class="k">${esc(LV.sh(l))}</td>${C.slice(0, 6).map(k => g3(x.cnt(mv, m => m.cat === k && m.lvl === l))).join('')}${g3(x.cnt(curL, p => p.lvl === l))}</tr>`)
       .concat([`<tr class="att-tot"><td>المجموع</td>${C.slice(0, 6).map(k => g3(c(k))).join('')}${g3(cur)}</tr>`]);
     box.innerHTML = `<div class="card"><div class="k2-kpis">${kpi(cur.t, 'المتمدرسون حاليا', 'green')}${C.map(k => kpi(c(k).t, x.CAT[k].l, x.OUT.includes(k) && c(k).t ? 'red' : '')).join('')}</div>
@@ -267,7 +267,7 @@
   }
   function viewCat(box, sy, unit, cat) {
     const x = X(), st = catStats(sy, cat, unit), C = x.CAT[cat];
-    const cur = x.cnt(x.current(sy).filter(p => !unit || p.unit === unit)), pc = cur.t ? Math.round(st.tot.t * 1000 / cur.t) / 10 : 0;
+    const cur = x.cnt(x.current(sy).filter(p => !unit || K.U.same(p.unit, unit))), pc = cur.t ? Math.round(st.tot.t * 1000 / cur.t) / 10 : 0;
     box.innerHTML = `<div class="card"><div class="k2-kpis">${kpi(st.tot.t, C.l, cat === 'threat' && st.tot.t ? 'red' : 'blue')}${kpi(st.tot.m, 'الذكور')}${kpi(st.tot.f, 'الإناث', 'pink')}${kpi(pc + '%', 'من المتمدرسين')}${cat === 'disab' ? kpi(st.types.length, 'أنواع الإعاقة') : ''}</div>
       <div class="toolbar"><span class="muted">${SEC() ? '' : (unit ? esc(unit) : 'كل الوحدات')}</span><span style="flex:1"></span>
         <button class="btn sm" id="vcImp">${ic('up')} استيراد لائحة مسار</button><button class="btn sm" id="vcAdd">${ic('plus')} إضافة تلميذ(ة)</button><button class="btn sm" id="vcAll">فتح اللائحة الاسمية</button><button class="btn sm pri" id="vcPrn">${ic('print')} طباعة اللوحة واللائحة</button></div>

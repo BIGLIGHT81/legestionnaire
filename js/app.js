@@ -53,7 +53,7 @@ const ic = (n, extra = '') => `<svg viewBox="0 0 24 24" ${/\bwidth=/.test(extra)
 /* ---------------- state ---------------- */
 let DB = null;
 let saveTimer = null;
-const INST_KEYS = ['school', 'director', 'city', 'directorate', 'academy', 'ministry', 'email', 'phone', 'address', 'headerMode', 'letterhead', 'letterheadW', 'letterheadH', 'letterheadP', 'lpW', 'lpH', 'letterheadL', 'llW', 'llH', 'lhv', 'lhNorm', 'cycle', 'orgMode', 'gresa', 'commune', 'tifKingdom', 'tifMinistry', 'tifAcademy', 'tifRegion', 'tifDirectorate', 'stamp', 'stampW', 'stampH', 'stampOn'];
+const INST_KEYS = ['school', 'director', 'city', 'directorate', 'academy', 'ministry', 'email', 'phone', 'address', 'headerMode', 'letterhead', 'letterheadW', 'letterheadH', 'letterheadP', 'lpW', 'lpH', 'letterheadL', 'llW', 'llH', 'lhv', 'lhNorm', 'cycle', 'orgMode', 'gresa', 'commune', 'tifKingdom', 'tifMinistry', 'tifAcademy', 'tifRegion', 'tifDirectorate', 'stamp', 'stampW', 'stampH', 'stampOn', 'logo'];
 const instList = () => DB.settings.institutions;
 const instById = id => instList().find(i => i.id === id) || instList().find(i => i.id === DB.settings.activeInst) || instList()[0];
 const curInst = () => instById(DB.settings.activeInst);
@@ -253,16 +253,16 @@ const isSingleOrg = () => !!(window.Cyc && Cyc.single());
 const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.cat ? ':' + a.cat : '') }, o || {});
 const NAV = [
   { id: 'home', label: 'لوحة القيادة', icon: 'home', tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل')] },
-  { id: 'staff', label: 'الموظفون', icon: 'users', tabs: () => [tab('employees', 'لائحة الموظفين'), tab('absences', 'الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية لغياب الموظفين'), tab('svcAcc', 'حوادث المصلحة')] },
+  { id: 'staff', label: 'الموظفون', icon: 'users', tabs: () => [tab('employees', 'لائحة الموظفين'), tab('absences', 'الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية لغياب الموظفين'), tab('presch', 'مربو التعليم الأولي'), tab('svcAcc', 'حوادث المصلحة')] },
   { id: 'docs', label: 'الوثائق', icon: 'file', tabs: () => (Docs.CATS || [['all', 'الوثائق']]).map(([c, n]) => tab('documents', DOC_SHORT[c] || n, { cat: c }))
       .concat([tab('documents', 'طلب وبعث الملفات', { cat: 'files' }), tab('documents', 'المتابعة والحراسة', { cat: 'follow' }), tab('memos', 'المذكرات الداخلية'), tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق')]) },
-  { id: 'pupils', label: 'شؤون التلاميذ', icon: 'pupil', tabs: () => [tab('pupils', 'بطاقة التلاميذ'), tab('certsCur', 'الشواهد المدرسية (المتمدرسين)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'), tab('incid', 'الحوادث المدرسية')] },
+  { id: 'pupils', label: 'شؤون التلاميذ', icon: 'pupil', tabs: () => [tab('pupils', 'بطاقة التلاميذ'), tab('preins', 'طلبات التسجيل الجديدة'), tab('certsCur', 'الشواهد المدرسية (المتمدرسين)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'), tab('incid', 'الحوادث المدرسية')] },
   { id: 'eval', label: 'التقييم والتتبع', icon: 'chart', tabs: () => [tab('roaiz', 'استثمار النتائج (الروائز)'), tab('cceval', 'استثمار المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ'), tab('support', 'الدعم الممتد'), tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'),
       tab('vschool', 'الحراسة العامة', null, { w: isSecCycle }), tab('exams', 'الامتحانات الإشهادية')] },
   { id: 'life', label: 'الحياة المدرسية', icon: 'star', tabs: () => [tab('clubs', 'الأندية التربوية وبطائقها'), tab('events', 'الاحتفالات والأنشطة'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والوساطة'),
-      tab('partners', 'التواصل مع الشركاء'), tab('kudos', 'التهاني والتقديرات'), tab('flyers', 'إعلانات الأنشطة والتصاميم')] },
+      tab('partners', 'التواصل مع الشركاء'), tab('kudos', 'التهاني والتقديرات'), tab('flyers', 'إعلانات الأنشطة والتصاميم'), tab('mag', 'مجلة المؤسسة')] },
   { id: 'org', label: 'التنظيم التربوي', icon: 'council', tabs: () => [tab('board', 'السبورة المرجعية'), tab('plan', 'برنامج عمل المؤسسة'), tab('teach', 'توزيع الأساتذة'), tab('councils', 'المجالس التقنية')] },
-  { id: 'fin', label: 'التدبير المالي والمادي', icon: 'coin', tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية'), tab('stock', 'إدارة العتاد والوسائل التعليمية')] },
+  { id: 'fin', label: 'التدبير المالي والمادي', icon: 'coin', tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية'), tab('conso', 'استهلاك الماء والكهرباء'), tab('stock', 'إدارة العتاد والوسائل التعليمية')] },
   { id: 'settings', label: 'الإعدادات', icon: 'gear', tabs: () => [tab('settings', 'الإعدادات')] },
   { id: 'license', label: 'التفعيل', icon: 'key', tabs: () => [tab('license', 'التفعيل')] }
 ];
@@ -270,7 +270,7 @@ const NAV = [
 const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
   pupilDoc: 'pupils', boardDoc: 'board', councilDoc: 'councils', budgetDoc: 'budget', clubsDoc: 'clubs', eventsDoc: 'events', kudosDoc: 'kudos', memosDoc: 'memos', examsDoc: 'exams', supportDoc: 'support',
   teachDoc: 'teach', receiptDoc: 'license', duesDoc: 'dues', absregDoc: 'absreg', vigilDoc: 'vigil', listenDoc: 'listen', empCard: 'employees', empGallery: 'employees', filesDoc: 'documents:files',
-  visits: 'documents:peda', visitsDoc: 'documents:peda', track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
+  consoDoc: 'conso', preinsDoc: 'preins', magDoc: 'mag', preschDoc: 'presch', visits: 'documents:peda', visitsDoc: 'documents:peda', track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
 let current = 'home', currentArg = null;
 const lastTab = {};
 const visibleTabs = g => g.tabs().filter(t => !t.w || t.w());
@@ -360,7 +360,7 @@ function go(page, arg) {
     kudos: (vv, a) => window.pageKudos(vv, a), kudosDoc: (vv, a) => window.pageKudosDoc(vv, a),
     memos: (vv, a) => window.pageMemos(vv, a), memosDoc: (vv, a) => window.pageMemosDoc(vv, a),
     track: (vv, a) => window.pageTrack(vv, a), trackDoc: (vv, a) => window.pageTrackDoc(vv, a),
-    visits: (vv, a) => window.pageVisits(vv, a), visitsDoc: (vv, a) => window.pageVisitsDoc(vv, a),
+    conso: (vv, a) => window.pageConso(vv, a), preins: (vv, a) => window.pagePreins(vv, a), preinsDoc: (vv, a) => window.pagePreinsDoc(vv, a), mag: (vv, a) => window.pageMag(vv, a), magDoc: (vv, a) => window.pageMagDoc(vv, a), presch: (vv, a) => window.pagePresch(vv, a), preschDoc: (vv, a) => window.pagePreschDoc(vv, a), consoDoc: (vv, a) => window.pageConsoDoc(vv, a), visits: (vv, a) => window.pageVisits(vv, a), visitsDoc: (vv, a) => window.pageVisitsDoc(vv, a),
     guard: (vv, a) => window.pageGuard(vv, a), guardDoc: (vv, a) => window.pageGuardDoc(vv, a), dayrep: (vv, a) => window.pageDayRep(vv, a), dayrepDoc: (vv, a) => window.pageDayRepDoc(vv, a), vschool: (vv, a) => window.pageVSchool(vv, a), vschoolDoc: (vv, a) => window.pageVSchoolDoc(vv, a),
     filesDoc: (vv, a) => window.pageFilesDoc(vv, a),
     receiptDoc: (vv, a) => window.pageReceiptDoc(vv, a),
@@ -1968,6 +1968,7 @@ async function pageSettings(v) {
             <div class="btn-row"><input class="inp" id="hFont" list="hFontList" value="${esc(g.hdrFont || '')}" placeholder="الافتراضي: Sakkal Majalla" style="max-width:340px" autocomplete="off"><datalist id="hFontList"></datalist><button class="btn sm" id="hFontReset">الخط الافتراضي</button></div></div>
           <div class="btn-row" style="margin-bottom:10px">
             <button class="btn pri sm" id="pickImg">${ic('up')} تحميل صورة الرأسية</button>
+            <button class="btn gold sm" id="designLh" title="تصميم ترويسة أو شعار المؤسسة بالمصمم ثم اعتماده">🎨 تصميم ترويسة / شعار</button>
             <button class="btn sm danger" id="delImg">${ic('trash')} حذف الصورة</button>
           </div>
           <label class="chk" style="margin:0 0 8px"><input type="checkbox" id="lhNorm"> توحيد حجم صورة الرأسية: قص الهوامش البيضاء ومدها يمينا ويسارا لتملأ أعلى الصفحة بنفس الحجم في كل المؤسسات</label>
@@ -2100,6 +2101,7 @@ async function pageSettings(v) {
     if (r.value === 'image' && !inst().letterhead) { r.checked = false; const d = await window.api.openImage(); if (d) await setImage(d); else drawHdr(); return; }
     inst().headerMode = r.value; persist(); drawHdr();
   });
+  if ($('#designLh')) $('#designLh').onclick = () => go('flyers', { cat: 'brand' });
   $('#pickImg').onclick = async () => { const d = await window.api.openImage(); if (d) setImage(d); };
   $('#delImg').onclick = async () => {
     if (!await confirmBox('حذف صورة الرأسية لهذه المؤسسة؟ ستُستعمل الرأسية النصية مع الشعار.', 'حذف')) return;

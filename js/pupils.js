@@ -64,7 +64,12 @@
   const regOf = n => REG().find(x => K.U.same(x.name, n) || nh(x.name) === nh(n)) || null;
   const gresaOfUnit = n => { const u = regOf(n); return u ? String(u.gresa || '').trim() : ''; };
   const canonUnit = n => { const u = regOf(n); return u ? String(u.name).trim() : n; };
-  const unitsOf = sy => { const y = Y(sy); const o = []; const add = u => { if (u && !o.includes(u)) o.push(u); }; y.units.forEach(add); regUnits().forEach(add); y.pupils.forEach(p => add(p.unit)); y.moves.forEach(m => add(m.unit)); return o; };
+  const unitsOf = sy => {
+    // 1.9.4: when the units are written in the settings, they are the units (the pupils of a unit written otherwise in Massar join it)
+    const fixed = K.U.names && DB.board && Array.isArray(DB.board.units) && DB.board.units.some(u => String(u.name || '').trim());
+    if (fixed) { const o = DB.board.units.map(u => String(u.name || '').trim()).filter(Boolean); const y = Y(sy); y.pupils.concat(y.moves).forEach(p => { if (p.unit && !o.some(u => K.U.same(u, p.unit))) { const c = K.U.canon(p.unit); if (!o.includes(c) && c === p.unit) o.push(p.unit); } }); return o; }
+    const y = Y(sy); const o = []; const add = u => { if (u && !o.includes(u)) o.push(u); }; y.units.forEach(add); regUnits().forEach(add); y.pupils.forEach(p => add(p.unit)); y.moves.forEach(m => add(m.unit)); return o;
+  };
   const allUnitNames = () => { const o = []; Object.keys(PD().years).sort().reverse().forEach(sy => unitsOf(sy).forEach(u => { if (!o.includes(u)) o.push(u); })); return o; };
   // «م.م الشهيد الحسين بن علي-سيدي بلقاسم» / «فرعية أساكا-الشهيد الحسين بن علي» -> «سيدي بلقاسم» / «أساكا»
   const PREF = /^(م\.م|م\/م|م م|مجموعة مدارس|مجموعة المدارس|فرعية|الفرعية|مدرسة|المدرسة|وحدة|الوحدة|مركزية|المركزية|م\.|م)\s+/;
@@ -368,7 +373,7 @@
   // groups of current pupils sharing a family name (2 or more), optionally within one unit
   function famGroups(sy, st, unit) {
     const m = new Map();
-    current(sy).filter(p => inStage(p, st) && (!unit || p.unit === unit)).forEach(p => { const k = famKey(p); if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(p); });
+    current(sy).filter(p => inStage(p, st) && (!unit || K.U.same(p.unit, unit))).forEach(p => { const k = famKey(p); if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(p); });
     return Array.from(m.values()).filter(g => g.length > 1).sort((a, b) => String(a[0].last).localeCompare(String(b[0].last), 'ar'));
   }
   function docFam(s, sy, f) {
@@ -458,7 +463,7 @@
     if (r && r.ok) toast('تم تصدير معلومات الأولياء (نفس ترتيب أعمدة ملف مسار)');
   }
   function tabGuard(b, sy) {
-    const y = Y(sy), units = unitsOf(sy), cls = Array.from(new Set(y.pupils.filter(p => !flt.unit || p.unit === flt.unit).map(p => p.cls).filter(Boolean)));
+    const y = Y(sy), units = unitsOf(sy), cls = Array.from(new Set(y.pupils.filter(p => !flt.unit || K.U.same(p.unit, flt.unit)).map(p => p.cls).filter(Boolean)));
     if (flt.cls && !cls.includes(flt.cls)) flt.cls = '';
     b.innerHTML = `<div class="card"><div class="toolbar">
         <div class="search">${ic('search')}<input class="inp" id="gq" placeholder="بحث بالاسم أو اسم الأب/الأم أو الهاتف..." value="${esc(flt.q)}"></div>
@@ -468,7 +473,7 @@
         <button class="btn sm" id="gImp">${ic('up')} استيراد (ملف مسار)</button><button class="btn sm" id="gExp">${ic('down')} تصدير Excel</button></div>
       <p class="muted" style="margin:8px 16px 0;font-size:12.5px;line-height:1.8">حمّل من مسار ملف «معلومات الأولياء» (Tuteur) لكل قسم ثم اضغط «استيراد»: يربط البرنامج كل سطر بالتلميذ برمز مسار أو بالاسم، ويحفظ معلومات الأب والأم وولي الأمر. ويمكنك تعديل أي تلميذ يدويا أو تصدير المعطيات إلى Excel.</p>
       <div id="gT" style="overflow:auto"></div></div>`;
-    const list = () => { const q = nh(flt.q); return current(sy).filter(p => inStage(p, stage) && (!flt.unit || p.unit === flt.unit) && (!flt.cls || p.cls === flt.cls) && (!q || nh([fullN(p), gName((p.guard || {}).father), gName((p.guard || {}).mother), gName((p.guard || {}).tutor), gPhone(p)].join(' ')).includes(q)))
+    const list = () => { const q = nh(flt.q); return current(sy).filter(p => inStage(p, stage) && (!flt.unit || K.U.same(p.unit, flt.unit)) && (!flt.cls || p.cls === flt.cls) && (!q || nh([fullN(p), gName((p.guard || {}).father), gName((p.guard || {}).mother), gName((p.guard || {}).tutor), gPhone(p)].join(' ')).includes(q)))
       .sort((a, c) => units.indexOf(a.unit) - units.indexOf(c.unit) || String(a.cls).localeCompare(String(c.cls)) || fullN(a).localeCompare(fullN(c), 'ar')); };
     const draw = () => {
       const L = list(), nG = L.filter(p => p.guard && GR.some(([k]) => hasG(p.guard[k]))).length;
@@ -535,7 +540,7 @@
       const u = $('#lkU', m).value; if (!u) return false;
       let n = 0;
       y.pupils.forEach(p => { if (set.has(p.id) && p.unit !== u) { p.unit = u; n++; } });
-      y.lists.forEach(l => { const mine = y.pupils.filter(p => p.listId === l.id); if (mine.length && mine.every(p => p.unit === u)) l.unit = u; });
+      y.lists.forEach(l => { const mine = y.pupils.filter(p => p.listId === l.id); if (mine.length && mine.every(p => K.U.same(p.unit, u))) l.unit = u; });
       if (!y.units.includes(u)) y.units.push(u);
       persist(); toast(`تم ربط ${n} تلميذ(ة) بالوحدة «${u}»`); if (after) after(u); else go('pupils');
     } }, { label: 'إلغاء' }] });
@@ -545,7 +550,7 @@
     const L = REG(); if (!L.length) return '';
     const y = Y(sy);
     return `<div class="card" style="margin-top:12px"><div class="card-h"><h3>الوحدات المدرسية المسجلة في الإعدادات</h3></div><div class="card-b">
-      ${L.map(u => `<div class="btn-row" style="margin-bottom:6px"><b>${esc(u.name)}</b>${u.gresa ? `<span class="k2-pill">GRESA ${esc(u.gresa)}</span>` : '<span class="muted" style="font-size:12px">بلا رمز GRESA</span>'}<span class="muted">${y.pupils.filter(p => p.unit === String(u.name).trim()).length} تلميذ(ة)</span><span style="flex:1"></span><button class="btn sm" data-impu="${esc(u.name)}">${ic('up')} استيراد لوائح هذه الوحدة</button></div>`).join('')}
+      ${L.map(u => `<div class="btn-row" style="margin-bottom:6px"><b>${esc(u.name)}</b>${u.gresa ? `<span class="k2-pill">GRESA ${esc(u.gresa)}</span>` : '<span class="muted" style="font-size:12px">بلا رمز GRESA</span>'}<span class="muted">${y.pupils.filter(p => K.U.same(p.unit, u.name)).length} تلميذ(ة)</span><span style="flex:1"></span><button class="btn sm" data-impu="${esc(u.name)}">${ic('up')} استيراد لوائح هذه الوحدة</button></div>`).join('')}
       <p class="muted" style="font-size:12px;margin:6px 0 0">تُسجَّل الوحدات ورموز GRESA في «الإعدادات ← الوحدات المدرسية». عند الاستيراد تُقترح الوحدة المناسبة لكل ملف حسب اسم المؤسسة.</p></div></div>`;
   }
   function bindStrip(b) { $$('[data-impu]', b).forEach(x => x.onclick = () => importMassar({ unit: x.dataset.impu })); }
@@ -568,12 +573,12 @@
     const y = Y(sy), units = unitsOf(sy), cur = current(sy), lv = levelsOf(sy, cur).filter(l => !stage || stageOf(l) === stage);
     if (flt.lvl && stage && stageOf(flt.lvl) !== stage) flt.lvl = '';
     const gone = new Map(y.moves.filter(m => m.code).map(m => [m.code, m]));
-    const classes = Array.from(new Set(cur.filter(p => !flt.unit || p.unit === flt.unit).map(p => p.cls).filter(Boolean)));
+    const classes = Array.from(new Set(cur.filter(p => !flt.unit || K.U.same(p.unit, flt.unit)).map(p => p.cls).filter(Boolean)));
     if (flt.unit && !units.includes(flt.unit)) flt.unit = '';
     if (flt.cls && !classes.includes(flt.cls)) flt.cls = '';
     const nEst = cur.filter(p => p.lsrc === 'age').length;
     const nOut = y.pupils.length - cur.length;
-    const chips = SEC() || units.length < 2 ? '' : `<div class="u-chips">${[''].concat(units).map(u => { const n = u ? cur.filter(p => p.unit === u).length : cur.length, g = u ? gresaOfUnit(u) : ''; return `<button type="button" class="u-chip ${flt.unit === u ? 'on' : ''}" data-u="${esc(u)}"><b>${u ? esc(u) : 'كل الوحدات'}</b><span>${n} تلميذ(ة)${g ? ' · GRESA ' + esc(g) : ''}</span></button>`; }).join('')}</div>`;
+    const chips = SEC() || units.length < 2 ? '' : `<div class="u-chips">${[''].concat(units).map(u => { const n = u ? cur.filter(p => K.U.same(p.unit, u)).length : cur.length, g = u ? gresaOfUnit(u) : ''; return `<button type="button" class="u-chip ${flt.unit === u ? 'on' : ''}" data-u="${esc(u)}"><b>${u ? esc(u) : 'كل الوحدات'}</b><span>${n} تلميذ(ة)${g ? ' · GRESA ' + esc(g) : ''}</span></button>`; }).join('')}</div>`;
     b.innerHTML = chips + `<div class="card"><div class="toolbar">
         <div class="search">${ic('search')}<input class="inp" id="pq" placeholder="بحث بالاسم أو رمز مسار أو مكان الازدياد..." value="${esc(flt.q)}"></div>
         ${SEC() ? '' : `<select class="inp" id="pu" style="width:auto"><option value="">كل الوحدات</option>${units.map(u => `<option ${flt.unit === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>`}
@@ -591,7 +596,7 @@
     const famSet = flt.fam ? new Set(famGroups(sy, stage, flt.unit).flat().map(p => p.id)) : null;
     const list = () => {
       const q = nh(flt.q);
-      const L0 = cur.filter(p => (!famSet || famSet.has(p.id)) && inStage(p, stage) && (!flt.unit || p.unit === flt.unit) && (!flt.cls || p.cls === flt.cls) && (!flt.lvl || p.lvl === flt.lvl) && (!flt.g || p.g === flt.g) && (!flt.est || p.lsrc === 'age')
+      const L0 = cur.filter(p => (!famSet || famSet.has(p.id)) && inStage(p, stage) && (!flt.unit || K.U.same(p.unit, flt.unit)) && (!flt.cls || p.cls === flt.cls) && (!flt.lvl || p.lvl === flt.lvl) && (!flt.g || p.g === flt.g) && (!flt.est || p.lsrc === 'age')
         && (!q || nh([fullN(p), p.code, p.place].join(' ')).includes(q)))
         ;
       return L0.sort(flt.fam ? ((a, c) => String(a.last).localeCompare(String(c.last), 'ar') || LV.idx(a.lvl) - LV.idx(c.lvl) || String(a.cls).localeCompare(String(c.cls)))
@@ -645,12 +650,12 @@
     const arr = current(sy), g3 = c => `<td class="num">${c.m}</td><td class="num">${c.f}</td><td class="num"><b>${c.t}</b></td>`;
     const row = (label, f) => `<tr><td><b>${esc(label)}</b></td>${['pre', 'pri'].map(k => g3(cnt(arr, p => stageOf(p.lvl) === k && f(p)))).join('')}${g3(cnt(arr, f))}</tr>`;
     return `<div class="card" style="margin-top:14px"><div class="card-h"><h3>التوزيع حسب السلك: التعليم الأولي والتعليم الابتدائي</h3></div><div style="overflow:auto"><table class="tbl compact att-mx"><thead><tr><th rowspan="2">الوحدة المدرسية</th><th colspan="3">أطفال التعليم الأولي</th><th colspan="3">تلاميذ التعليم الابتدائي</th><th colspan="3">المجموع</th></tr><tr>${'<th>ذ</th><th>إ</th><th>م</th>'.repeat(3)}</tr></thead><tbody>
-      ${units.map(u => row(u, p => p.unit === u)).join('')}<tr class="att-tot"><td>المجموع</td>${['pre', 'pri'].map(k => g3(cnt(arr, p => stageOf(p.lvl) === k))).join('')}${g3(cnt(arr))}</tr></tbody></table></div></div>`;
+      ${units.map(u => row(u, p => K.U.same(p.unit, u))).join('')}<tr class="att-tot"><td>المجموع</td>${['pre', 'pri'].map(k => g3(cnt(arr, p => stageOf(p.lvl) === k))).join('')}${g3(cnt(arr))}</tr></tbody></table></div></div>`;
   }
   // the classes of a list of pupils, in the order of their levels
   const clsList = arr => Array.from(new Set(arr.map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
   function tabStats(b, sy) {
-    const arr = curS(sy), units = unitsOf(sy).filter(u => arr.some(p => p.unit === u)), lv = levelsOf(sy, arr), W = ST[stage].n;
+    const arr = curS(sy), units = unitsOf(sy).filter(u => arr.some(p => K.U.same(p.unit, u))), lv = levelsOf(sy, arr), W = ST[stage].n;
     const all = cnt(arr);
     const ages = arr.map(p => ageOf(p, sy)).filter(a => a != null);
     const avg = ages.length ? (ages.reduce((a, c) => a + c, 0) / ages.length).toFixed(1) : '-';
@@ -667,7 +672,7 @@
       <div class="k2-two" style="margin-top:14px">
         <div class="card"><div class="card-h"><h3>${W} حسب المستوى والجنس</h3></div><div class="card-b">${K.bars(lv.map(LV.sh), [{ name: 'ذكور', color: COL.m, vals: lv.map(l => cnt(arr, p => p.lvl === l).m) }, { name: 'إناث', color: COL.f, vals: lv.map(l => cnt(arr, p => p.lvl === l).f) }], { h: 240 })}</div></div>
         ${SEC() ? (cl => `<div class="card"><div class="card-h"><h3>${W} حسب القسم والجنس</h3></div><div class="card-b">${K.bars(cl, [{ name: 'ذكور', color: COL.m, vals: cl.map(c => cnt(arr, p => p.cls === c).m) }, { name: 'إناث', color: COL.f, vals: cl.map(c => cnt(arr, p => p.cls === c).f) }], { h: 240, fs: cl.length > 12 ? 7 : cl.length > 7 ? 8.5 : 10 })}</div></div>`)(clsList(arr))
-        : `<div class="card"><div class="card-h"><h3>${W} حسب الوحدة المدرسية والجنس</h3></div><div class="card-b">${K.bars(units, [{ name: 'ذكور', color: COL.m, vals: units.map(u => cnt(arr, p => p.unit === u).m) }, { name: 'إناث', color: COL.f, vals: units.map(u => cnt(arr, p => p.unit === u).f) }], { h: 240, fs: units.length > 5 ? 8.5 : 10 })}</div></div>`}
+        : `<div class="card"><div class="card-h"><h3>${W} حسب الوحدة المدرسية والجنس</h3></div><div class="card-b">${K.bars(units, [{ name: 'ذكور', color: COL.m, vals: units.map(u => cnt(arr, p => K.U.same(p.unit, u)).m) }, { name: 'إناث', color: COL.f, vals: units.map(u => cnt(arr, p => K.U.same(p.unit, u)).f) }], { h: 240, fs: units.length > 5 ? 8.5 : 10 })}</div></div>`}
         <div class="card"><div class="card-h"><h3>التوزيع حسب السن (في 31 دجنبر ${MK.syStart(sy)})</h3></div><div class="card-b">${K.bars(ageList.map(a => a + ' س'), [{ name: 'ذكور', color: COL.m, vals: ageList.map(a => cnt(arr, p => ageOf(p, sy) === a).m) }, { name: 'إناث', color: COL.f, vals: ageList.map(a => cnt(arr, p => ageOf(p, sy) === a).f) }], { h: 240 })}</div></div>
         <div class="card"><div class="card-h"><h3>نسبة الإناث حسب المستوى %</h3></div><div class="card-b">${K.bars(lv.map(LV.sh), [{ name: 'نسبة الإناث %', color: COL.g, vals: lv.map(l => { const c = cnt(arr, p => p.lvl === l); return c.t ? +(c.f / c.t * 100).toFixed(1) : 0; }) }], { h: 240, fmt: v => v.toFixed(1) })}</div></div>
       </div>
@@ -678,8 +683,8 @@
       <div class="card" style="margin-top:14px"><div class="card-h"><h3>${W} حسب الوحدة المدرسية والمستوى والجنس</h3></div><div style="overflow:auto">
         <table class="tbl compact att-mx"><thead><tr><th rowspan="2">المستوى</th>${units.map(u => `<th colspan="3">${esc(u)}</th>`).join('')}<th colspan="3">المجموع</th></tr>
           <tr>${units.concat(['']).map(() => '<th>ذ</th><th>إ</th><th>م</th>').join('')}</tr></thead><tbody>
-          ${lv.map(l => `<tr><td><b>${esc(LV.sh(l))}</b></td>${units.map(u => g3(cnt(arr, p => p.unit === u && p.lvl === l))).join('')}${g3(cnt(arr, p => p.lvl === l))}</tr>`).join('')}
-          <tr class="att-tot"><td>المجموع</td>${units.map(u => g3(cnt(arr, p => p.unit === u))).join('')}${g3(all)}</tr></tbody></table></div></div>`}
+          ${lv.map(l => `<tr><td><b>${esc(LV.sh(l))}</b></td>${units.map(u => g3(cnt(arr, p => K.U.same(p.unit, u) && p.lvl === l))).join('')}${g3(cnt(arr, p => p.lvl === l))}</tr>`).join('')}
+          <tr class="att-tot"><td>المجموع</td>${units.map(u => g3(cnt(arr, p => K.U.same(p.unit, u)))).join('')}${g3(all)}</tr></tbody></table></div></div>`}
       <div class="card" style="margin-top:14px"><div class="card-h"><h3>${W} حسب السن والمستوى</h3></div><div style="overflow:auto">
         <table class="tbl compact att-mx"><thead><tr><th>المستوى \\ السن</th>${ageList.map(a => `<th>${a}</th>`).join('')}<th>المجموع</th><th>متوسط السن</th></tr></thead><tbody>
           ${lv.map(l => { const L = arr.filter(p => p.lvl === l); const ag = L.map(p => ageOf(p, sy)).filter(a => a != null); return `<tr><td><b>${esc(LV.sh(l))}</b></td>${ageList.map(a => { const n = L.filter(p => ageOf(p, sy) === a).length; const o = (LV.byK(l) || {}).off; return `<td class="num ${n && o != null && a > o + 1 ? 'att-hot' : ''}">${n || ''}</td>`; }).join('')}<td class="num"><b>${L.length}</b></td><td class="num">${ag.length ? (ag.reduce((x, c) => x + c, 0) / ag.length).toFixed(1) : '-'}</td></tr>`; }).join('')}
@@ -705,7 +710,7 @@
       <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">اللوائح الإحصائية لمسار (لائحة التلاميذ المنقطعين، الغير الملتحقين، الناجحين، المفصولين...) تستورد من «استيراد لوائح مسار» مع لوائح الأقسام. يمكن أيضا إضافة حالة يدويا أو من زر «حركة» في لائحة التلاميذ. التلاميذ المنقطعون والمغادرون وغير الملتحقين والمفصولون لا يحتسبون في «الوضعية الحالية».</p>
       ${!flt.mcat || flt.mcat === 'notjoined' || flt.mcat === 'drop' || flt.mcat === 'threat' ? `<div class="roz-steps" style="margin-top:10px">${ic('list')} <b>لائحة غير الملتحقين (والمنقطعين والمهددين بالانقطاع) من مسار:</b> <span class="st">الحياة المدرسية</span> ← <span class="st">الهدر المدرسي</span> ← <span class="st">آلية اليقظة</span> ← اختر المستوى (أو جميع المستويات) ← <span class="st">بحث</span> ← <span class="st">تصدير</span>، ثم «استيراد اللوائح الإحصائية».</div>` : ''}`;
     const draw = () => {
-      const L = y.moves.filter(m => inStage(m, stage) && (!flt.mcat || m.cat === flt.mcat) && (!flt.munit || m.unit === flt.munit)).sort((a, c) => CATS.findIndex(x => x.k === a.cat) - CATS.findIndex(x => x.k === c.cat) || units.indexOf(a.unit) - units.indexOf(c.unit) || LV.idx(a.lvl) - LV.idx(c.lvl));
+      const L = y.moves.filter(m => inStage(m, stage) && (!flt.mcat || m.cat === flt.mcat) && (!flt.munit || K.U.same(m.unit, flt.munit))).sort((a, c) => CATS.findIndex(x => x.k === a.cat) - CATS.findIndex(x => x.k === c.cat) || units.indexOf(a.unit) - units.indexOf(c.unit) || LV.idx(a.lvl) - LV.idx(c.lvl));
       $('#mT').innerHTML = L.length ? `<table class="tbl compact"><thead><tr><th style="width:36px">#</th><th>الفئة</th><th>رمز مسار</th><th>الاسم والنسب</th><th>الجنس</th><th>تاريخ الازدياد</th>${SEC() ? '' : '<th>الوحدة</th>'}<th>المستوى</th><th>التاريخ</th><th>ملاحظة</th><th></th></tr></thead><tbody>
         ${L.map((m, i) => `<tr data-id="${m.id}"><td class="muted num">${i + 1}</td><td><span class="k2-pill ${OUT.includes(m.cat) ? 'out' : 'in'}">${esc(CAT[m.cat].sh)}</span></td><td class="num" dir="ltr" style="text-align:right">${esc(m.code || '')}</td>
           <td><b>${esc(fullN(m))}</b></td><td>${gAr(m.g)}</td><td class="num">${esc(fmtDate(m.birth))}</td>${SEC() ? '' : `<td>${esc(m.unit || '')}</td>`}<td>${esc(LV.sh(m.lvl))}</td><td class="num">${esc(fmtDate(m.date))}</td><td class="muted">${esc(m.note || (m.src === 'file' ? 'من مسار' : ''))}</td>
@@ -755,8 +760,8 @@
   function tabClasses(b, sy) {
     const y = Y(sy), units = unitsOf(sy);
     const regOn = !SEC() && REG().length > 0;
-    b.innerHTML = `${units.map(u => { const L = y.lists.filter(l => l.unit === u); const c = cnt(y.pupils.filter(p => p.unit === u)); const gr = SEC() ? '' : gresaOfUnit(u); return `<div class="card" style="margin-bottom:12px"><div class="toolbar">${SEC() ? '<b style="font-size:15px">الأقسام</b>' : `<b style="font-size:15px">${esc(u)}</b>${gr ? `<span class="k2-pill">GRESA ${esc(gr)}</span>` : ''}${regOn && !regOf(u) ? '<span class="k2-pill out" title="هذا الاسم غير مسجل في الإعدادات: اربطه بوحدة مسجلة">غير مسجلة في الإعدادات</span>' : ''}`}
-        <span class="muted">${L.length} قسم — ${c.t} تلميذ(ة) (ذ ${c.m} / إ ${c.f})${SECL() ? '' : (np => np ? ` — منهم ${np} طفل(ة) بالتعليم الأولي` : '')(y.pupils.filter(p => p.unit === u && stageOf(p.lvl) === 'pre').length)}</span><span style="flex:1"></span>
+    b.innerHTML = `${units.map(u => { const L = y.lists.filter(l => K.U.same(l.unit, u)); const c = cnt(y.pupils.filter(p => K.U.same(p.unit, u))); const gr = SEC() ? '' : gresaOfUnit(u); return `<div class="card" style="margin-bottom:12px"><div class="toolbar">${SEC() ? '<b style="font-size:15px">الأقسام</b>' : `<b style="font-size:15px">${esc(u)}</b>${gr ? `<span class="k2-pill">GRESA ${esc(gr)}</span>` : ''}${regOn && !regOf(u) ? '<span class="k2-pill out" title="هذا الاسم غير مسجل في الإعدادات: اربطه بوحدة مسجلة">غير مسجلة في الإعدادات</span>' : ''}`}
+        <span class="muted">${L.length} قسم — ${c.t} تلميذ(ة) (ذ ${c.m} / إ ${c.f})${SECL() ? '' : (np => np ? ` — منهم ${np} طفل(ة) بالتعليم الأولي` : '')(y.pupils.filter(p => K.U.same(p.unit, u) && stageOf(p.lvl) === 'pre').length)}</span><span style="flex:1"></span>
         ${SEC() ? '' : `${regOn && !regOf(u) ? `<button class="btn sm pri" data-lkunit="${esc(u)}">${ic('edit')} ربط بوحدة مسجلة</button>` : ''}<button class="btn sm" data-impu="${esc(u)}">${ic('up')} استيراد لوائح</button><button class="btn sm" data-ren="${esc(u)}">${ic('edit')} تغيير الاسم</button>${units.indexOf(u) ? `<button class="btn sm icon" data-upu="${esc(u)}" title="أعلى">▲</button>` : ''}`}</div>
       <table class="tbl compact"><thead><tr><th>القسم</th><th>المستويات</th><th>الذكور</th><th>الإناث</th><th>المجموع</th><th>الملف المستورد</th><th></th></tr></thead><tbody>
         ${L.length || SEC() ? '' : `<tr><td colspan="7" class="muted" style="text-align:center;padding:10px">لا توجد أقسام لهذه الوحدة بعد — استورد لوائحها من مسار أو انقل إليها أقساما من وحدات أخرى.</td></tr>`}
@@ -841,7 +846,7 @@
   async function exportXlsx(sy) {
     const y = Y(sy), units = unitsOf(sy);
     const head = ['ر.ت', 'رمز مسار', 'النسب', 'الاسم', 'النوع', 'تاريخ الازدياد', 'مكان الازدياد', 'السن', 'القسم', 'المستوى'].concat(SEC() ? [] : ['الوحدة المدرسية']).concat(SECL() ? [] : ['السلك']);
-    const sheets = (SEC() ? [secUnit()] : units).map(u => ({ name: SEC() ? 'التلاميذ' : u, widths: [6, 14, 18, 18, 8, 14, 22, 6, 16, 16, 20, 16], rows: [head].concat(y.pupils.filter(p => SEC() || p.unit === u).sort((a, b) => String(a.cls).localeCompare(String(b.cls)) || LV.idx(a.lvl) - LV.idx(b.lvl) || fullN(a).localeCompare(fullN(b), 'ar'))
+    const sheets = (SEC() ? [secUnit()] : units).map(u => ({ name: SEC() ? 'التلاميذ' : u, widths: [6, 14, 18, 18, 8, 14, 22, 6, 16, 16, 20, 16], rows: [head].concat(y.pupils.filter(p => SEC() || K.U.same(p.unit, u)).sort((a, b) => String(a.cls).localeCompare(String(b.cls)) || LV.idx(a.lvl) - LV.idx(b.lvl) || fullN(a).localeCompare(fullN(b), 'ar'))
       .map((p, i) => [String(i + 1), p.code, p.last, p.first, gAr(p.g), fmtDate(p.birth), p.place || '', ageOf(p, sy) == null ? '' : ageOf(p, sy), p.cls, LV.ar(p.lvl)].concat(SEC() ? [] : [p.unit]).concat(SECL() ? [] : [ST[stageOf(p.lvl)].t]))) }));
     const r = await window.api.saveXlsxBook(sheets, `بطاقة_التلاميذ_${MK.syDash(sy)}.xlsx`);
     if (r && r.ok) toast(SEC() ? 'تم التصدير إلى Excel' : 'تم التصدير إلى Excel (ورقة لكل وحدة مدرسية)');
@@ -853,7 +858,7 @@
   // إحصاء التلاميذ حسب الجنس (levels x units)
   function docGender(s, sy, o) {
     o = o || {};
-    const st = SECL() ? '' : (o.stage || ''), arr = curS(sy, st), units = SEC() ? [] : unitsOf(sy).filter(u => arr.some(p => p.unit === u)), lv = levelsOf(sy, arr);
+    const st = SECL() ? '' : (o.stage || ''), arr = curS(sy, st), units = SEC() ? [] : unitsOf(sy).filter(u => arr.some(p => K.U.same(p.unit, u))), lv = levelsOf(sy, arr);
     const all = cnt(arr);
     if (SEC()) {
       // a collège / lycée: by level and class (no school units)
@@ -868,9 +873,9 @@
       return { title: 'إحصاء التلاميذ حسب الجنس', sub: `الموسم الدراسي ${esc(sy)}`, blocks: [SB.tbl(hd, rws, rws.length > 16 ? 'cmp' : ''), `<div class="sb-g2" style="margin-top:2mm"><div>${c1}</div><div>${c2}</div></div>`] };
     }
     const head = `<tr><th rowspan="2" class="d">المستويات</th>${units.map(u => `<th colspan="3" class="d">${esc(u)}</th>`).join('')}<th colspan="3" class="d">المجموع</th></tr><tr>${units.map(() => '<th>ذ</th><th>إ</th><th>المجموع</th>').join('')}<th>ذ</th><th>إ</th><th>المجموع</th></tr>`;
-    const rows = lv.map(l => `<tr><td class="k">${esc(LV.sh(l))}</td>${units.map(u => g3c(cnt(arr, p => p.unit === u && p.lvl === l))).join('')}${(c => `<td>${c.m}</td><td>${c.f}</td><td class="y">${c.t}</td>`)(cnt(arr, p => p.lvl === l))}</tr>`)
-      .concat([`<tr><td class="k">المجموع</td>${units.map(u => (c => `<td class="s">${c.m}</td><td class="s">${c.f}</td><td class="t">${c.t}</td>`)(cnt(arr, p => p.unit === u))).join('')}<td class="s">${all.m}</td><td class="s">${all.f}</td><td class="g">${all.t}</td></tr>`]);
-    const chart = K.bars(units, [{ name: 'ذكور', color: COL.m, vals: units.map(u => cnt(arr, p => p.unit === u).m) }, { name: 'إناث', color: COL.f, vals: units.map(u => cnt(arr, p => p.unit === u).f) }], { w: 560, h: 210, title: 'إحصاء التلاميذ حسب الجنس', fs: units.length > 6 ? 8.5 : 10 });
+    const rows = lv.map(l => `<tr><td class="k">${esc(LV.sh(l))}</td>${units.map(u => g3c(cnt(arr, p => K.U.same(p.unit, u) && p.lvl === l))).join('')}${(c => `<td>${c.m}</td><td>${c.f}</td><td class="y">${c.t}</td>`)(cnt(arr, p => p.lvl === l))}</tr>`)
+      .concat([`<tr><td class="k">المجموع</td>${units.map(u => (c => `<td class="s">${c.m}</td><td class="s">${c.f}</td><td class="t">${c.t}</td>`)(cnt(arr, p => K.U.same(p.unit, u)))).join('')}<td class="s">${all.m}</td><td class="s">${all.f}</td><td class="g">${all.t}</td></tr>`]);
+    const chart = K.bars(units, [{ name: 'ذكور', color: COL.m, vals: units.map(u => cnt(arr, p => K.U.same(p.unit, u)).m) }, { name: 'إناث', color: COL.f, vals: units.map(u => cnt(arr, p => K.U.same(p.unit, u)).f) }], { w: 560, h: 210, title: 'إحصاء التلاميذ حسب الجنس', fs: units.length > 6 ? 8.5 : 10 });
     const chart2 = K.bars(lv.map(LV.sh), [{ name: 'ذكور', color: COL.m, vals: lv.map(l => cnt(arr, p => p.lvl === l).m) }, { name: 'إناث', color: COL.f, vals: lv.map(l => cnt(arr, p => p.lvl === l).f) }], { w: 560, h: 210, title: 'حسب المستوى', fs: 9 });
     return { title: `إحصاء ${ST[st].n} حسب الجنس${st ? ' — ' + ST[st].t : ''}`, sub: `الموسم الدراسي ${esc(sy)}`, blocks: [SB.tbl(head, rows, units.length > 5 ? 'cmp' : ''), `<div class="sb-g2" style="margin-top:2mm"><div>${chart}</div><div>${chart2}</div></div>`] };
   }
@@ -905,7 +910,7 @@
   function docNew1(s, sy) {
     const fl = firstLv(), rep = new Set(movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
     const arr = current(sy).filter(p => p.lvl === fl && !rep.has(p.code));
-    const units = SEC() ? clsList(arr) : unitsOf(sy), same = (p, u) => (SEC() ? p.cls === u : p.unit === u);
+    const units = SEC() ? clsList(arr) : unitsOf(sy), same = (p, u) => (SEC() ? p.cls === u : K.U.same(p.unit, u));
     const y0 = MK.syStart(sy) - ((LV.byK(fl) || { off: 6 }).off - 1); // early entry, normal, late
     const YS = [y0, y0 - 1, y0 - 2];
     const byY = (p, yy, i) => { const b = +String(p.birth || '').slice(0, 4); return i === 2 ? b && b <= yy : b === yy; };
@@ -925,8 +930,8 @@
       <tr>${C4.concat(['x']).map(() => '<th>الذكور</th><th>الإناث</th><th>المجموع</th>').join('')}</tr>`;
     const rows = [];
     units.forEach(u => {
-      const lv = LV.sort(Array.from(new Set(Y(sy).pupils.filter(p => p.unit === u && inStage(p, st)).map(p => p.lvl).concat(mv.filter(m => m.unit === u).map(m => m.lvl)).filter(Boolean))));
-      lv.forEach((l, i) => rows.push(`<tr><td class="k" style="${i ? 'border-top-color:#e7e6e6' : ''}">${i ? '' : esc(u)}</td><td class="k">${esc(LV.sh(l))}</td>${C4.map(c => g3c(cnt(mv, m => m.cat === c && m.unit === u && m.lvl === l))).join('')}${(cc => `<td>${cc.m}</td><td>${cc.f}</td><td class="y">${cc.t}</td>`)(cnt(cur, p => p.unit === u && p.lvl === l))}</tr>`));
+      const lv = LV.sort(Array.from(new Set(Y(sy).pupils.filter(p => K.U.same(p.unit, u) && inStage(p, st)).map(p => p.lvl).concat(mv.filter(m => K.U.same(m.unit, u)).map(m => m.lvl)).filter(Boolean))));
+      lv.forEach((l, i) => rows.push(`<tr><td class="k" style="${i ? 'border-top-color:#e7e6e6' : ''}">${i ? '' : esc(u)}</td><td class="k">${esc(LV.sh(l))}</td>${C4.map(c => g3c(cnt(mv, m => m.cat === c && K.U.same(m.unit, u) && m.lvl === l))).join('')}${(cc => `<td>${cc.m}</td><td>${cc.f}</td><td class="y">${cc.t}</td>`)(cnt(cur, p => K.U.same(p.unit, u) && p.lvl === l))}</tr>`));
     });
     if (SEC()) LV.sort(Array.from(new Set(cur.map(p => p.lvl).concat(mv.map(m => m.lvl)).filter(Boolean)))).forEach(l => rows.push(`<tr><td class="k">${esc(LV.sh(l))}</td>${C4.map(c => g3c(cnt(mv, m => m.cat === c && m.lvl === l))).join('')}${(cc => `<td>${cc.m}</td><td>${cc.f}</td><td class="y">${cc.t}</td>`)(cnt(cur, p => p.lvl === l))}</tr>`));
     rows.push(`<tr><td class="k" colspan="${SEC() ? 1 : 2}">المجموع</td>${C4.map(c => (cc => `<td class="s">${cc.m}</td><td class="s">${cc.f}</td><td class="t">${cc.t}</td>`)(cnt(mv, m => m.cat === c))).join('')}${(cc => `<td class="s">${cc.m}</td><td class="s">${cc.f}</td><td class="g">${cc.t}</td>`)(cnt(cur))}</tr>`);
@@ -946,7 +951,7 @@
   // لائحة التلاميذ (per class / unit / level)
   function docList(s, sy, f) {
     const units = unitsOf(sy);
-    const L = current(sy).filter(p => inStage(p, f.stage) && (!f.unit || p.unit === f.unit) && (!f.cls || p.cls === f.cls) && (!f.lvl || p.lvl === f.lvl))
+    const L = current(sy).filter(p => inStage(p, f.stage) && (!f.unit || K.U.same(p.unit, f.unit)) && (!f.cls || p.cls === f.cls) && (!f.lvl || p.lvl === f.lvl))
       .sort((a, b) => units.indexOf(a.unit) - units.indexOf(b.unit) || String(a.cls).localeCompare(String(b.cls)) || LV.idx(a.lvl) - LV.idx(b.lvl) || fullN(a).localeCompare(fullN(b), 'ar'));
     const groups = [];
     L.forEach(p => { const k = p.unit + '|' + p.cls; let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, unit: p.unit, cls: p.cls, list: [] }); g.list.push(p); });
@@ -1041,7 +1046,7 @@
       form: (box, st, refresh) => {
         cardsRefresh = refresh;
         const draw = () => {
-          const units = unitsOf(st.sy), classes = Array.from(new Set(Y(st.sy).pupils.filter(p => !st.unit || p.unit === st.unit).map(p => p.cls)));
+          const units = unitsOf(st.sy), classes = Array.from(new Set(Y(st.sy).pupils.filter(p => !st.unit || K.U.same(p.unit, st.unit)).map(p => p.cls)));
           box.innerHTML = `<div class="sec-t">الوثيقة</div><div class="fld"><select class="inp" id="dk">${Object.entries(DOCS).map(([k, d]) => `<option value="${k}" ${k === st.kind ? 'selected' : ''}>${d.t}</option>`).join('')}</select></div>
             ${['cards', 'new1'].includes(st.kind) || SECL() ? '' : `<div class="fld"><label>السلك</label><select class="inp" id="ds">${['', 'pre', 'pri'].map(k => `<option value="${k}" ${k === st.stage ? 'selected' : ''}>${k ? ST[k].t : 'كل الأسلاك (الأولي والابتدائي)'}</option>`).join('')}</select></div>`}
             <div class="fld"><label>الموسم الدراسي</label><select class="inp" id="dy">${MK.syList(Object.keys(PD().years)).map(y => `<option value="${y}" ${y === st.sy ? 'selected' : ''}>${MK.syDash(y)}</option>`).join('')}</select></div>

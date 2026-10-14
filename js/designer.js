@@ -15,7 +15,8 @@
   const escH = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const SIZES = [
     ['a4p', 'A4 عمودي', 794, 1123], ['a4l', 'A4 أفقي', 1123, 794], ['a5p', 'A5 عمودي', 559, 794], ['a5l', 'A5 أفقي', 794, 559],
-    ['sq', 'منشور مربع (فيسبوك / إنستغرام)', 1080, 1080], ['story', 'قصة / ستوري (1080×1920)', 1080, 1920], ['fbc', 'غلاف فيسبوك', 1640, 624], ['wa', 'صورة واتساب (1080×1350)', 1080, 1350]
+    ['sq', 'منشور مربع (فيسبوك / إنستغرام)', 1080, 1080], ['story', 'قصة / ستوري (1080×1920)', 1080, 1920], ['fbc', 'غلاف فيسبوك', 1640, 624], ['wa', 'صورة واتساب (1080×1350)', 1080, 1350],
+    ['logo', 'شعار المؤسسة (1000×1000)', 1000, 1000], ['lh', 'ترويسة الوثائق (عرض A4)', 1588, 336]
   ];
   const FONTS0 = ['NSA', 'Amiri', 'MAJT', 'MAJ', 'Sakkal Majalla', 'Traditional Arabic', 'Arabic Typesetting', 'Simplified Arabic', 'Tahoma', 'Arial', 'Times New Roman', 'Calibri', 'Tif'];
   const fonts = () => Array.from(new Set(FONTS0.concat(window.WordEdit && WordEdit.fontList ? WordEdit.fontList() : [])));
@@ -373,6 +374,90 @@
     return doc;
   }
 
+  /* ================= 1.9.4: logo and letterhead of the school («شعار وترويسة المؤسسة») ================= */
+  const BRAND_SIZES = { logo: [1000, 1000], lh: [1588, 336] };
+  const mctx = document.createElement('canvas').getContext('2d');
+  const tw = (t, size, font) => { mctx.font = `bold ${size}px ${font || 'NSA'}`; return mctx.measureText(String(t || '')).width; };
+  const clipSrc = n => { const c = CLIP.find(x => x[0] === n); return c ? SVGU(c[2]) : ''; };
+  function brandTpl(kind, vi) {
+    const [W, H] = BRAND_SIZES[kind], st = schoolTxt(), doc = { w: W, h: H, bg: { t: 'solid', c1: 'rgba(0,0,0,0)' }, objs: [] };
+    let s0 = {}; try { s0 = S(); } catch (_) {}
+    const add = o => { const b = Object.assign({ id: uidD(), rot: 0, op: 1 }, o); doc.objs.push(b); return b; };
+    const txt = (t, x, y, size, color, o) => add(Object.assign({ type: 'text', text: t, x, y, w: W * .9, h: size * 1.3, size, font: 'NSA', bold: true, color, fill: color, align: 'center', lh: 1.2 }, o || {}));
+    const shp = (shape, x, y, w, h, fill, o) => add(Object.assign({ type: 'shape', shape, x, y, w, h, fill, stroke: '', sw: 0 }, o || {}));
+    const img = (src, x, y, w, h, o) => add(Object.assign({ type: 'image', src, x, y, w, h, fit: 'contain' }, o || {}));
+    // text on the arc of a circle (cx, cy, radius r); top: ∩ above the centre, else ∪ under it
+    const arcTxt = (t, cx, cy, r, size, color, top, o) => {
+      const font = (o && o.font) || 'NSA'; let w = tw(t, size, font) + size * .3, A = w / r * 180 / Math.PI;
+      if (A > 250) { size = size * 250 / A; w = tw(t, size, font) + size * .3; A = w / r * 180 / Math.PI; }
+      const R = r, sag = R - R * Math.cos(A * Math.PI / 360);
+      return add(Object.assign({ type: 'text', text: t, x: cx, y: top ? cy - R + sag / 2 : cy + R - sag / 2, w: w + 40, h: size * 1.4, size, font, bold: true, color, fill: color, align: 'center', lh: 1.2, curve: top ? Math.round(A) : -Math.round(A) }, o || {}));
+    };
+    const fit = (t, maxW, size, font) => Math.min(size, size * maxW / Math.max(1, tw(t, size, font)));
+    const navy = '#1d2a8c', blue = '#2f6fd6', green = '#0f7a3a', red = '#c1272d', gold = '#d4a52c';
+    const sch = st.school, place = (Docs.placeOfDir ? Docs.placeOfDir(st.dir) : '') || st.city;
+    if (kind === 'logo') {
+      const c = W / 2;
+      if (vi === 0) { // badge: rings, curved name, book, star, banner
+        shp('ellipse', c, c - 20, 900, 900, 'none', { stroke: navy, sw: 18 }); shp('ellipse', c, c - 20, 860, 860, 'none', { stroke: navy, sw: 5 });
+        arcTxt(sch, c, c - 20, 350, 92, navy, true, { fill2: blue, gAng: 90 });
+        if (st.dir) arcTxt(st.dir, c, c - 20, 255, 46, '#4a63c9', true);
+        img(clipSrc('كتاب مفتوح'), c, c + 40, 400, 400); shp('star5', c, c + 260, 120, 120, 'none', { stroke: green, sw: 10 });
+        shp('banner', c, 880, 960, 150, navy, { sh: true, shB: 10 }); txt(place || st.city || 'Établissement', c, 880, fit(place || st.city || 'Établissement', 740, 64), '#ffffff', { w: 800 });
+      } else if (vi === 1) { // seal: double ring with the name around and the emblem at the centre
+        shp('ellipse', c, c, 960, 960, navy); shp('ellipse', c, c, 900, 900, 'none', { stroke: gold, sw: 8 }); shp('ellipse', c, c, 600, 600, '#ffffff', { stroke: gold, sw: 8 });
+        arcTxt(sch, c, c, 375, 78, '#ffffff', true); arcTxt([st.city, place].filter((x, i, a) => x && a.indexOf(x) === i).join(' — ') || 'المغرب', c, c, 375, 62, gold, false);
+        shp('star5', 90, c, 60, 60, gold); shp('star5', W - 90, c, 60, 60, gold);
+        img(window.EMBLEM_DATA || 'assets/emblem.png', c, c - 40, 380, 380); txt('ⵜⴰⵖⵔⵉⵡⵉⵏ', c, c + 205, 40, navy, { font: 'Tif', bold: false, dir: 'ltr', w: 500 });
+      } else if (vi === 2) { // shield with the school (pictogram) and the name under it
+        shp('hex', c, 400, 640, 700, navy, { rot: 90, stroke: gold, sw: 14 }); img(clipSrc('المدرسة'), c, 340, 380, 380);
+        shp('banner', c, 830, 940, 150, red, { sh: true }); txt(sch, c, 830, fit(sch, 700, 70), '#ffffff', { w: 760 });
+        txt(st.city || '', c, 640, fit(st.city || '', 380, 46), '#ffffff', { w: 420 });
+      } else { // modern: book + feather (pencil) + name on two lines
+        shp('ellipse', c, 340, 580, 580, '#eaf1fd', { stroke: blue, sw: 10 }); img(clipSrc('كتاب مفتوح'), c, 370, 420, 420); img(clipSrc('قلم رصاص'), c + 70, 220, 240, 240);
+        txt(sch, c, 765, fit(sch, 920, 96), navy, { w: 960, fill2: blue, gAng: 90 }); shp('line', c, 850, 520, 10, '', { stroke: gold, sw: 6 }); txt(st.dir || st.city || '', c, 915, fit(st.dir || st.city || '', 920, 46), '#3b4a6b', { bold: false, w: 960 });
+      }
+    } else {
+      const L = Docs.headerLines ? Docs.headerLines(s0) : { ar: ['المملكة المغربية', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'], tf: ['ⵜⴰⴳⵍⴷⵉⵜ ⵏ ⵍⵎⵖⵔⵉⴱ'] };
+      const colW = W * .36, lines = (arr, font, k) => { const n = Math.max(...arr.map(x => String(x).length), 10); return Math.min(32, colW / n * k); };
+      const arS = lines(L.ar, 'MAJT', 1.75), tfS = lines(L.tf, 'Tif', 1.45);
+      const arTxt = (x, col) => txt(L.ar.join('\n'), x, 140, arS, col || navy, { font: 'MAJT', w: colW, lh: 1.22 });
+      const tfTxt = (x, col) => txt(L.tf.join('\n'), x, 140, tfS, col || navy, { font: 'Tif', w: colW, lh: 1.35, dir: 'ltr' });
+      const emb = (x, s) => img(window.EMBLEM_DATA || 'assets/emblem.png', x, 128, s, s);
+      if (vi === 0) { // as the official model: navy band with an arc, Arabic | emblem | Tifinagh, school name under
+        shp('rect', W / 2, 9, W, 18, navy); shp('ellipse', W / 2, 0, 620, 86, '#ffffff', { stroke: navy, sw: 8 }); shp('rect', W / 2, -24, 700, 50, navy);
+        arTxt(W * .79); emb(W / 2, 200); tfTxt(W * .21); txt(sch, W / 2, 300, 50, navy, { font: 'NSA', w: W * .8, fill2: blue, gAng: 90 });
+      } else if (vi === 1) { // the school logo (if adopted) on the left, a gold rule under
+        arTxt(W * .79); emb(W / 2, 190); const lg = s0.logo; if (lg) img(lg, W * .19, 130, 230, 230); else tfTxt(W * .21);
+        txt(sch, W / 2, 278, 46, green, { w: W * .8 }); shp('line', W / 2, 318, W * .94, 6, '', { stroke: gold, sw: 5 }); shp('line', W / 2, 328, W * .7, 4, '', { stroke: green, sw: 3 });
+      } else if (vi === 2) { // green band, white text
+        shp('round', W / 2, 150, W - 20, 280, green, { r: 30 }); shp('rect', W / 2, 300, W - 20, 10, gold);
+        arTxt(W * .79, '#ffffff'); emb(W / 2, 170); tfTxt(W * .21, '#ffffff');
+        txt(sch, W / 2, 262, 40, '#fff7d6', { w: W * .5 });
+      } else { // minimal: emblem at the centre, kingdom lines, school in a box
+        emb(W / 2, 150); txt(L.ar.slice(0, 2).join('\n'), W * .8, 110, 34, '#222', { font: 'MAJT', w: colW });
+        txt(L.ar.slice(2).join('\n'), W * .8, 230, 26, '#444', { font: 'MAJT', w: colW, bold: false }); txt(L.tf.slice(0, 2).join('\n'), W * .2, 110, 28, '#222', { font: 'Tif', w: colW, dir: 'ltr' });
+        shp('round', W * .2, 250, 520, 80, 'none', { stroke: navy, sw: 4, r: 40 }); txt(sch, W * .2, 250, 34, navy, { w: 500 });
+      }
+    }
+    return doc;
+  }
+  const BRAND = [['logo', 0, 'شعار دائري بالحلقات'], ['logo', 1, 'ختم بشعار المملكة'], ['logo', 2, 'درع وشريط'], ['logo', 3, 'شعار عصري'], ['lh', 0, 'ترويسة رسمية (النموذج المعتمد)'], ['lh', 1, 'ترويسة بشعار المؤسسة'], ['lh', 2, 'ترويسة بشريط ملون'], ['lh', 3, 'ترويسة بسيطة']];
+  // adopt the design as the letterhead of the documents or as the logo of the school (settings of the active institution)
+  async function adopt(doc, as) {
+    await document.fonts.ready;
+    const sc = as === 'lh' ? Math.min(3, 2400 / doc.w) : Math.min(2, 800 / doc.w);
+    const d2 = clone(doc); if (as === 'lh' && (!d2.bg || /rgba\(0,0,0,0\)/.test(d2.bg.c1 || ''))) d2.bg = { t: 'solid', c1: '#ffffff' };
+    const u = toCanvas(d2, sc).toDataURL('image/png');
+    const i = typeof curInst === 'function' ? curInst() : null; if (!i) return toast('تعذر الوصول إلى إعدادات المؤسسة', true);
+    if (as === 'lh') {
+      i.letterhead = typeof shrinkImage === 'function' ? await shrinkImage(u) : u;
+      const z = typeof imageSize === 'function' ? await imageSize(i.letterhead) : null; if (z) { i.letterheadW = z.w; i.letterheadH = z.h; }
+      if (typeof normalizeLetterhead === 'function') await normalizeLetterhead(i);
+      i.headerMode = 'image'; persist(); toast('تم اعتماد التصميم رأسية لجميع الوثائق (الإعدادات ← رأسية المؤسسة)');
+    } else { i.logo = u; persist(); toast('تم اعتماد التصميم شعارا للمؤسسة (يظهر في المصمم ومجلة المؤسسة)'); }
+  }
+
   /* ================= the editor ================= */
   function open(o0) {
     o0 = o0 || {};
@@ -392,6 +477,7 @@
         <button class="btn sm" id="dzSave">${ic('save')} حفظ في تصاميمي</button>
         <button class="btn sm" id="dzPng">${ic('down')} صورة PNG</button><button class="btn sm" id="dzJpg">JPG</button>
         <button class="btn sm" id="dzPdf">${ic('pdf')} PDF</button><button class="btn sm pri" id="dzPrint">${ic('print')} طباعة</button>
+        ${cat === 'brand' ? `<button class="btn sm gold" id="dzAdLh" title="يصبح هذا التصميم رأسية جميع الوثائق">${ic('check')} اعتماد كرأسية للوثائق</button><button class="btn sm gold" id="dzAdLg" title="يحفظ كشعار المؤسسة">${ic('check')} اعتماد كشعار</button>` : ''}
         <button class="btn sm" id="dzClose">✕ إغلاق</button></div>
       <div class="dz-main">
         <div class="dz-side">
@@ -587,7 +673,7 @@
       } else if (panelTab === 'img') {
         pn.innerHTML = `<button class="btn pri" id="dzUp" style="width:100%">${ic('up')} صورة من الحاسوب</button>
           <button class="btn" id="dzEmb" style="width:100%;margin-top:6px">شعار المملكة</button>
-          ${(() => { try { const s = S(); return s.letterhead ? `<button class="btn" id="dzLh" style="width:100%;margin-top:6px">رأسية المؤسسة (الإعدادات)</button>` : ''; } catch (_) { return ''; } })()}
+          ${(() => { try { const s = S(); return (s.letterhead ? `<button class="btn" id="dzLh" style="width:100%;margin-top:6px">رأسية المؤسسة (الإعدادات)</button>` : '') + (s.logo ? `<button class="btn" id="dzLg" style="width:100%;margin-top:6px">شعار المؤسسة</button>` : ''); } catch (_) { return ''; } })()}
           <button class="btn" id="dzBgImg" style="width:100%;margin-top:6px">صورة كخلفية للتصميم</button>
           <div class="dz-h">مكتبة الصور (${gallery().length})</div><div class="dz-chips" id="dzGc"><button data-gc="" class="${galCat ? '' : 'on'}">الكل</button>${galCats().map(([k, n]) => `<button data-gc="${k}" class="${galCat === k ? 'on' : ''}">${escH(n)}</button>`).join('')}</div>
           <div class="dz-gal">${gallery().filter(g => !galCat || g.c === galCat).map((g, i) => `<button data-gi="${gallery().indexOf(g)}" title="${escH(g.n)}${g.c === 'bg' ? ' — نقرة: عنصر، نقرتان: خلفية للتصميم' : ''}"><img src="${g.src}" alt=""></button>`).join('')}</div>
@@ -596,7 +682,7 @@
         const addImg = (src, w0, h0) => { const im = new Image(); im.onload = () => { const r = im.naturalWidth / im.naturalHeight, w = Math.min(doc.w * .6, w0 || im.naturalWidth); addObj({ type: 'image', src, w, h: w / r, fit: 'cover', f: {} }); }; im.src = src; };
         pn.querySelector('#dzUp').onclick = async () => { const d = await window.api.openImage(); if (d) addImg(d); };
         pn.querySelector('#dzEmb').onclick = () => addObj({ type: 'image', src: (window.EMBLEM_DATA || 'assets/emblem.png'), w: 140, h: 140, fit: 'contain', f: {} });
-        if (pn.querySelector('#dzLh')) pn.querySelector('#dzLh').onclick = () => addImg(S().letterhead, doc.w * .9);
+        if (pn.querySelector('#dzLh')) pn.querySelector('#dzLh').onclick = () => addImg(S().letterhead, doc.w * .9); if (pn.querySelector('#dzLg')) pn.querySelector('#dzLg').onclick = () => addImg(S().logo, Math.min(doc.w, doc.h) * .3);
         pn.querySelectorAll('[data-gc]').forEach(b => b.onclick = () => { galCat = b.dataset.gc; panel(); });
         pn.querySelectorAll('[data-gi]').forEach(b => { const g = gallery()[+b.dataset.gi];
           b.onclick = () => { const im = new Image(); im.onload = () => { const r = (im.naturalWidth || 200) / (im.naturalHeight || 200), w = g.c === 'bg' ? doc.w * .9 : Math.min(doc.w * .4, 320); addObj({ type: 'image', src: g.src, w, h: w / r, fit: 'contain', f: {} }); }; im.src = g.src; };
@@ -789,6 +875,7 @@
       return o;
     };
     root.querySelector('#dzSave').onclick = save;
+    if (root.querySelector('#dzAdLh')) { root.querySelector('#dzAdLh').onclick = () => adopt(doc, 'lh'); root.querySelector('#dzAdLg').onclick = () => adopt(doc, 'logo'); }
     const close = async () => {
       if (dirty && !(await confirmBox('إغلاق المصمم دون حفظ التصميم؟', 'إغلاق'))) return;
       root.remove(); document.removeEventListener('keydown', key); window.removeEventListener('pointermove', mm); window.removeEventListener('pointerup', mu); window.removeEventListener('resize', layout); redrawHook = null;
@@ -802,14 +889,39 @@
   }
 
   /* ================= «تصاميمي» page (الحياة المدرسية / التهاني) ================= */
+  function brandPage(v) {
+    const L = DG().filter(d => d.cat === 'brand');
+    let s0 = {}; try { s0 = S(); } catch (_) {}
+    v.innerHTML = `<div class="page-h"><h1>تصميم شعار وترويسة المؤسسة</h1><span class="sp"></span><button class="btn" id="bdBack">${ic('back')} التصاميم والإعلانات</button>
+        <button class="btn pri" id="bdLg">${ic('plus')} شعار فارغ</button><button class="btn pri" id="bdLh">${ic('plus')} ترويسة فارغة</button></div>
+      <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">صمّم شعار المؤسسة (أو الجمعية) وترويسة الوثائق بكل أدوات المصمم الاحترافية: النص المقوس حول الدائرة، الحلقات والأشرطة، شعار المملكة، حروف تيفيناغ، التدرجات، الظلال، الصور ومعالجتها، إزالة الخلفية، أوضاع المزج، الطبقات... ثم اضغط «اعتماد كرأسية للوثائق» لتصبح رأسية جميع الوثائق، أو «اعتماد كشعار» ليستعمل في التصاميم ومجلة المؤسسة. يمكن أيضا التصدير PNG شفاف.</div>
+      <div class="att-kpis" style="margin-bottom:10px"><span>الرأسية الحالية: <b>${s0.headerMode === 'image' && s0.letterhead ? 'صورة' : 'نصية (تلقائية)'}</b></span><span>الشعار: <b>${s0.logo ? 'معتمد' : 'غير معتمد بعد'}</b></span></div>
+      ${s0.logo ? `<div class="card" style="padding:8px;display:inline-block;margin-bottom:10px"><img src="${s0.logo}" style="height:110px;display:block"></div>` : ''}
+      <div class="sec-t">ابدأ من قالب</div>
+      <div class="dz-start dz-brand">${BRAND.map(([k, vi, n], i) => `<button class="card dz-cat ${k}" data-br="${i}"><img><span>${n}</span></button>`).join('')}</div>
+      <div class="sec-t" style="margin-top:16px">تصاميم الشعار والترويسة (${L.length})</div>
+      ${L.length ? `<div class="dz-mine">${L.map(d => `<div class="card dz-my"><img src="${d.thumb}" data-open="${d.id}"><div class="dz-myb"><b>${escH(d.name)}</b><div class="btn-row"><button class="btn sm" data-open="${d.id}">${ic('edit')} فتح</button><button class="btn sm danger" data-del="${d.id}">${ic('trash')}</button></div></div></div>`).join('')}</div>` : '<div class="empty-state">لا توجد تصاميم محفوظة بعد.</div>'}`;
+    const again = () => brandPage(v);
+    // thumbnails drawn again once the pictures (emblem, clipart) are decoded
+    const th = () => $$('[data-br] img', v).forEach((im, i) => { const [k, vi] = BRAND[i], d = brandTpl(k, vi); d.bg = { t: 'solid', c1: '#ffffff' }; im.src = toCanvas(d, (k === 'lh' ? 360 : 160) / BRAND_SIZES[k][0]).toDataURL('image/png'); });
+    th(); setTimeout(() => v.isConnected && th(), 400); setTimeout(() => v.isConnected && th(), 1500);
+    const openD = o => open(Object.assign({ cat: 'brand', onClose: again, onSaved: () => {} }, o));
+    $('#bdBack', v).onclick = () => go('flyers');
+    $('#bdLg', v).onclick = () => openD({ name: 'شعار المؤسسة', doc: { w: 1000, h: 1000, bg: { t: 'solid', c1: 'rgba(0,0,0,0)' }, objs: [] } });
+    $('#bdLh', v).onclick = () => openD({ name: 'ترويسة المؤسسة', doc: { w: 1588, h: 336, bg: { t: 'solid', c1: '#ffffff' }, objs: [] } });
+    $$('[data-br]', v).forEach(b => b.onclick = () => { const [k, vi, n] = BRAND[+b.dataset.br]; openD({ name: n, doc: brandTpl(k, vi) }); });
+    $$('[data-open]', v).forEach(b => b.onclick = () => openD({ id: b.dataset.open }));
+    $$('[data-del]', v).forEach(b => b.onclick = async () => { if (!(await confirmBox('حذف هذا التصميم نهائيا؟', 'حذف'))) return; DB.designs = DG().filter(x => x.id !== b.dataset.del); persist(); again(); });
+  }
   function page(v, arg) {
     arg = arg || {};
+    if (arg.cat === 'brand') return brandPage(v);
     const kudos = arg.cat === 'congrats';
-    const list = () => DG().filter(d => !kudos || ['congrats', 'thanks', 'exam'].includes(d.cat));
+    const list = () => DG().filter(d => d.cat !== 'brand' && (!kudos || ['congrats', 'thanks', 'exam'].includes(d.cat)));
     const draw = () => {
       const L = list();
       v.innerHTML = `<div class="page-h"><h1>${kudos ? 'تصميم التهاني والشواهد (المصمم الحر)' : 'إعلانات الأنشطة والتصاميم'}</h1><span class="sp"></span>
-          <button class="btn pri" id="dzNew">${ic('plus')} تصميم جديد</button></div>
+          ${kudos ? '' : `<button class="btn gold" id="dzBrand" title="تصميم شعار المؤسسة وترويسة الوثائق">🏫 شعار وترويسة المؤسسة</button>`}<button class="btn pri" id="dzNew">${ic('plus')} تصميم جديد</button></div>
         <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">صمّم إعلانات الأنشطة والملصقات والتهاني والدعوات: أكثر من ${LAYOUTS.length * PAL.length * CATS.length} قالبا جاهزا (${CATS.length} مواضيع)، كل الخطوط، الأشكال والرموز، مكتبة صور ورسوم (جوائز، مدرسة، احتفالات، مناسبات، زخارف، خلفيات...)، الصور مع أدوات احترافية (السطوع والتباين والتشبع، إزالة الخلفية، القص، الحدة، الصبغة، تظليل الأطراف، تلاشي الحواف، حد الملصق، مرشحات جاهزة)، أوضاع مزج الطبقات، الرسم الحر بالفرشاة، القطارة، الشبكة والمحاذاة، النص المقوس والمجوف، نسخ النمط، الخلفيات والتدرجات والزخارف، الطبقات، ثم الحفظ صورة PNG (أو PNG شفاف) أو PDF أو الطباعة مباشرة. يعمل دون إنترنت.</div>
         <div class="sec-t">ابدأ من قالب</div>
         <div class="dz-start">${CATS.filter(c => !kudos || ['congrats', 'thanks', 'exam', 'celeb'].includes(c[0])).map(c => `<button class="card dz-cat" data-cat="${c[0]}"><img src="${toCanvas(template(CATS.indexOf(c) % LAYOUTS.length, CATS.indexOf(c) % PAL.length, c[0]), 120 / 1123).toDataURL('image/jpeg', .7)}"><span>${c[1]}</span></button>`).join('')}</div>
@@ -818,6 +930,7 @@
             <div class="btn-row"><button class="btn sm" data-open="${d.id}">${ic('edit')} فتح</button><button class="btn sm" data-copy="${d.id}">نسخة</button><button class="btn sm danger" data-del="${d.id}">${ic('trash')}</button></div></div></div>`).join('')}</div>`
           : '<div class="empty-state">لا توجد تصاميم محفوظة بعد.</div>'}`;
       const openD = o => open(Object.assign({ onClose: draw, onSaved: () => {} }, o));
+      if ($('#dzBrand', v)) $('#dzBrand', v).onclick = () => go('flyers', { cat: 'brand' });
       $('#dzNew', v).onclick = () => openD({ cat: kudos ? 'congrats' : 'activity', doc: { w: 794, h: 1123, bg: { t: 'solid', c1: '#ffffff' }, objs: [] } });
       $$('[data-cat]', v).forEach(b => b.onclick = () => openD({ cat: b.dataset.cat, doc: template(CATS.findIndex(c => c[0] === b.dataset.cat) % LAYOUTS.length, 0, b.dataset.cat) }));
       $$('[data-open]', v).forEach(b => b.onclick = () => openD({ id: b.dataset.open }));
@@ -856,11 +969,12 @@
   .dz-gal{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.dz-gal button{border:1px solid #e1e6e3;background:repeating-conic-gradient(#f1f1f1 0 25%,#fff 0 50%) 0 0/14px 14px;border-radius:6px;padding:3px;cursor:pointer;height:74px;display:flex;align-items:center;justify-content:center}.dz-gal img{max-width:100%;max-height:66px}.dz-gal button:hover{border-color:#5b2a86}
   .dz-start{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}.dz-cat{padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line)}.dz-cat img{width:100%;border-radius:4px}.dz-cat span{font-size:12.5px;font-weight:700}
   @media (max-width:900px){.dz-main{flex-direction:column;overflow:auto}.dz-side{width:auto;height:40vh;flex:none;border:0;border-top:1px solid #d7dfdb;order:3}.dz-props{width:auto;height:30vh;flex:none;order:2;border:0;border-top:1px solid #d7dfdb}.dz-stage{order:1;padding:8px;flex:none;height:52vh}.dz-tabs{grid-template-columns:repeat(7,1fr)}.dz-name{width:120px}}
+  .dz-brand{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}.dz-brand .dz-cat.lh{grid-column:span 2}.dz-brand img{background:#fff}
   .dz-mine{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dz-my{padding:6px}.dz-my img{width:100%;height:170px;object-fit:contain;background:#f3f4f3;border-radius:6px;cursor:pointer}.dz-myb{display:flex;flex-direction:column;gap:3px;padding-top:5px;font-size:12.5px}`;
   document.head.appendChild(style);
 
   // 1.9.4: buttons of other pages that open the designer (no inline handler: the security policy of the app forbids them)
   document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-go-flyers]'); if (b) go('flyers', { cat: b.dataset.goFlyers || '' }); });
-  window.Designer = { open, page, template, toCanvas, render, CATS, PAL, LAYOUTS, SIZES };
+  window.Designer = { open, page, template, brandTpl, BRAND, adopt, toCanvas, render, CATS, PAL, LAYOUTS, SIZES };
   window.pageFlyers = (v, a) => page(v, a);
 })();

@@ -559,7 +559,7 @@
   function unitRows(sy, f, phase) {
     const cur = dpupils(sy, f, phase), units = Array.from(new Set(cur.map(p => p.unit))), phs = phasesWith(sy);
     return units.map(u => {
-      const pu = cur.filter(p => p.unit === u);
+      const pu = cur.filter(p => K.U.same(p.unit, u));
       const r = { unit: u, pupils: pu.length, all: dstat(pu, subjKeys(f)), subj: SUBJ.map(x => dstat(pu, [x.k]).rate) };
       const ev = phs.map(p => dstat(dpupils(sy, Object.assign({}, f, { unit: u }), p.k), subjKeys(f)).rate).filter(v => v != null);
       r.delta = ev.length > 1 ? ev[ev.length - 1] - ev[0] : null;

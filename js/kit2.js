@@ -206,17 +206,25 @@
   };
 
   /* ================= school units (الوحدات المدرسية) ================= */
+  const bare = n => nh(String(n || '').replace(/^(وحدة|فرعية|مركزية)\s*/, '').split(/\s*[-–—]\s*/)[0]);
+  const sameB = (a, b) => { const x = nh(String(a || '').replace(/^(وحدة|فرعية|مركزية)\s*/, '')), y = nh(String(b || '').replace(/^(وحدة|فرعية|مركزية)\s*/, '')); return !!x && x === y; };
+  const regU = () => (DB.board && Array.isArray(DB.board.units) ? DB.board.units.map(u => String(u.name || '').trim()).filter(Boolean) : []);
   const U = {
     // display names known by the application (pupils lists, attendance, certificates), in a stable order
     names() {
       const out = [];
       const add = n => { n = String(n || '').trim(); if (n && !out.some(x => nh(x) === nh(n))) out.push(n); };
       if (DB.board && Array.isArray(DB.board.units)) DB.board.units.forEach(u => add(u.name));
+      // 1.9.4: the units written in the settings are THE units of the school group: nothing added, nothing removed
+      if (out.length) return out;
       if (window.Pupils && Pupils.unitNames) Pupils.unitNames().forEach(add);
       if (DB.attend && Array.isArray(DB.attend.units)) DB.attend.units.forEach(u => add(u.name));
       return out;
     },
-    same: (a, b) => { const x = nh(String(a || '').replace(/^(وحدة|فرعية|مركزية)\s*/, '')), y = nh(String(b || '').replace(/^(وحدة|فرعية|مركزية)\s*/, '')); return !!x && x === y; }
+    // the unit of the settings that a name written elsewhere (Massar lists, imports) designates, else the name itself
+    canon(n) { const t = String(n || '').trim(); const r = regU(); if (!t || !r.length) return t; return r.find(x => sameB(x, t)) || r.find(x => { const a = bare(x), b = bare(t); return a.length > 2 && b.length > 2 && (b.includes(a) || a.includes(b)); }) || t; },
+    // 1.9.4: two names are the same unit when they designate the same unit of the settings
+    same: (a, b) => { if (sameB(a, b)) return true; const r = regU(); if (!r.length || !a || !b) return false; const x = U.canon(a); return r.includes(x) && x === U.canon(b); }
   };
 
   /* ================= employees helpers ================= */

@@ -115,6 +115,6 @@
     .gs-ic{font-size:20px;width:28px;text-align:center}.gs-sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .h-search{width:260px;max-width:100%}.pa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px 12px}.pa-it{font-size:13px}`;
   document.head.appendChild(css);
-  window.Tools = { openSearch, index };
+  window.Tools = { openSearch, index, warm };
   window.pagePrintAll = v => pagePrintAll(v);
 })();

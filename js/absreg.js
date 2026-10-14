@@ -213,7 +213,7 @@
     const W = yr.weeks[monday(dateIso)], d = (new Date(dateIso + 'T00:00:00Z').getUTCDay() + 6) % 7, n = SESS().length;
     if (!W || d > 4) return o;
     Object.keys(W).forEach(cls => {
-      const PL = pupilsOf(sy, cls).filter(p => !unit || p.unit === unit);
+      const PL = pupilsOf(sy, cls).filter(p => !unit || K.U.same(p.unit, unit));
       if (unit && !PL.length) return;
       o.classes++; o.pupils += PL.length;
       Object.values(W[cls] || {}).forEach(r => {

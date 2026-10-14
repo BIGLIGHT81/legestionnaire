@@ -510,7 +510,7 @@
     ],
     build: (s, f, sy) => {
       const M = semMonths(sy, f.sem), unit = nm(f.unit), A = AR();
-      const pupils = (window.Pupils ? Pupils.current(sy) : []).filter(p => !unit || p.unit === unit).length;
+      const pupils = (window.Pupils ? Pupils.current(sy) : []).filter(p => !unit || K.U.same(p.unit, unit)).length;
       const data = M.map(m => {
         const [Y0, M0] = m.ym.split('-').map(Number), last = new Date(Date.UTC(Y0, M0, 0)).getUTCDate(), days = [];
         for (let d = 1; d <= last; d++) {

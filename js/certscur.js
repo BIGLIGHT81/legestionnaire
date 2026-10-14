@@ -22,15 +22,15 @@
   const pupilsOf = sy => { try { return window.Pupils ? Pupils.current(sy) : []; } catch (_) { return []; } };
   const unitsOf = sy => Array.from(new Set(pupilsOf(sy).map(p => p.unit).filter(Boolean)));
   const lvName = k => { try { return LV().name(k) || k || ''; } catch (_) { return k || ''; } };
-  const lvlsOf = (sy, unit) => { const a = Array.from(new Set(pupilsOf(sy).filter(p => !unit || p.unit === unit).map(p => p.lvl).filter(Boolean))); try { return LV().sort(a); } catch (_) { return a; } };
-  const clsOf = (sy, unit, lvl) => Array.from(new Set(pupilsOf(sy).filter(p => (!unit || p.unit === unit) && (!lvl || p.lvl === lvl)).map(p => p.cls).filter(Boolean)));
+  const lvlsOf = (sy, unit) => { const a = Array.from(new Set(pupilsOf(sy).filter(p => !unit || K.U.same(p.unit, unit)).map(p => p.lvl).filter(Boolean))); try { return LV().sort(a); } catch (_) { return a; } };
+  const clsOf = (sy, unit, lvl) => Array.from(new Set(pupilsOf(sy).filter(p => (!unit || K.U.same(p.unit, unit)) && (!lvl || p.lvl === lvl)).map(p => p.cls).filter(Boolean)));
   const fullAr = p => [p.last, p.first].map(nm).filter(Boolean).join(' ');
   const fullFr = p => [p.lastFr, p.firstFr].map(nm).filter(Boolean).join(' ').toUpperCase();
   const fem = p => p.g === 'F';
   const dmy = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : nm(iso); };
   const dmyS = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : nm(iso); };
   const pick = (f, sy) => {
-    const all = pupilsOf(sy).filter(p => (!f.unit || p.unit === f.unit) && (!f.lvl || p.lvl === f.lvl) && (!f.cls || p.cls === f.cls));
+    const all = pupilsOf(sy).filter(p => (!f.unit || K.U.same(p.unit, f.unit)) && (!f.lvl || p.lvl === f.lvl) && (!f.cls || p.cls === f.cls));
     if (f.scope === 'cls') return all;
     const one = pupilsOf(sy).find(p => p.code === f.code);
     return one ? [one] : [];
@@ -124,7 +124,7 @@
           if (p) Object.assign(f, { scope: 'one', code: p.code, unit: p.unit || '', lvl: p.lvl || '', cls: p.cls || '' });
         }
         const U = unitsOf(sy), L = lvlsOf(sy, f.unit), C = clsOf(sy, f.unit, f.lvl);
-        const P = pupilsOf(sy).filter(p => (!f.unit || p.unit === f.unit) && (!f.lvl || p.lvl === f.lvl) && (!f.cls || p.cls === f.cls));
+        const P = pupilsOf(sy).filter(p => (!f.unit || K.U.same(p.unit, f.unit)) && (!f.lvl || p.lvl === f.lvl) && (!f.cls || p.cls === f.cls));
         const n = pick(f, sy).length;
         return [
           { sec: 'التلميذ(ة)' },

@@ -60,7 +60,7 @@
         const all = window.Pupils ? Pupils.current(sy) : [];
         const dues = window.Dues;
         const stageOk = p => item !== 'coop' || /^P\d/.test(String(p.lvl || ''));
-        let L = all.filter(p => stageOk(p) && (!nm(f.unit) || (window.Board ? Board.sameU(p.unit, f.unit) : p.unit === f.unit)));
+        let L = all.filter(p => stageOk(p) && (!nm(f.unit) || (window.Board ? Board.sameU(p.unit, f.unit) : K.U.same(p.unit, f.unit))));
         L = L.slice().sort((x, y) => String(x.cls || '').localeCompare(String(y.cls || ''), 'fr', { numeric: true }) || `${x.last} ${x.first}`.localeCompare(`${y.last} ${y.first}`, 'ar'));
         const onlyPaid = !/كل التلاميذ/.test(nm(f.mode));
         const P = L.map(p => ({ p, r: dues ? dues.paid(sy, p, item) : null }));

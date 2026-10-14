@@ -74,9 +74,9 @@
 
   /* ---------- import of the candidates list (GEXA / Massar export «لائحة المترشحين حسب مركز الامتحان») ---------- */
   const HM = MK.matcher({
-    no: ['رقم الامتحان', 'رقم الإمتحان', 'ر.امتحان', 'NumeroExam'], name: ['الاسم الكامل', 'الإسم الكامل', 'الاسم والنسب', 'Nom complet'], code: ['الرقم الوطني', 'رمز مسار', 'رقم مسار', 'CNE', 'code massar'],
-    g: ['الجنس', 'Sexe'], birth: ['تاريخ الإزدياد', 'تاريخ الازدياد', 'Date de naissance'], cls: ['القسم', 'Classe'], room: ['قاعة الإمتحان', 'قاعة الامتحان', 'القاعة', 'Salle'],
-    origin: ['المؤسسة', 'المؤسسة الأصلية', 'Etablissement'], center: ['مركز الامتحان'], ccode: ['رمز مركز الامتحان'], level: ['المستوى']
+    no: ['رقم الامتحان', 'رقم الإمتحان', 'ر.امتحان', 'ر الامتحان', 'ر الإمتحان', 'NumeroExam'], name: ['الاسم الكامل', 'الإسم الكامل', 'الاسم والنسب', 'الإسم و النسب', 'الإسم والنسب', 'Nom complet'], code: ['الرقم الوطني', 'رمز مسار', 'رقم مسار', 'CNE', 'code massar'],
+    g: ['الجنس', 'النوع', 'Sexe'], birth: ['تاريخ الإزدياد', 'تاريخ الازدياد', 'Date de naissance'], cls: ['القسم', 'Classe'], room: ['قاعة الإمتحان', 'قاعة الامتحان', 'القاعة', 'Salle'],
+    origin: ['المؤسسة', 'المؤسسة الأصلية', 'المؤسسة الاصلية', 'مؤسسة الأصل', 'Etablissement'], center: ['مركز الامتحان'], ccode: ['رمز مركز الامتحان'], level: ['المستوى']
   });
   async function importCands(f, sy, c) {
     const sheets = await MK.openTable(); if (!sheets) return;
@@ -340,6 +340,89 @@
       idx.forEach(i => { const sj = ss[i] || ['']; blocks.push({ before: SB.cap(`المادة: ${esc(sj[0] || '')} — ${esc(sessLabel(sj))}`, 'r'), table: { cls: 'sb-t', head: thr(['القاعة', 'أول رقم', 'آخر رقم', 'عدد المترشحين', 'عدد الغائبين', 'أرقام امتحان المتغيبين']), rows: keys.map(k => { const L = m.get(k), ns = L.map(c => parseInt(c[C.no], 10)).filter(isFinite); return tr([{ t: k, c: 'b' }, ns.length ? Math.min(...ns) : '', ns.length ? Math.max(...ns) : '', L.length, '', { t: '', st: 'width:34%' }]); }) } }); });
       return { title: 'محضر ضبط غياب المترشحين', sub: sub(sy), page: 'a4', sign: signHead(s), blocks };
     } });
+  /* ---------- 1.9.4: documents of the regional exam of the collège (model of the centres: technical sheet, covers of the room files, rules poster,
+     minutes of closing / opening the envelopes, handover of the exam papers, collective absence sheet, follow-up of the absences) ---------- */
+  const rng = L => { const ns = L.map(c => parseInt(c[C.no], 10)).filter(isFinite); return ns.length ? [Math.min(...ns), Math.max(...ns)] : ['', '']; };
+  const subjOpts = sy => [['all', 'كل المواد (صفحة لكل مادة)']].concat(subjects(sy).map((r, i) => [String(i + 1), r[0]]));
+  const subjIdx = (f, sy) => { const ss = subjects(sy); return f.subj === 'all' || !f.subj ? (ss.length ? ss.map((x, i) => i) : [0]) : [(parseInt(f.subj, 10) || 1) - 1]; };
+  const sjDate = sj => (sj[1] ? K.dayName(sj[1]) + ' ' + MK.showDate(sj[1]) : '....................');
+  const gCount = L => { let m = 0, w = 0; L.forEach(c => (isF(c[C.g]) ? w++ : m++)); return { m, w, t: m + w }; };
+  add({ k: 'ex_tech', t: 'البطاقة التقنية لمركز الامتحان', grp: 'o', d: 'توزيع المترشحين حسب الجنس، وعلى القاعات (من رقم إلى رقم، ذكور / إناث)، وحسب المؤسسة الأصلية والأقسام، مع جدولة الامتحان.', auto: 'المترشحون، القاعات، الجدولة', page: 'a4', init: () => ({}), defs: () => [],
+    build: (s, f, sy) => {
+      const I = info(sy), L = cands(sy), m = byRoom(sy), keys = Array.from(m.keys()).sort(sortRooms), g = gCount(L);
+      const grp = key => { const mm = new Map(); L.forEach(c => { const k = nm(c[key]) || '—'; if (!mm.has(k)) mm.set(k, []); mm.get(k).push(c); }); return Array.from(mm.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'ar', { numeric: true })); };
+      const cls = grp(C.cls), org = grp(C.origin);
+      return { title: 'البطاقة التقنية لمركز الامتحان', sub: sub(sy), page: 'a4', sign: signHead(s), blocks: [
+        kv([['مركز الامتحان', I.center], ['الرمز', I.code], ['رئيس(ة) المركز', I.head], ['الدورة', I.session], ['عدد القاعات', keys.length], ['عدد الأقسام', cls.length]]),
+        { before: SB.cap('توزيع مجموع المترشحين حسب الجنس', 'r'), table: { cls: 'sb-t big', head: thr(['الذكور', 'الإناث', 'المجموع', 'نسبة الإناث']), rows: [tr([g.m, g.w, { t: g.t, c: 'b' }, g.t ? Math.round(g.w / g.t * 1000) / 10 + '%' : ''])] } },
+        { before: SB.cap('توزيع المترشحين على القاعات حسب أرقام الامتحان', 'r'), table: { cls: 'sb-t', head: thr(['القاعة', 'من', 'إلى', 'ذكور', 'إناث', 'المجموع']), rows: keys.map(k => { const X = m.get(k), r = rng(X), q = gCount(X); return tr([{ t: k, c: 'b' }, r[0], r[1], q.m, q.w, { t: q.t, c: 'b' }]); }).concat([`<tr class="tot"><td>المجموع</td><td></td><td></td><td>${g.m}</td><td>${g.w}</td><td>${g.t}</td></tr>`]) } },
+        org.length > 1 || (org[0] && org[0][0] !== '—') ? { before: SB.cap('توزيع المترشحين حسب المؤسسة الأصلية', 'r'), table: { cls: 'sb-t', head: thr(['المؤسسة الأصلية', 'ذكور', 'إناث', 'المجموع']), rows: org.map(([k, X]) => { const q = gCount(X); return tr([{ t: k, c: 'r b' }, q.m, q.w, { t: q.t, c: 'b' }]); }) } } : null,
+        cls.length ? { before: SB.cap('توزيع المترشحين حسب الأقسام', 'r'), table: { cls: 'sb-t', head: thr(['القسم', 'ذكور', 'إناث', 'المجموع']), rows: cls.map(([k, X]) => { const q = gCount(X); return tr([{ t: k, c: 'b' }, q.m, q.w, { t: q.t, c: 'b' }]); }) } } : null,
+        { before: SB.cap('جدولة الامتحان', 'r'), table: { cls: 'sb-t', head: thr(['التاريخ', 'المادة', 'من الساعة', 'إلى الساعة']), rows: subjects(sy).map(r => tr([sjDate(r), { t: r[0], c: 'b' }, { t: r[2], c: 'ltr' }, { t: r[3], c: 'ltr' }])) } }].filter(Boolean) };
+    } });
+  add({ k: 'ex_covers', t: 'واجهات ملفات القاعات', grp: 'o', d: 'واجهة ملف (غلاف) لكل قاعة: المركز، الامتحان، الدورة، رقم القاعة، عدد المترشحين وأرقامهم من … إلى … (واجهتان في الصفحة).', auto: 'المترشحون والقاعات', page: 'a4', init: () => ({}), defs: () => [],
+    build: (s, f, sy) => {
+      const I = info(sy), m = byRoom(sy), keys = Array.from(m.keys()).sort(sortRooms);
+      const one = k => { const L = m.get(k) || [], r = rng(L); return `<div class="ex-cov"><div class="h">${esc(s.directorate || '')}<br><b>${esc(I.center)}</b></div><div class="t">${esc(examTitle(I))}</div><div class="d">دورة ${esc(I.session)}</div>
+        <div class="rm"><span>الـقـاعـة</span><b>${esc(k)}</b></div><div class="g"><div>عدد المترشحين: <b>${L.length}</b></div><div>أرقامهم من: <b>${r[0]}</b> إلى: <b>${r[1]}</b></div></div></div>`; };
+      const pages = []; const K2 = keys.length ? keys : ['—'];
+      for (let i = 0; i < K2.length; i += 2) pages.push(`<div class="ex-covs">${K2.slice(i, i + 2).map(one).join('<div class="ex-cut"></div>')}</div>`);
+      return { page: 'a4', pages };
+    } });
+  add({ k: 'ex_rules', t: 'ملصق التوجيهات الهامة ومحاربة الغش', grp: 'o', d: 'ملصق يعلق بالقاعات والممرات: الحضور نصف ساعة قبل الموعد، اللوازم، منع الآلات الرقمية، عقوبات الغش.', auto: 'المعطيات العامة', page: 'a4', init: () => ({ extra: '' }),
+    defs: () => [{ k: 'extra', l: 'توجيهات إضافية (سطر لكل توجيه)', t: 'area', rows: 3 }],
+    build: (s, f, sy) => {
+      const I = info(sy);
+      const R0 = ['الحضور إلى مركز الامتحان نصف ساعة قبل موعد انطلاق الاختبار في كل مادة.', 'كل تأخر يتحمل المترشح(ة) وحده عواقبه، ولا يسمح بالدخول بعد توزيع المواضيع.', 'ضرورة إحضار الاستدعاء وبطاقة التعريف وجميع اللوازم الخاصة باجتياز الامتحان.', 'يمنع منعا كليا إحضار أو استعمال الهواتف المحمولة والآلات الرقمية ولو كانت غير مشغلة.', 'يمنع تبادل الأدوات أو التواصل بين المترشحين داخل القاعة.', 'لا يسمح بمغادرة القاعة قبل انصرام نصف المدة المخصصة للاختبار.'].concat(String(f.extra || '').split(/\n/).map(nm).filter(Boolean));
+      return { page: 'a4', pages: [`<div class="mk-hdr">${Dx.header(s)}</div><div class="ex-rules"><div class="e">${esc(examTitle(I))} — دورة ${esc(I.session)}</div><div class="t">توجيهات هامة</div><div class="w">على المترشحات والمترشحين الالتزام بما يلي:</div>
+        <ul>${R0.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="f">⚠ كل مترشح(ة) ضبط في حالة غش ستطبق في حقه القوانين الجاري بها العمل<br><small>(القانون رقم 02.13 المتعلق بزجر الغش في الامتحانات المدرسية)</small></div></div>`] };
+    } });
+  const envPV = open => ({ k: open ? 'ex_envopen' : 'ex_envclose', t: open ? 'محضر فتح أظرفة موضوع الامتحان' : 'محضر إغلاق أظرفة أوراق التحرير', grp: 'p', d: open ? 'لكل مادة: تاريخ وتوقيت الحصة، عدد الأظرفة المفتوحة وساعة الفتح، أعضاء اللجنة وتوقيعاتهم، ملاحظات الأستاذ(ة) المداوم(ة).' : 'لكل مادة: عدد أظرفة أوراق التحرير المغلقة وساعة الإغلاق، أعضاء اللجنة وتوقيعاتهم والملاحظات.', auto: 'الجدولة وطاقم المركز', page: 'a4', init: () => ({ subj: 'all' }),
+    defs: (f, sy) => [{ k: 'subj', l: 'المادة', t: 'select', opts: subjOpts(sy) }],
+    build: (s, f, sy) => {
+      const ss = subjects(sy), St = staff(sy), pages = [];
+      const com = [St.find(r => /رئيس/.test(r[3]))].concat(St.filter(r => /الكتابة|ملاحظ/.test(r[3]))).filter(Boolean).slice(0, 6);
+      subjIdx(f, sy).forEach(i => {
+        const sj = ss[i] || ['', '', '', '', ''];
+        const P = MK.flowPages({ page: 'a4', cls: 'sb', head: SB.head(s, open ? 'محضر فتح أظرفة موضوع مادة الامتحان' : 'محضر إغلاق أظرفة أوراق التحرير', sub(sy)), blocks: [
+          { html: `<div class="sb-pv"><p>المـادة: <b>${esc(sj[0] || '....................')}</b> &nbsp;&nbsp; التاريخ: <b>${esc(sjDate(sj))}</b>${open ? ` &nbsp;&nbsp; توقيت الحصة: <b dir="ltr">${esc(sj[2] || '.....')} - ${esc(sj[3] || '.....')}</b>` : ''}</p>
+            <p>${open ? 'تم فتح أظرفة موضوع الامتحان وعددها' : 'تم إغلاق وتوقيع أظرفة أوراق التحرير وعددها'}: .................. على الساعة: ..................</p><p>بحضور أعضاء اللجنة المكونة من السيدات والسادة:</p></div>` },
+          tbl(thr(['ر.ت', 'الاسم والنسب', 'رقم التأجير', 'الصفة', 'التوقيع']), Array.from({ length: 6 }, (x, j) => { const r = com[j] || []; return tr([j + 1, { t: r[0] || '', c: 'r b' }, r[1] || '', r[3] || '', { t: '', st: 'width:24%' }]); }), 'big'),
+          { html: `<div class="vs-box ex-box"><div class="vs-bt">ملاحظات عامة</div><div class="vs-bb" style="min-height:24mm"></div></div>${open ? '<div class="vs-box ex-box"><div class="vs-bt">ملاحظات الأستاذ(ة) المداوم(ة)</div><div class="vs-bb" style="min-height:16mm"></div></div>' : ''}` },
+          open ? SB.sign(s, { left: 'خاتم وتوقيع رئيس(ة) مركز الامتحان', right: 'اسم وتوقيع الأستاذ(ة) المداوم(ة)' }) : signHead(s)] });
+        P.forEach((p, j) => pages.push(j || !pages.length ? p : pb(p)));
+      });
+      return { page: 'a4', pages };
+    } });
+  add(envPV(false)); add(envPV(true));
+  add({ k: 'ex_handover', t: 'لائحة تسليم أوراق الامتحان (لكل مادة)', grp: 'p', d: 'لكل قاعة: عدد المترشحين، عدد الأوراق المسلمة، عدد الغائبين وأرقامهم، وتوقيع المراقبين (أسماؤهم من جدول الحراسة).', auto: 'القاعات وجدول الحراسة', page: 'a4', init: () => ({ subj: 'all' }),
+    defs: (f, sy) => [{ k: 'subj', l: 'المادة', t: 'select', opts: subjOpts(sy) }],
+    build: (s, f, sy) => {
+      const ss = subjects(sy), m = byRoom(sy), keys = Array.from(m.keys()).sort(sortRooms), G = guardRows(sy), pages = [];
+      subjIdx(f, sy).forEach(i => {
+        const sj = ss[i] || ['', '', '', '', ''];
+        const P = MK.flowPages({ page: 'a4', cls: 'sb', head: SB.head(s, 'لائحة تسليم أوراق الامتحان', `${sub(sy)}<br>المادة: ${esc(sj[0] || '..........')} — ${esc(sessLabel(sj))}`), blocks: [
+          tbl(thr(['القاعة', 'عدد المترشحين', 'عدد الأوراق المسلمة', 'عدد الغائبين', 'أرقامهم', 'المراقب(ة) 1 والتوقيع', 'المراقب(ة) 2 والتوقيع']), keys.map(k => { const g = G.find(r => +r[0] === i + 1 && nm(r[1]) === k) || []; return tr([{ t: k, c: 'b' }, (m.get(k) || []).length, '', '', { t: '', st: 'width:16%' }, { t: g[2] || '', c: 'sm' }, { t: g[3] || '', c: 'sm' }]); }), 'big'),
+          SB.sign(s, { left: 'توقيع رئيس(ة) المركز', right: 'المسؤول(ة) عن الكتابة' })] });
+        P.forEach((p, j) => pages.push(j || !pages.length ? p : pb(p)));
+      });
+      return { page: 'a4', pages };
+    } });
+  add({ k: 'ex_absgrid', t: 'ورقة التغيبات الجماعية (لكل قاعة)', grp: 'o', d: 'لائحة التوقيع ومراقبة حضور وغياب المترشحين لكل قاعة: رقم الامتحان والاسم وخانة لكل مادة.', auto: 'المترشحون، القاعات، الجدولة', page: 'a4l', init: () => ({}), defs: () => [],
+    build: (s, f, sy) => {
+      const ss = subjects(sy);
+      return roomPages(s, sy, 'لائحة التوقيع ومراقبة حضور وغياب المترشحين', (k, L) => [tbl(thr(['ر.ت', 'رقم الامتحان', 'الاسم الكامل'].concat(ss.map(r => r[0]))), L.map((c, j) => tr([j + 1, { t: c[C.no], c: 'b' }, { t: c[C.name], c: 'r b nw' }].concat(ss.map(() => '')))), 'cmp'),
+        SB.sign(s, { left: 'توقيع رئيس(ة) المركز', right: 'توقيع المسؤول(ة) عن الكتابة' })], { page: 'a4l' });
+    } });
+  add({ k: 'ex_abstrack', t: 'تتبع غياب المترشحين حسب القسم والمادة', grp: 'o', d: 'جدول تجميعي: لكل قسم (أو مؤسسة أصلية) عدد المترشحين وعدد الغائبين في كل مادة.', auto: 'المترشحون والجدولة', page: 'a4l', init: () => ({ by: 'cls' }),
+    defs: () => [{ k: 'by', l: 'حسب', t: 'select', opts: [['cls', 'القسم'], ['origin', 'المؤسسة الأصلية']] }],
+    build: (s, f, sy) => {
+      const ss = subjects(sy), key = f.by === 'origin' ? C.origin : C.cls, mm = new Map();
+      cands(sy).forEach(c => { const k = nm(c[key]) || '—'; mm.set(k, (mm.get(k) || 0) + 1); });
+      const rows = Array.from(mm.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'ar', { numeric: true })).map(([k, n]) => tr([{ t: k, c: 'b' }, n].concat(ss.map(() => ''))));
+      rows.push(`<tr class="tot"><td>المجموع</td><td>${cands(sy).length}</td>${ss.map(() => '<td></td>').join('')}</tr>`);
+      return { title: 'تتبع غياب المترشحين', sub: sub(sy), page: 'a4l', sign: SB.sign(s, { left: 'توقيع رئيس(ة) المركز', right: 'توقيع المسؤول(ة) عن الكتابة' }), blocks: [tbl(thr([f.by === 'origin' ? 'المؤسسة الأصلية' : 'القسم', 'عدد المترشحين'].concat(ss.map(r => r[0]))), rows, 'big')] };
+    } });
   add({ k: 'ex_guardpv', t: 'محضر حراسة الامتحان (لكل قاعة)', grp: 'o', d: 'محضر سير الاختبار بكل قاعة: المادة، التوقيت، المراقبون، عدد المترشحين والمتغيبين والأحداث.', auto: 'جدول الحراسة', page: 'a4', init: () => ({ subj: '1' }),
     defs: (f, sy) => [{ k: 'subj', l: 'المادة', t: 'select', opts: subjects(sy).map((r, i) => [String(i + 1), r[0]]).concat([['all', 'كل المواد']]) }],
     build: (s, f, sy) => {
@@ -500,6 +583,11 @@
   .ex-cv-n{font-size:7.8pt;line-height:1.45;color:#222}.ex-cv-s{text-align:left;font-weight:700;margin-top:1mm;min-height:9mm}
   .ex-lb{display:grid;grid-template-columns:1fr 1fr 1fr;grid-auto-rows:44mm;gap:3mm}.ex-lb>div{border:1.4px dashed #1f3864;border-radius:2mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm}
   .ex-lb .no{font-size:34pt;font-weight:700;color:#1f3864;line-height:1.1}.ex-lb .nm{font-size:12pt;font-weight:700}.ex-lb .rm{font-size:9pt;color:#333}
+  .ex-covs{display:flex;flex-direction:column;height:100%}.ex-cut{border-top:1px dashed #888;margin:3mm 0}.ex-cov{flex:1;border:2.5px double #1f3864;border-radius:4mm;padding:6mm;display:flex;flex-direction:column;align-items:center;justify-content:space-around;text-align:center;color:#1f3864}
+  .ex-cov .h{font-size:13pt;line-height:1.6}.ex-cov .t{font-size:17pt;font-weight:700}.ex-cov .d{font-size:13pt}.ex-cov .rm{display:flex;align-items:center;gap:8mm;font-size:26pt;font-weight:700}.ex-cov .rm b{font-size:64pt;border:2px solid #1f3864;border-radius:4mm;min-width:38mm;padding:0 6mm}.ex-cov .g{font-size:15pt;line-height:1.9}
+  .ex-rules{border:3px solid #c0392b;border-radius:5mm;padding:7mm 9mm;margin-top:4mm;color:#1b1b1b}.ex-rules .e{text-align:center;font-weight:700;color:#1f3864;font-size:13pt}.ex-rules .t{text-align:center;font-size:36pt;font-weight:700;color:#c0392b;margin:3mm 0}.ex-rules .w{font-size:15pt;font-weight:700;margin-bottom:3mm}
+  .ex-rules ul{font-size:15.5pt;line-height:1.75;padding-right:8mm;margin:0}.ex-rules li{margin-bottom:2.5mm}.ex-rules .f{margin-top:6mm;background:#fdecea;border:1.5px solid #c0392b;border-radius:3mm;padding:4mm;text-align:center;font-size:16pt;font-weight:700;color:#c0392b;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ex-rules .f small{font-size:11pt;color:#555}
+  .ex-box{border:1px solid #333;border-radius:2mm;margin:2mm 0;overflow:hidden}.ex-box .vs-bt{background:#eef2f7;font-weight:700;padding:1mm 2.5mm;border-bottom:1px solid #333}
   .ex-room{text-align:center;margin-top:8mm;color:#1f3864}.ex-room .t{font-size:34pt;font-weight:700}.ex-room .n{font-size:110pt;font-weight:700;line-height:1.1}.ex-room .r{font-size:16pt;margin-top:2mm}
   .docx-pb{display:none}`;
 

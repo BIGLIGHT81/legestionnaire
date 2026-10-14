@@ -32,7 +32,9 @@
     name = clean(name); if (!name) return null;
     let r = reg();
     if (!r.length) { K.U.names().forEach(n => r.push({ id: uid('bu'), name: n, gresa: '', created: '', opened: '', area: '', distance: '', rooms: '' })); r = reg(); }
-    let u = r.find(x => K.U.same(x.name, name) || nh(x.name) === nh(name));
+    let u = r.find(x => K.U.same(x.name, name) || nh(x.name) === nh(name)) || r.find(x => K.U.canon(name) === x.name);
+    // 1.9.4: the units of the settings are fixed: an import never adds a unit
+    if (!u && r.length && reg().some(x => clean(x.name))) return null;
     if (!u) { u = { id: uid('bu'), name, gresa: '', created: '', opened: '', area: '', distance: '', rooms: '' }; r.push(u); }
     return u;
   }
