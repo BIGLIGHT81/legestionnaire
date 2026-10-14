@@ -336,7 +336,14 @@
     });
     return n;
   }
-  window.RoaizX = { migrate, l1Pupils, l1Stats, l1Summary, participation, DOCS: () => DOCS, parseL1, applyL1, exportMassar, renderL1: v => { migrate(DB); pageL1(v, true); } };
+  // 1.9.4: the level-one test as a mastery rate (share of «مكتسب» among the competences marked), overall, by domain, by gender and by pre-school attendance
+  function l1Mastery(sy, cls) {
+    const st = l1Stats(sy, cls), sm = l1Summary(sy, cls), pc = (a, b) => (b ? a / b * 100 : null);
+    let ok = 0, n = 0, okF = 0, nF = 0, okM = 0, nM = 0;
+    const domains = st.map(d => { let o = 0, t = 0; d.items.forEach(x => { [3, 2, 1].forEach(k => { const c = x.c[k], s2 = c.M + c.F + c.U; t += s2; if (k === 3) { o += s2; okF += c.F; okM += c.M; } nF += c.F; nM += c.M; }); }); ok += o; n += t; return { k: d.s.k, n: d.s.n, ok: o, total: t, rate: pc(o, t) }; });
+    return { pupils: sm.pres, all: sm.all, abs: sm.abs, rate: pc(ok, n), n, rateF: pc(okF, nF), rateM: pc(okM, nM), domains, yes: pc(sm.yes.ok, sm.yes.n), no: pc(sm.no.ok, sm.no.n), nYes: sm.yes.p, nNo: sm.no.p };
+  }
+  window.RoaizX = { migrate, l1Pupils, l1Stats, l1Summary, l1Mastery, participation, DOCS: () => DOCS, parseL1, applyL1, exportMassar, renderL1: v => { migrate(DB); pageL1(v, true); } };
   window.pageRoaizx = (v, a) => { migrate(DB); C.hub(v, a); };
   window.pageRoaizxDoc = (v, a) => { migrate(DB); C.doc(v, a); };
   window.pageLevel1 = v => { migrate(DB); pageL1(v, false); };

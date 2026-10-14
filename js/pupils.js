@@ -492,7 +492,7 @@
     draw();
   }
   /* ================================================================= */
-  let tab = 'list';
+  let tab = 'struct';
   const flt = { q: '', unit: '', cls: '', lvl: '', g: '', est: false, fam: false };
   { const c = document.createElement('style'); c.textContent = `
     .pu-wrap{--stc:#0e5a4a;--stl:#e8f4ef}.pu-st-pre{--stc:#d35400;--stl:#fff1e3}.pu-st-pri{--stc:#1f5fa8;--stl:#e8f0fb}
@@ -516,7 +516,7 @@
     if (arg && arg.cat) flt.mcat = arg.cat;
     if (arg && arg.dash) flt.dash = arg.dash;
     const sy = curSy(), y = Y(sy);
-    const T = [['list', 'المتمدرسون (لائحة التلاميذ)'], ['moves', 'الفئات والحركية (الوافدون، المغادرون، المنقطعون...)'], ['dash', 'لوحات الإحصاء'], ['guard', 'معلومات الأولياء'], ['stats', 'الإحصائيات والمبيانات'], ['classes', SEC() ? 'اللوائح المستوردة (الأقسام)' : 'اللوائح المستوردة والوحدات']];
+    const T = [['struct', SEC() ? 'البنية التربوية (الأقسام والمستويات والأطر)' : 'البنية التربوية (الوحدات، GRESA، الأقسام، المستويات، الأطر)'], ['list', 'المتمدرسون (لائحة التلاميذ)'], ['moves', 'الفئات والحركية (الوافدون، المغادرون، المنقطعون...)'], ['dash', 'لوحات الإحصاء'], ['guard', 'معلومات الأولياء'], ['stats', 'الإحصائيات والمبيانات'], ['classes', SEC() ? 'اللوائح المستوردة (الأقسام)' : 'اللوائح المستوردة والوحدات']];
     const c = cnt(current(sy));
     stage = SECL() ? '' : (K.ST.cur || '');
     const hasPre = !SECL() && (y.pupils.some(p => stageOf(p.lvl) === 'pre') || (y.board && (y.board.rows || []).some(r => stageOf(r.lvl) === 'pre')) || y.moves.some(m => stageOf(m.lvl) === 'pre'));
@@ -526,7 +526,7 @@
         <button class="btn" id="puExp" ${y.pupils.length ? '' : 'disabled'}>${ic('down')} تصدير Excel</button>
         <button class="btn danger" id="puWipe" title="مسح اللوائح المحمّلة من مسار (التلاميذ، الأقسام، الفئات والحركية) كليا أو جزئيا" ${hasMassar() ? '' : 'disabled'}>${ic('trash')} المسح الكلي</button>
         <button class="btn pri" id="puImp">${ic('up')} استيراد لوائح مسار</button></div>
-      ${!SECL() ? stageBar(sy) : ''}
+      ${!SECL() && tab !== 'struct' ? stageBar(sy) : ''}
       <div class="mk-tabs"><div class="seg" id="puTabs">${T.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       <div id="puBody"></div></div>`;
     $$('#puTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; go('pupils'); });
@@ -535,8 +535,8 @@
     $('#puWipe').onclick = () => wipeMassar(sy);
     $('#puExp').onclick = () => exportXlsx(sy);
     $('#puDocs').onclick = () => go('pupilDoc', { kind: 'stats', stage });
-    if (!y.pupils.length && !['moves', 'dash'].includes(tab)) return emptyState($('#puBody'));
-    ({ list: tabList, guard: tabGuard, stats: tabStats, moves: (bb, ss) => window.Pupils2.tabCats(bb, ss), dash: (bb, ss) => window.Pupils2.tabDash(bb, ss), classes: tabClasses })[tab]($('#puBody'), sy);
+    if (!y.pupils.length && !['moves', 'dash', 'struct'].includes(tab)) return emptyState($('#puBody'));
+    ({ struct: (bb, ss) => window.Pupils3.tab(bb, ss), list: tabList, guard: tabGuard, stats: tabStats, moves: (bb, ss) => window.Pupils2.tabCats(bb, ss), dash: (bb, ss) => window.Pupils2.tabDash(bb, ss), classes: tabClasses })[tab]($('#puBody'), sy);
   };
   function splitText(sy, c) {
     const arr = current(sy), pre = SECL() ? 0 : arr.filter(p => stageOf(p.lvl) === 'pre').length;
@@ -1052,6 +1052,7 @@
     new1: { get t() { return (window.Cyc && Cyc.kind() === 'lyc') ? 'المسجلون الجدد بالجذع المشترك' : 'المسجلون الجدد بالسنة الأولى'; }, f: docNew1 }, moves: { t: 'جدول التتبع الدوري للحركية', f: (s, sy, st) => docMoves(s, sy, st) }, school: { t: 'لوحة إحصاء التمدرس', f: (s, sy, st) => Pupils2.docs.school(s, sy, st) }, threat: { t: 'لائحة وإحصاء التلاميذ المهددين بالفصل', f: (s, sy, st) => Pupils2.docs.threat(s, sy, st) },
     disab: { t: 'إحصاء ولائحة التلاميذ في وضعية إعاقة', f: (s, sy, st) => Pupils2.docs.disab(s, sy, st) }, xfer: { t: 'لائحة التحويلات (الوافدون / المغادرون / في طور التحويل)', f: (s, sy, st) => Pupils2.docs.xfer(s, sy, st) },
     movelist: { t: 'لائحة الحركية (حسب الفئة)', f: (s, sy, st) => (['joined', 'left', 'transit'].includes(st.cat) ? Pupils2.docs.xfer(s, sy, st) : docMoveList(s, sy, st.cat, st.stage)) },
+    struct: { t: 'البنية التربوية للمؤسسة (الوحدات، GRESA، الأقسام، المستويات، الأطر)', f: (s, sy, st) => window.Pupils3.doc(s, sy, st) },
     list: { t: 'لائحة التلاميذ', f: (s, sy, st) => docList(s, sy, st) }, fam: { t: 'لائحة الأسماء العائلية المتشابهة (الإخوة)', f: (s, sy, st) => docFam(s, sy, st) }, cards: { t: 'بطاقات التلاميذ', f: null }
   };
   window.Pupils.docs = { gender: docGender, age: docAge, girls: docGirls, new1: docNew1, moves: docMoves };
