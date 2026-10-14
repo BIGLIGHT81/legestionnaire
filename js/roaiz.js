@@ -174,15 +174,19 @@
     const all = groupsOf(state.sy), gs = all.filter(g => g.phase === state.phase), ph = phOf(state.phase);
     const T = [['dash', 'لوحة القيادة'], ['stats', 'الإحصاء والمبيانات'], ['lists', 'لوائح مجموعات الدعم'], ['units', 'حسب الوحدة والمستوى'], ['cmp', 'المقارنة بين الفئات'], ['evo', 'القبلي والبعدي وتطور الكفايات'], ['l1', 'المستوى الأول (رائز المستوى الأول)']];
     const dashPh = () => { const l = phasesWith(state.sy).pop(); return l ? l.k : state.phase; };
-    const chip = p => { const n = all.filter(g => g.phase === p.k).reduce((t, g) => t + g.pupils.length, 0); return `<button data-p="${p.k}" class="${state.phase === p.k ? 'on' : ''}">${esc(p.s)}${n ? ` <small>${n}</small>` : ''}</button>`; };
-    v.innerHTML = `<div><div class="page-h"><h1>استثمار الروائز</h1>
+    // 1.9.4: every category has its own colour (big buttons, ✔, message; the whole page takes the colour of the chosen category)
+    const nOf = k => all.filter(g => g.phase === k).reduce((t, g) => t + g.pupils.length, 0);
+    const chip = p => `<button data-p="${p.k}" class="rz-b ${state.phase === p.k ? 'on' : ''}" style="--c:${p.c};--cl:${p.c}24"><span class="t">${esc(p.s)}</span><span class="n">${nOf(p.k)}</span>${state.phase === p.k ? '<span class="ck">✔</span>' : ''}</button>`;
+    const multi = ['cmp', 'evo'].includes(state.tab);
+    v.innerHTML = `<div class="rz-wrap" style="--stc:${ph.c};--stl:${ph.c}1f"><div class="page-h"><h1>استثمار الروائز <span class="rz-tag">${esc(ph.s)}</span></h1>
         <select class="inp" id="rSy" style="width:auto">${years().map(y => `<option value="${y}" ${y === state.sy ? 'selected' : ''}>الموسم الدراسي ${esc(syDash(y))}</option>`).join('')}</select>
         <span class="sub">${esc(ph.n)}: ${gs.length} مجموعة — ${gs.reduce((s, g) => s + g.pupils.length, 0)} تلميذ(ة)</span><span class="sp"></span>
         <button class="btn" id="rSup">🧩 الدعم الممتد</button>
         <button class="btn" id="rImp">${ic('up')} استيراد ملفات الروائز</button>
         ${all.length ? `<button class="btn pri" id="rPrn">${ic('print')} طباعة الاستثمار</button>` : ''}${gs.length ? ` <button class="btn danger sm" id="rClr">${ic('trash')} مسح هذه الفئة</button>` : ''}</div>
-      <div class="card roz-ph"><div><b>روائز الموضعة</b><div class="seg" id="rPh1">${PH.slice(0, 2).map(chip).join('')}</div></div>
-        <div><b>المراقبة المستمرة</b><div class="seg" id="rPh2">${PH.slice(2).map(chip).join('')}</div></div></div>
+      <div class="rz-phs"><div class="rz-grp"><div class="rz-gt">روائز الموضعة</div><div class="rz-row two" id="rPh1">${PH.slice(0, 2).map(chip).join('')}</div></div>
+        <div class="rz-grp"><div class="rz-gt">المراقبة المستمرة — المراحل الست</div><div class="rz-row six" id="rPh2">${PH.slice(2).map(chip).join('')}</div></div></div>
+      <div class="rz-msg">${multi ? 'هذا التبويب يقارن بين عدة فئات؛ الفئة المختارة' : 'تعرض جميع الإحصائيات والمبيانات واللوائح والوثائق الآن'}: <b>${esc(ph.n)}</b> — ${gs.reduce((t, g) => t + g.pupils.length, 0)} تلميذ(ة)</div>
       ${all.length ? MASSAR_STEPS_() : ''}
       ${all.length || state.tab === 'l1' || window.RoaizX ? `<div class="mk-tabs"><div class="seg" id="rTabs">${T.filter(([k]) => all.length || k === 'l1').map(([k, l]) => `<button data-t="${k}" class="${state.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>` : ''}
       <div id="rBody"></div></div>`;
@@ -202,6 +206,18 @@
   };
 
   // 1.9.4: the placement tests (before / after) come from the TaRL support, the six continuous-monitoring stages from the competences file
+  { const c = document.createElement('style'); c.textContent = `
+    .rz-b .t{white-space:nowrap}.rz-phs{display:grid;grid-template-columns:2.4fr 5fr;gap:12px;margin-bottom:8px}.rz-grp{background:#fff;border:1px solid var(--line,#dfe6e3);border-radius:12px;padding:8px 10px}
+    .rz-gt{font-weight:700;font-size:12.5px;color:#46534f;margin-bottom:6px}.rz-row{display:grid;gap:8px}.rz-row.two{grid-template-columns:1fr 1fr}.rz-row.six{grid-template-columns:repeat(6,1fr)}
+    .rz-b{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:9px 10px;border-radius:10px;border:2px solid var(--c);background:#fff;color:var(--c);cursor:pointer;font-family:inherit;font-weight:700;font-size:13.5px;transition:.15s}
+    .rz-b .n{background:var(--cl);border-radius:10px;padding:1px 8px;font-size:12px}.rz-b:hover{background:var(--cl)}
+    .rz-b.on{background:var(--c);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);transform:translateY(-1px)}.rz-b.on .n{background:rgba(255,255,255,.28);color:#fff}
+    .rz-b .ck{position:absolute;top:-8px;left:-8px;background:#fff;color:var(--c);border:2px solid var(--c);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px}
+    .rz-msg{background:var(--stl);border-right:5px solid var(--stc);border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:13px}.rz-msg b{color:var(--stc)}
+    .rz-tag{display:inline-block;background:var(--stc);color:#fff;border-radius:14px;padding:2px 12px;font-size:14px;vertical-align:middle;margin-right:6px}
+    .rz-wrap .seg button.on{background:var(--stc);border-color:var(--stc);color:#fff}.rz-wrap .card{border-top:3px solid var(--stc)}.rz-wrap .tbl thead th{background:var(--stl)}
+    .rz-wrap .att-kpis b{color:var(--stc)}
+    @media(max-width:900px){.rz-phs{grid-template-columns:1fr}.rz-row.six{grid-template-columns:repeat(3,1fr)}}`; document.head.appendChild(c); }
   const MASSAR_STEPS_ = () => {
     const st = a => a.map(x => `<span class="st">${x}</span>`).join(' ← ');
     const cc = /^c\d/.test(state.phase || '');

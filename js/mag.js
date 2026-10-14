@@ -154,7 +154,7 @@
   const markOf = p => { const m = typeof p === 'string' && /^<!--cls:([\w -]+)-->/.exec(p); return m ? m[1] : ''; };
   const runP = (p, i) => (typeof p === 'function' ? p(i) : p);
   function frame(I, title, inner, n) {
-    return `<div class="mg-pg" style="--c1:${esc(I.color)};--c2:${esc(I.color2)}"><div class="mg-hd"><span>${esc(I.title)} — العدد ${esc(I.no)}</span><span>${esc(title || '')}</span></div><div class="mg-bd">${inner}</div><div class="mg-ft"><span>${esc(S().school || '')}</span><b>${n}</b></div></div>`;
+    return `<div class="mg-pg" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e"><div class="mg-hd"><span>${esc(I.title)} — العدد ${esc(I.no)}</span><span>${esc(title || '')}</span></div><div class="mg-bd">${inner}</div><div class="mg-ft"><span>${esc(S().school || '')}</span><b>${n}</b></div></div>`;
   }
   const paras = t => { const out = []; let ul = []; String(t || '').split(/\n/).forEach(l => { const s2 = l.trim(); if (/^[-•●▪]\s*/.test(s2)) { ul.push(s2.replace(/^[-•●▪]\s*/, '')); return; } if (ul.length) { out.push(`<ul>${ul.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`); ul = []; } if (s2) out.push(`<p>${esc(s2)}</p>`); }); if (ul.length) out.push(`<ul>${ul.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`); return out; };
   function textPages(I, s2) {
@@ -193,8 +193,8 @@
       if (s2.type === 'text') pg = textPages(I, s2);
       else if (s2.type === 'team') pg = teamPage(I, s2);
       else if (s2.type === 'photos') pg = photoPages(I, s2);
-      else if (s2.type === 'image') pg = [{ raw: fold(`<div class="mg-imgp" style="--c1:${esc(I.color)};--c2:${esc(I.color2)}">${s2.img ? `<img src="${s2.img}">` : '<div class="mg-noimg">الصورة</div>'}${s2.cap ? `<div class="mg-cap">${esc(s2.cap)}</div>` : ''}</div>`) }];
-      else if (s2.type === 'sep') pg = [{ raw: fold(`<div class="mg-sep" style="--c1:${esc(I.color)};--c2:${esc(I.color2)}"><div class="mg-sep-i"><span>${esc(I.title)}</span><h1>${esc(s2.title)}</h1>${s2.sub ? `<h3>${esc(s2.sub)}</h3>` : ''}</div></div>`) }];
+      else if (s2.type === 'image') pg = [{ raw: fold(`<div class="mg-imgp" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e">${s2.img ? `<img src="${s2.img}">` : '<div class="mg-noimg">الصورة</div>'}${s2.cap ? `<div class="mg-cap">${esc(s2.cap)}</div>` : ''}</div>`) }];
+      else if (s2.type === 'sep') pg = [{ raw: fold(`<div class="mg-sep" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e"><div class="mg-sep-i"><span>${esc(I.title)}</span><h1>${esc(s2.title)}</h1>${s2.sub ? `<h3>${esc(s2.sub)}</h3>` : ''}</div></div>`) }];
       else if (s2.type === 'design') { const d = (DB.designs || []).find(x => x.id === s2.did); if (d && window.Designer) { let u = ''; try { u = Designer.toCanvas(d.doc, Math.min(2.4, 2000 / Math.max(d.doc.w, d.doc.h))).toDataURL('image/jpeg', .9); } catch (_) {} pg = [{ raw: fold(`<div class="mg-dzp${d.doc.w > d.doc.h ? ' land' : ''}"><img src="${u}"></div>`) }]; } }
       else if (s2.type === 'doc') pg = docPages(s2);
       else if (s2.type === 'toc') pg = [{ toc: true, title: s2.title }];
@@ -208,7 +208,7 @@
     return out;
   }
   function cover(I, s, sy) {
-    return fold(`<div class="mg-cover" style="--c1:${esc(I.color)};--c2:${esc(I.color2)}">
+    return fold(`<div class="mg-cover" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e">
       <div class="mg-ch">${Dx.header ? `<div class="mg-chh">${Dx.header(s)}</div>` : ''}</div>
       <div class="mg-ct"><div class="mg-cl">${s.logo ? `<img src="${s.logo}">` : ''}</div><h1>${esc(I.title)}</h1><div class="mg-csub">${esc(I.sub)}</div></div>
       <div class="mg-cimg">${I.coverImg ? `<img src="${I.coverImg}">` : '<div class="mg-cdeco"></div>'}</div>
@@ -231,22 +231,22 @@
   .mg-grid{display:grid;gap:4mm;height:calc(100% - 18mm)}.mg-grid.c1{grid-template-columns:1fr}.mg-grid.c2{grid-template-columns:1fr 1fr}.mg-grid.c3{grid-template-columns:1fr 1fr 1fr}
   .mg-grid.n2{grid-template-rows:1fr 1fr;grid-template-columns:1fr}.mg-grid.n4{grid-template-rows:1fr 1fr}.mg-grid.n6{grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr}.mg-grid.n9{grid-template-rows:1fr 1fr 1fr}
   .mg-grid figure{margin:0;display:flex;flex-direction:column;min-height:0;border:1px solid #ddd;border-radius:2.5mm;overflow:hidden;background:#fafafa}.mg-grid img{flex:1;min-height:0;width:100%;object-fit:cover}.mg-grid figcaption{font-size:9.5pt;text-align:center;padding:1mm;font-weight:700;color:var(--c1)}
-  .mg-imgp{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14mm;background:linear-gradient(170deg,#fff 60%,color-mix(in srgb,var(--c2) 18%,#fff));-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .mg-imgp{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14mm;background:linear-gradient(170deg,#fff 60%,var(--c2l));-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .mg-imgp img{max-width:100%;max-height:235mm;object-fit:contain;border:2mm solid #fff;box-shadow:0 0 0 1.2mm var(--c2);border-radius:2mm}.mg-noimg{width:140mm;height:190mm;border:1px dashed #999;display:flex;align-items:center;justify-content:center;color:#999}
   .mg-cap{margin-top:7mm;font-family:'MAJT','Amiri',serif;font-size:19pt;color:var(--c1);text-align:center;font-weight:700}
-  .mg-sep{height:100%;background:linear-gradient(150deg,var(--c1),color-mix(in srgb,var(--c1) 60%,#000));display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .mg-sep{height:100%;background:linear-gradient(150deg,rgba(0,0,0,0),rgba(0,0,0,.42)),var(--c1);display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .mg-sep-i{text-align:center;color:#fff;border-top:2mm solid var(--c2);border-bottom:2mm solid var(--c2);padding:14mm 18mm;width:72%}.mg-sep-i span{font-size:12pt;opacity:.85}.mg-sep-i h1{font-family:'MAJT','Amiri',serif;font-size:40pt;margin:5mm 0}.mg-sep-i h3{font-size:15pt;font-weight:400;margin:0}
   .mg-dzp{height:100%;display:flex;align-items:center;justify-content:center;padding:6mm}.mg-dzp img{max-width:100%;max-height:100%;object-fit:contain}
   .mg-dzp.land img{transform:rotate(90deg);max-width:285mm;max-height:198mm}
   .mg-rot{position:relative;width:210mm;height:296.5mm;overflow:hidden}.mg-rot>.page-a4l,.mg-rot>.sheet{position:absolute;top:0;left:0;transform-origin:top left;transform:translateX(210mm) rotate(90deg);break-after:auto;page-break-after:auto}
   .mg-ins{width:210mm;height:296.5mm;overflow:hidden}
   .mg-toc>div{display:flex;align-items:baseline;gap:2mm;font-size:13pt;padding:2.2mm 0;border-bottom:1px dotted #ccc}.mg-toc i{flex:1}.mg-toc b{color:#fff;background:var(--c1);border-radius:2mm;padding:.3mm 2.6mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .mg-cover{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#fff 0,#fff 42%,color-mix(in srgb,var(--c1) 12%,#fff));position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .mg-cover{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#fff 0,#fff 42%,var(--c1l));position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .mg-cover:before{content:'';position:absolute;top:-30mm;left:-40mm;width:120mm;height:120mm;border-radius:50%;background:var(--c2);opacity:.18}
   .mg-chh{padding:8mm 11mm 0}.mg-ct{text-align:center;padding:2mm 10mm 0;position:relative}.mg-cl img{height:30mm;margin-bottom:1mm}
   .mg-ct h1{font-family:'MAJT','Amiri',serif;font-size:40pt;line-height:1.25;margin:0;color:var(--c1)}.mg-csub{display:inline-block;margin-top:2mm;background:var(--c2);color:#fff;font-weight:700;font-size:14pt;padding:1.5mm 8mm;border-radius:6mm}
   .mg-cimg{flex:1;min-height:0;margin:6mm 14mm;border-radius:5mm;overflow:hidden;border:2mm solid #fff;box-shadow:0 0 0 1.2mm var(--c1);display:flex}.mg-cimg img{width:100%;height:100%;object-fit:cover}
-  .mg-cdeco{flex:1;background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--c1) 12%,#fff) 0 8mm,#fff 8mm 16mm)}
+  .mg-cdeco{flex:1;background:repeating-linear-gradient(45deg,var(--c1l) 0 8mm,#fff 8mm 16mm)}
   .mg-cf{display:flex;justify-content:space-between;align-items:center;background:var(--c1);color:#fff;padding:5mm 14mm;font-size:13pt}.mg-cf b{background:var(--c2);padding:1mm 6mm;border-radius:4mm;font-size:15pt}`;
   const css = document.createElement('style');
   css.textContent = `.mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}.mg-it{padding:6px;cursor:pointer}.mg-cv{height:240px;border-radius:8px;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative;overflow:hidden}.mg-cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.45}.mg-cv b,.mg-cv span{position:relative}.mg-cv b{font-size:18px}
