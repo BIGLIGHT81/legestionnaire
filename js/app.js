@@ -204,7 +204,7 @@ function absenceOf(r) {
   if (r.type === 'leave') return { from: f.from, to: f.to, reason: 'رخصة ' + (f.leaveType || '') };
   if (r.type === 'medical') return { from: f.from, to: f.to, reason: 'رخصة مرضية' };
   if (r.type === 'inquiry') return { from: f.from, to: f.to, reason: 'غياب غير مبرر' };
-  if (r.type === 'absence') return { from: f.from, to: f.to, reason: f.reason || 'غياب' };
+  if (r.type === 'absence') return { from: f.from, to: f.to, reason: (f.reason || 'غياب') + (f.just === 'u' && !/غير مبرر/.test(f.reason || '') ? ' (غياب غير مبرر)' : f.just === 'j' ? ' (مبرر)' : ''), just: f.just || '' };
   if (r.type === 'medicalDir') return { from: f.from, to: f.to, reason: 'رخصة مرضية' };
   if (r.type === 'inquiryDir') return { from: f.from, to: f.to, reason: 'غياب غير مبرر' };
   if (r.type === 'paternity') return { from: f.from, to: f.to, reason: 'رخصة الأبوة' };
@@ -275,9 +275,9 @@ const NAV = [
       tab('mail', 'طلب وإرسال الملفات المدرسية', { dir: 'dos' }, { k: 'mail:dos' }), tab('documents', 'مراسلات الملفات والوثائق', { cat: 'files' }), tab('certsCur', 'الشواهد المدرسية (المتمدرسون)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'),
       tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'), tab('vschool', 'الحراسة العامة', null, { w: isSecCycle, k: 'vschool' }), tab('vschool', 'حراسة التلاميذ', null, { w: isPriCycle, k: 'vschool' }),
       tab('incid', 'الحوادث المدرسية')] },
-  { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
+  { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'ptest', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
     tabs: () => [tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
-      tab('roaiz', 'الروائز التشخيصية (TaRL)', null, { w: isPriCycle }), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ', null, { w: isPriCycle }), tab('support', 'الدعم التربوي الممتد'),
+      tab('roaiz', 'الروائز التشخيصية (TaRL)', null, { w: isPriCycle }), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ', null, { w: isPriCycle }), tab('ptest', 'روائز الموضعة وتشخيص التعلمات', null, { w: isSecCycle }), tab('support', 'الدعم التربوي الممتد'),
       tab('exams', 'الامتحانات الإشهادية'), tab('documents', 'التأطير والتتبع التربوي', { cat: 'peda' })] },
   // 1.9.4: «السبورة المرجعية» is a main section; its sub-sections are the groups of documents of the board
   { id: 'board', c: '#3949ab', label: 'السبورة المرجعية', icon: 'board', grps: [['المؤسسة والأطر', ['board:a1', 'board:a2', 'board:a3']], ['التلاميذ', ['board:b']], ['الوثائق المستوردة', ['board:c']]],
@@ -300,7 +300,7 @@ const NAV = [
 const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
   pupilDoc: 'pupils', boardDoc: 'board', councilDoc: 'councils', budgetDoc: 'budget', clubsDoc: 'clubs', eventsDoc: 'events', kudosDoc: 'kudos', memosDoc: 'memos', examsDoc: 'exams', supportDoc: 'support',
   teachDoc: 'teach', receiptDoc: 'license', duesDoc: 'dues', absregDoc: 'absreg', vigilDoc: 'vigil', listenDoc: 'listen', empCard: 'employees', empGallery: 'employees', filesDoc: 'documents:files',
-  consoDoc: 'conso', preinsDoc: 'preins', magDoc: 'mag', preschDoc: 'presch', visits: 'documents:peda', visitsDoc: 'documents:peda', trackDoc: 'track', guardDoc: 'guard', dayrepDoc: 'dayrep', vschoolDoc: 'vschool' };
+  consoDoc: 'conso', preinsDoc: 'preins', magDoc: 'mag', preschDoc: 'presch', visits: 'documents:peda', visitsDoc: 'documents:peda', ptestDoc: 'ptest', ptestHub: 'ptest', trackDoc: 'track', guardDoc: 'guard', dayrepDoc: 'dayrep', vschoolDoc: 'vschool' };
 let current = 'home', currentArg = null;
 const lastTab = {};
 const visibleTabs = g => g.tabs().filter(t => !t.w || t.w());
@@ -428,6 +428,7 @@ function go(page, arg) {
     empCard: (vv, a) => window.pageEmpCard(vv, a),
     exams: (vv, a) => window.pageExams(vv, a), examsDoc: (vv, a) => window.pageExamsDoc(vv, a),
     support: (vv, a) => window.pageSupport(vv, a), supportDoc: (vv, a) => window.pageSupportDoc(vv, a),
+    ptest: (vv, a) => window.pagePTest(vv, a), ptestHub: (vv, a) => window.pagePTestHub(vv, a), ptestDoc: (vv, a) => window.pagePTestDoc(vv, a),
     teach: (vv, a) => window.pageTeach(vv, a), teachDoc: (vv, a) => window.pageTeachDoc(vv, a) })[page](v, arg);
 }
 function absentToday() {
@@ -1928,11 +1929,15 @@ function absForm(r, after) {
     <div class="fld full"><label>سبب الغياب <span style="color:var(--red)">*</span></label>
       <div class="abs-reasons" id="aReasons">${ABS_REASONS.map((x, i) => `<label class="rs"><input type="radio" name="aR" value="${i}" ${f.reason === x ? 'checked' : ''}><span>${x}</span></label>`).join('')}</div>
       <label class="rs rs-other"><input type="radio" name="aR" value="other" ${other ? 'checked' : ''}><span>سبب آخر:</span>
-        <input class="inp" id="aOther" placeholder="يحدد (مثلا: إضراب، تكوين...)" value="${other ? esc(f.reason) : ''}" ${other ? '' : 'disabled'}></label></div>
+        <input class="inp" id="aOther" placeholder="يحدد (مثلا: إضراب، تكوين...)" value="${other ? esc(f.reason) : ''}" ${other ? '' : 'disabled'}></label>
+      <div class="abs-just" id="aJust" style="${other ? '' : 'display:none;'}margin-top:6px;padding:6px 10px;border:1px dashed #d9a400;border-radius:8px;background:#fffbea">
+        <b style="font-size:12.5px">هذا الغياب <span style="color:var(--red)">*</span></b>
+        <label class="rs" style="display:inline-flex;margin-inline-start:10px"><input type="radio" name="aJ" value="j" ${f.just === 'j' ? 'checked' : ''}><span>مبرر</span></label>
+        <label class="rs" style="display:inline-flex;margin-inline-start:10px"><input type="radio" name="aJ" value="u" ${f.just === 'u' ? 'checked' : ''}><span>غير مبرر</span></label></div></div>
     <div class="fld full"><label>ملاحظة</label><input class="inp" id="aNote" value="${esc(f.note || '')}"></div>
     <div class="full muted" id="aDays"></div></div>`;
   const upd = () => { $('#aDays', body).textContent = 'المدة: ' + (durationText(daysBetween($('#aFrom', body).value, $('#aTo', body).value)) || '—'); };
-  const syncOther = () => { const on = $('input[name=aR][value=other]', body).checked; $('#aOther', body).disabled = !on; if (on) $('#aOther', body).focus(); };
+  const syncOther = () => { const on = $('input[name=aR][value=other]', body).checked; $('#aOther', body).disabled = !on; $('#aJust', body).style.display = on ? '' : 'none'; if (on) $('#aOther', body).focus(); };
   $$('input[name=aR]', body).forEach(x => x.onchange = syncOther);
   modal({ title: r ? 'تعديل غياب' : 'تسجيل غياب', body, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: () => {
     const empId = $('#aEmp', body).value, from = $('#aFrom', body).value, to = $('#aTo', body).value;
@@ -1942,7 +1947,10 @@ function absForm(r, after) {
     if (!pick) { toast('المرجو اختيار سبب الغياب', true); return false; }
     const reason = pick.value === 'other' ? $('#aOther', body).value.trim() : ABS_REASONS[+pick.value];
     if (!reason) { toast('المرجو تحديد سبب الغياب', true); return false; }
-    const nf = Object.assign(f, { from, to, reason, note: $('#aNote', body).value.trim() });
+    // 1.9.4: another reason (strike, training...): justified or not must be chosen
+    const jp = $('input[name=aJ]:checked', body), just = pick.value === 'other' ? (jp ? jp.value : '') : '';
+    if (pick.value === 'other' && !just) { toast('المرجو تحديد هل الغياب مبرر أو غير مبرر', true); return false; }
+    const nf = Object.assign(f, { from, to, reason, just, note: $('#aNote', body).value.trim() });
     const e = empById(empId); const now = new Date().toISOString();
     if (r) Object.assign(r, { empId, f: nf, updated: now, snap: { name: fullName(e), ppr: e.ppr, cadre: e.cadre } });
     else DB.records.push({ id: uid('r'), type: 'absence', empId, f: nf, created: now, updated: now, snap: { name: fullName(e), ppr: e.ppr, cadre: e.cadre } });

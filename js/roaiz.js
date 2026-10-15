@@ -41,7 +41,7 @@
     r.years = r.years && typeof r.years === 'object' ? r.years : {};
     Object.keys(r.years).forEach(y => (r.years[y] || []).forEach(g => { if (!g.phase || !PH_BY[g.phase]) g.phase = 'pre'; }));
   }
-  window.Roaiz = { importFiles: () => importFiles(), migrate, summary, dashModel: (sy, f, phase, by) => dashModel(sy, f || {}, phase, by || 'subj') };
+  window.Roaiz = { groups: sy => (DB.roaiz && DB.roaiz.years && DB.roaiz.years[sy]) || [], importFiles: () => importFiles(), migrate, summary, dashModel: (sy, f, phase, by) => dashModel(sy, f || {}, phase, by || 'subj') };
   const RD = () => DB.roaiz;
   const syDash = sy => String(sy || '').replace('/', '-');
   const curSy = () => window.MK ? MK.curSy() : '';

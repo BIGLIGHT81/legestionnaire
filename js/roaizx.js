@@ -291,6 +291,57 @@
     }
   });
 
+  /* =================== 1.9.4: «الأداة 1» — جداول تحليل نتائج الروائز حسب عتبة التحكم =================== */
+  // reference table (عدة الأستاذ المخصص للدعم): the category one level under the threshold, and those two levels or more under it, per grade and subject
+  const T1 = {
+    2: { ar: ['حرف', ['مبتدئ']], fr: ['lettre', ['débutant']], math: ['رقمان', ['مبتدئ', 'رقم واحد']] },
+    3: { ar: ['كلمة', ['مبتدئ', 'حرف']], fr: ['lettre', ['débutant']], math: ['جمع', ['مبتدئ', 'رقم واحد', 'رقمان']] },
+    4: { ar: ['فقرة', ['مبتدئ', 'حرف', 'كلمة']], fr: ['mot avancé', ['débutant', 'lettre', 'mot simple']], math: ['طرح', ['مبتدئ', 'رقم واحد', 'رقمان', 'جمع']] },
+    5: { ar: ['فقرة', ['مبتدئ', 'حرف', 'كلمة']], fr: ['mot à graphème complexe', ['débutant', 'lettre', 'mot simple', 'mot avancé']], math: ['ضرب', ['مبتدئ', 'رقم واحد', 'رقمان', 'جمع', 'طرح']] },
+    6: { ar: ['فقرة', ['مبتدئ', 'حرف', 'كلمة']], fr: ['mot à graphème complexe', ['débutant', 'lettre', 'mot simple', 'mot avancé']], math: ['ضرب', ['مبتدئ', 'رقم واحد', 'رقمان', 'جمع', 'طرح']] }
+  };
+  const T1S = [['ar', 'اللغة العربية'], ['fr', 'اللغة الفرنسية'], ['math', 'الرياضيات']];
+  const nC = v => MK.hkey(String(v || '').toLowerCase().replace(/graph[eè]me/g, 'grapheme').replace(/[àâ]/g, 'a').replace(/[éèê]/g, 'e'));
+  const same = (a, b) => { const x = nC(a), y = nC(b); return !!x && !!y && (x === y || (x.length > 4 && y.length > 4 && (x.includes(y) || y.includes(x)))); };
+  // 'one' = one level under, 'two' = two levels or more under, 'ok' = threshold reached, '' = not classed
+  const t1Class = (grade, sk, cat) => { const R = T1[grade] && T1[grade][sk]; if (!R || !String(cat || '').trim()) return ''; if (same(cat, R[0])) return 'one'; if (R[1].some(x => same(cat, x))) return 'two'; return 'ok'; };
+  const gradeOf = g => { const k = K.LV.fromLabel(g.level || ''); const m = /^P(\d)$/.exec(k || ''); return m ? +m[1] : 0; };
+  const pc1 = (a, b) => (b ? (a * 100 / b).toFixed(1).replace(/\.0$/, '') + '%' : '—');
+  add({
+    k: 'rx_tool1', t: 'الأداة 1: جداول تحليل نتائج الروائز حسب عتبة التحكم', grp: 'rp', page: 'a4',
+    d: 'عدة الأستاذ(ة) المخصص(ة) للدعم: الجدول المرجعي للمستويات حسب المستوى الدراسي والمادة، ثم لكل مادة ولكل مستوى: عدد التلاميذ، نسبة من بلغوا العتبة، الأدنى بمستوى واحد، الأدنى بمستويين أو أكثر، ونسبة من هم دون العتبة (المؤسسة وكل وحدة مدرسية).',
+    auto: 'نتائج روائز الموضعة المستوردة (استثمار الروائز)',
+    init: s => ({ ph: 'pre', teacher: '', tdate: '', adate: Dx.todayIso(), src: 'منظومة مسار — نتائج روائز الموضعة', byUnit: '' }),
+    defs: () => [{ k: 'ph', l: 'الرائز', t: 'select', half: true, opts: [['pre', 'رائز الموضعة القبلي'], ['post', 'رائز الموضعة البعدي']] },
+      { k: 'byUnit', l: 'جداول لكل وحدة مدرسية', t: 'select', half: true, opts: [['', 'المؤسسة فقط'], ['1', 'المؤسسة + كل وحدة مدرسية']] },
+      { k: 'teacher', l: 'الأستاذ(ة) المخصص(ة) للدعم', half: true, list: 'k2Emps' }, { k: 'tdate', l: 'تاريخ تمرير الروائز', t: 'date', half: true },
+      { k: 'adate', l: 'تاريخ التحليل', t: 'date', half: true }, { k: 'src', l: 'مصدر المعطيات', half: true }],
+    build: (s, f, sy) => {
+      const G = (window.Roaiz && Roaiz.groups ? Roaiz.groups(sy) : []).filter(g => g.phase === (f.ph || 'pre'));
+      const rows = []; G.forEach(g => { const gr = gradeOf(g); (g.pupils || []).forEach(p => rows.push({ gr, unit: g.unit || '', p })); });
+      const units = Array.from(new Set(rows.map(r => r.unit).filter(Boolean)));
+      const ref = tbl(`<tr><th rowspan="2" class="d">المستوى الدراسي</th>${T1S.map(([, n]) => `<th colspan="2" class="d">${n}</th>`).join('')}</tr><tr>${T1S.map(() => '<th class="d">أدنى بمستوى واحد</th><th class="d">أدنى بمستويين أو أكثر</th>').join('')}</tr>`,
+        [2, 3, 4, 5, 6].map(gr => tr([{ t: K.LV.sh('P' + gr), c: 'k b' }].concat(T1S.reduce((a, [k]) => a.concat([{ t: T1[gr][k][0], c: 'sm' }, { t: T1[gr][k][1].join('، '), c: 'sm' }]), [])))), 'cmp');
+      const subjTable = (sk, list) => {
+        const line = (label, L) => { const c = { ok: 0, one: 0, two: 0 }; L.forEach(r => { const x = t1Class(r.gr, sk, r.p[sk]); if (x) c[x]++; }); const n = c.ok + c.one + c.two;
+          return tr([{ t: label, c: 'k b' }, n || '—', { t: pc1(c.ok, n), c: 'b' }, pc1(c.one, n), pc1(c.two, n), { t: pc1(c.one + c.two, n), c: c.one + c.two ? 'b red' : '' }]); };
+        const body = [2, 3, 4, 5, 6].filter(gr => list.some(r => r.gr === gr)).map(gr => line(K.LV.sh('P' + gr), list.filter(r => r.gr === gr)));
+        body.push(line('المجموع', list.filter(r => r.gr >= 2)));
+        return tbl(thr(['المستوى الدراسي', 'عدد التلاميذ', '% بلغوا العتبة', '% أدنى بمستوى واحد', '% أدنى بمستويين أو أكثر', '% دون العتبة'].map(t => ({ t, c: 'd' }))), body, 'cmp');
+      };
+      const blocks = [{ html: `<table class="sb-t cmp"><tbody><tr><td class="k b">المؤسسة</td><td>${esc(s.school || '')}</td><td class="k b">المديرية الإقليمية</td><td>${esc(String(s.directorate || '').replace(/^المديرية الإقليمية\s*/, ''))}</td></tr>
+          <tr><td class="k b">الأستاذ(ة) المخصص(ة) للدعم</td><td>${esc(f.teacher || '')}</td><td class="k b">تاريخ تمرير الروائز</td><td>${f.tdate ? esc(ldate(f.tdate)) : ''}</td></tr>
+          <tr><td class="k b">تاريخ التحليل</td><td>${f.adate ? esc(ldate(f.adate)) : ''}</td><td class="k b">مصدر المعطيات</td><td>${esc(f.src || '')}</td></tr></tbody></table>` },
+        { before: SB.cap('1. الجدول المرجعي: مستويات الرائز المقابلة لكل فئة، حسب المستوى الدراسي والمادة', 'r'), table: ref.table },
+        { html: '<div class="sb-note" style="font-size:8.5pt">المتعلم(ة) الذي يقع مستواه في العمود الأول أدنى من عتبة التحكم بمستوى واحد، والذي يقع في العمود الثاني أدنى منها بمستويين أو أكثر؛ ومن يفوق مستواه العمودين بلغ العتبة.</div>' }];
+      T1S.forEach(([k, n], i) => { blocks.push({ before: SB.cap(`${i + 2}. المادة: ${n} — ${units.length > 1 ? 'المؤسسة' : esc(s.school || 'المؤسسة')}`, 'r'), keepNext: true, table: subjTable(k, rows).table });
+        if (f.byUnit && units.length > 1) units.forEach(u => blocks.push({ before: SB.cap(`${n} — ${esc(u)}`, 'r'), keepNext: true, table: subjTable(k, rows.filter(r => r.unit === u)).table })); });
+      if (!rows.length) blocks.push({ html: '<p class="sb-p" style="text-align:center">لا توجد نتائج مستوردة لهذا الرائز: استورد نتائج روائز الموضعة من مسار في «استثمار الروائز».</p>' });
+      return { title: `الأداة 1 · جداول تحليل نتائج ${f.ph === 'post' ? 'الروائز البعدية' : 'الروائز القبلية'}`, sub: `الموسم الدراسي ${MK.syDash(sy)}`, page: 'a4', blocks,
+        sign: SB.sign(s, { right: 'الأستاذ(ة) المخصص(ة) للدعم', left: 'مدير(ة) المؤسسة' }) };
+    }
+  });
+
   const C = K.center({
     id: 'roaizx', title: 'تقارير الروائز وشبكات التفريغ', icon: '🧾', route: 'roaizxDoc', hubRoute: 'roaizx', years: () => Object.keys(RX().years),
     groups: [['rp', 'تقارير وشبكات الروائز', 'الموضعة القبلية والبعدية والمراقبة المستمرة'], ['l1', 'رائز المستوى الأول']],
