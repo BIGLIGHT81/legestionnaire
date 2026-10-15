@@ -223,10 +223,16 @@
   });
 
   /* ---------- centers ---------- */
-  const mk = (id, title, icon, route, hub, grp, DOCS, kind, intro) => K.center({ id, title, icon, route, hubRoute: hub, groups: [[grp[0], grp[1]]], intro, docs: () => DOCS, store: sy => store(kind, sy) });
-  const CV = mk('vigil', 'خلية اليقظة', '🛡️', 'vigilDoc', 'vigil', ['v', 'وثائق خلية اليقظة (محاربة الهدر المدرسي)'], VDOCS, 'vigil',
+  // 1.9.4: each cell has its own sub-sections (tabs of the hub)
+  const VG = [['v_org', 'خلية اليقظة — التركيبة والتنظيم', 'تركيبة الخلية وأدوار أعضائها وبرمجة اشتغالها'], ['v_trk', 'خلية اليقظة — الرصد والمواكبة', 'التلاميذ المعرضون لخطر الهدر وخطط العمل الفردية وتتبع المنقطعين'], ['v_rep', 'خلية اليقظة — الاجتماعات والحصيلة']];
+  const LG = [['l_org', 'خلية الإنصات والمصالحة — التركيبة والاجتماعات'], ['l_lis', 'خلية الإنصات والمصالحة — الإنصات', 'سجل الحالات (وثيقة سرية)'], ['l_med', 'خلية الإنصات والمصالحة — الوساطة والمصالحة']];
+  const VMAP = { comp: 'v_org', roles: 'v_org', programme: 'v_org', risk: 'v_trk', plans: 'v_trk', card: 'v_trk', drop: 'v_trk', minutes: 'v_rep', report: 'v_rep' };
+  const LMAP = { comp: 'l_org', minutes: 'l_org', register: 'l_lis', mediation: 'l_med' };
+  VDOCS.forEach(d => { d.grp = VMAP[d.k] || 'v_rep'; }); LDOCS.forEach(d => { d.grp = LMAP[d.k] || 'l_org'; });
+  const mk = (id, title, icon, route, hub, groups, DOCS, kind, intro) => K.center({ id, title, icon, route, hubRoute: hub, groups, groupTabs: true, intro, docs: () => DOCS, store: sy => store(kind, sy) });
+  const CV = mk('vigil', 'خلية اليقظة', '🛡️', 'vigilDoc', 'vigil', VG, VDOCS, 'vigil',
     'خلية اليقظة هي المحرك لرصد التلاميذ المعرضين لخطر الهدر المدرسي أو في طور الانقطاع والتكفل بهم. ابدأ ب«تركيبة الخلية» ثم «لائحة التلاميذ المعرضين» و«خطط العمل الفردية». تُحفظ المعطيات وتبقى سرية على حاسوبك.');
-  const CL = mk('listen', 'خلية الإنصات والوساطة', '👂', 'listenDoc', 'listen', ['l', 'وثائق خلية الإنصات والوساطة'], LDOCS, 'listen',
+  const CL = mk('listen', 'خلية الإنصات والمصالحة', '👂', 'listenDoc', 'listen', LG, LDOCS, 'listen',
     'خلية الإنصات والوساطة تستقبل التلاميذ والأسر وتعالج المشاكل بالحوار والوساطة قبل أي إجراء تأديبي. معطياتها سرية.');
   window.Cells = { migrate, store, VDOCS: () => VDOCS, LDOCS: () => LDOCS, summary: () => ({ docs: VDOCS.length + LDOCS.length }) };
   window.pageVigil = (v, a) => { migrate(DB); CV.hub(v, a); };

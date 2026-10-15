@@ -4178,5 +4178,18 @@ window.I18N_FR_PAT = {
 "المراسلات الإدارية": "Correspondances administratives",
 "المتابعة اليومية والحراسة": "Suivi quotidien et surveillance",
 "الملفات المدرسية (طلب وإرسال)": "Dossiers scolaires (demande et envoi)",
+"شؤون الموارد البشرية": "Affaires des ressources humaines",
+"أعوان الحراسة والنظافة": "Agents de gardiennage et de propreté",
+"بطاقات الأعوان والشركات المشغلة": "Fiches des agents et sociétés",
+"تتبع القيام بالأعمال": "Suivi des travaux",
+"الحصيلة الشهرية وتقييم الخدمة": "Bilan mensuel et évaluation du service",
+"الجمعيات المدرسية": "Associations scolaires",
+"الميزانية (نظرة شاملة)": "Budget (vue d'ensemble)",
+"جمعية تنمية التعاون المدرسي": "Association de développement de la coopération scolaire",
+"خليتا اليقظة والإنصات والمصالحة": "Cellules de veille, d'écoute et de réconciliation",
+"خلية الإنصات والمصالحة": "Cellule d'écoute et de réconciliation",
+"إضافة عون(ة)": "Ajouter un agent",
+"الشركة المشغلة (المناولة)": "Société employeuse (sous-traitance)",
+"تقرير تقييم الخدمة المقدمة": "Rapport d'évaluation du service",
 "لائحة أعضاء الكتابة — مركز التصحيح": "Secrétariat du centre de correction"
 };

@@ -97,9 +97,9 @@
     const groups = () => (window.Cyc && Cyc.isSec() ? groups0().map(g => [g[0], String(g[1]).replace(' (الابتدائي)', ''), g[2]]) : groups0());
     centres[key] = K.center(Object.assign({
       groups, docs: docsOfParts, store: sy => store(sy), years: () => Object.keys(BD().years),
-      onHub: v => {
+      onHub: (v, arg) => {
         const sy = MK.curSy();
-        const cards = ps().map(p => (p.card ? p.card(sy) : null)).filter(Boolean);
+        const cards = ps().filter(p => !(arg && arg.part) || p.id === arg.part).map(p => (p.card ? p.card(sy) : null)).filter(Boolean);
         const html = `<div class="bd-sum">${cards.map(c => `<div class="card bd-card"><div class="bd-t">${c.title}</div>${c.rows.map(r => `<div class="kv-r"><span>${r[0]}</span><b class="${r[2] || ''}">${r[1]}</b></div>`).join('')}</div>`).join('')}</div>`;
         const h = v.querySelector('.page-h');
         if (h) h.insertAdjacentHTML('afterend', html);

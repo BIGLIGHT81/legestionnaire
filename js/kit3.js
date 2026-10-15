@@ -63,16 +63,25 @@
 
     function hub(v, arg) {
       const docs = docsOf(), sy = MK.curSy();
-      const groups = groupsOf() || [['', cfg.title]];
-      v.innerHTML = `<div class="page-h"><h1>${cfg.title}</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}${cfg.sub ? ' — ' + cfg.sub : ''}</span><span class="sp"></span>${cfg.hubButtons ? cfg.hubButtons() : ''}</div>
-        ${(typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro) ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro}</div>` : ''}
-        ${groups.map(([g, label, hint]) => {
+      let groups = (groupsOf() || [['', cfg.title]]).filter(([g]) => docs.some(d => (d.grp || '') === g));
+      // 1.9.4: arg.only (prefixes of groups) shows one body of the centre (e.g. one association), arg.g one of its groups: the groups become tabs
+      arg = arg || {}; cfg._arg = arg;
+      if (arg.only) groups = groups.filter(([g]) => arg.only.some(p => g === p || g.indexOf(p) === 0));
+      const gTabs = (cfg.groupTabs || arg.only) && groups.length > 1;
+      const gSel = gTabs && arg.g && groups.some(x => x[0] === arg.g) ? arg.g : '';
+      const shortG = l => String(l).replace(/^[^—]*—\s*/, '');
+      const gBar = gTabs ? `<div class="seg cf-gt" style="margin-bottom:12px;flex-wrap:wrap">${[['', 'الكل']].concat(groups.map(([g, l]) => [g, shortG(l)])).map(([g, l]) => `<button data-cg="${g}" class="${g === gSel ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` : '';
+      if (gSel) groups = groups.filter(x => x[0] === gSel);
+      v.innerHTML = `<div class="page-h"><h1>${esc(arg.title || '') || cfg.title}</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}${cfg.sub ? ' — ' + cfg.sub : ''}</span><span class="sp"></span>${cfg.hubButtons ? cfg.hubButtons() : ''}</div>
+        ${!arg.only && (typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro) ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro}</div>` : ''}
+        ${gBar}${groups.map(([g, label, hint]) => {
           const list = docs.filter(d => (d.grp || '') === g);
           if (!list.length) return '';
           return `<div class="sec-t" style="margin:14px 0 8px">${label}${hint ? `<span class="muted" style="font-weight:400;font-size:12px"> — ${hint}</span>` : ''}</div>
             <div class="hub-grid">${list.map(d => `<div class="card hub-card" data-k="${d.k}"><div class="hub-t">${d.t}</div><div class="hub-d">${d.d || ''}</div>${d.auto ? `<div class="hub-a">${ic('check')} ${d.auto}</div>` : ''}</div>`).join('')}</div>`;
         }).join('')}`;
       $$('.hub-card', v).forEach(c => c.onclick = () => go(cfg.route, { kind: c.dataset.k }));
+      $$('[data-cg]', v).forEach(b => b.onclick = () => go(cfg.hubRoute, Object.assign({}, arg, { g: b.dataset.cg })));
       if (cfg.onHub) cfg.onHub(v, arg);
     }
 
@@ -85,7 +94,7 @@
         word: st => { const d = docs.find(x => x.k === st.kind) || docs[0]; return d.word != null ? !!d.word : true; },
         title: cfg.title, icon: cfg.icon || '', modes: false, flow: true,
         state: { kind: first.k, sy: sy0, o: arg.o || {} },
-        back: () => go(cfg.hubRoute),
+        back: () => go(cfg.hubRoute, cfg._arg && (cfg._arg.only || cfg._arg.g) ? cfg._arg : undefined),
         form: (box, st, refresh) => {
           let draw = null, f = null, saveT = null;
           const cur = () => docs.find(d => d.k === st.kind) || docs[0];
