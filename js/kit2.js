@@ -227,6 +227,27 @@
     same: (a, b) => { if (sameB(a, b)) return true; const r = regU(); if (!r.length || !a || !b) return false; const x = U.canon(a); return r.includes(x) && x === U.canon(b); }
   };
 
+
+  /* 1.9.4: choosing a school unit anywhere = only the units written in the settings (with their GRESA code), never free text.
+     v: current value; o: { empty: label of the empty choice (''= none), all: label of «all the units» } */
+  function unitList() {
+    const L = window.Units && Units.list ? Units.list() : [];
+    const reg = DB.board && Array.isArray(DB.board.units) ? DB.board.units.filter(u => String(u.name || '').trim()) : [];
+    return reg.length ? L.filter(u => reg.some(r => String(r.name).trim() === u.name)) : [];
+  }
+  function unitOpts(v, o) {
+    o = o || {};
+    v = String(v == null ? '' : v).trim();
+    const L = unitList(), hit = v ? L.find(u => u.name === v || U.same(u.name, v)) : null;
+    if (!L.length) return `<option value="${esc(v)}">${v ? esc(v) + ' — ' : ''}أضف الوحدات المدرسية ورموز GRESA في الإعدادات</option>`;
+    let h = '';
+    if (o.all != null) h += `<option value="">${esc(o.all)}</option>`;
+    else if (o.empty != null || !hit) h += `<option value="" ${!v ? 'selected' : ''}>${esc(o.empty || '— اختر الوحدة المدرسية —')}</option>`;
+    if (v && !hit) h += `<option value="${esc(v)}" selected>⚠ ${esc(v)} (غير مسجلة في الإعدادات — اختر وحدة)</option>`;
+    return h + L.map(u => `<option value="${esc(u.name)}" ${hit === u ? 'selected' : ''}>${esc(u.name)}${u.gresa ? ' — GRESA ' + esc(u.gresa) : ''}</option>`).join('');
+  }
+  const unitSelect = (attrs, v, o) => `<select class="inp" ${attrs}>${unitOpts(v, o)}</select>`;
+
   /* ================= employees helpers ================= */
   const E = {
     byName(name) { const k = nh(name); if (!k) return null; return DB.employees.find(e => nh(fullName(e)) === k || nh(`${e.lastAr || ''} ${e.firstAr || ''}`) === k) || null; },
@@ -402,11 +423,12 @@
         const tpl = `grid-template-columns:${(d.widths || d.cols.map(() => '1fr')).join(' ')} 28px`;
         return `<div class="${cls}">${lab}<div class="k2-grid">
           <div class="k2-gh" style="${tpl}">${d.cols.map(c => `<span>${c}</span>`).join('')}<span></span></div>
-          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
+          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; if (d.list && d.list[j] === 'k2Units') return unitSelect(`data-g="${d.k}" data-r="${i}" data-c="${j}"`, r[j], { empty: '' }); return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
             ${d.fixed ? '<span></span>' : `<button type="button" class="btn sm danger icon" data-gdel="${d.k}" data-r="${i}" title="حذف السطر">✕</button>`}</div>`).join('')}
           </div>${d.fixed ? '' : `<div class="btn-row" style="margin-top:6px"><button type="button" class="btn sm" data-gadd="${d.k}">${ic('plus')} إضافة سطر</button>${d.extraBtn || ''}</div>`}${hint}</div>`;
       }
-      default: return `<div class="${cls}">${lab}<input class="inp" data-k="${d.k}" value="${esc(v == null ? '' : v)}" placeholder="${esc(d.ph || '')}" ${d.list ? `list="${d.list}"` : ''}${dir}>${hint}</div>`;
+      default: if (d.list === 'k2Units') return `<div class="${cls}">${lab}${unitSelect(`data-k="${d.k}"`, v, /فارغ|كل/.test(d.l || '') ? { empty: (/فارغ = (.+?)\)/.exec(d.l || '') || [])[1] || 'كل الوحدات' } : null)}${hint}</div>`;
+        return `<div class="${cls}">${lab}<input class="inp" data-k="${d.k}" value="${esc(v == null ? '' : v)}" placeholder="${esc(d.ph || '')}" ${d.list ? `list="${d.list}"` : ''}${dir}>${hint}</div>`;
     }
   }
   function form(box, defs, f, onChange, extra) {
@@ -528,5 +550,5 @@
     },
     bind(root, after) { (root || document).querySelectorAll('[data-stbar] [data-st]').forEach(b => b.onclick = () => { ST.cur = b.dataset.st; after(); }); }
   };
-  window.K = { num, r2, money, pct, tafqit, intWords, LV, U, E, PP, CATS, dl, SB, bars, COL, form, fieldHtml, crud, ST };
+  window.K = { num, r2, money, pct, tafqit, intWords, LV, U, E, PP, CATS, dl, SB, bars, COL, form, fieldHtml, crud, ST, unitList, unitOpts, unitSelect };
 })();

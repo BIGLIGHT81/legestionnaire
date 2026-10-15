@@ -49,7 +49,7 @@
         <div class="fld"><label>الهاتف المحمول</label><input class="inp" data-f="phone" dir="ltr" value="${esc(e.phone)}"></div>
         <div class="fld"><label>البريد الإلكتروني</label><input class="inp" data-f="email" dir="ltr" value="${esc(e.email)}"></div>
         <div class="fld"><label>تاريخ الالتحاق بالمؤسسة</label><input class="inp" type="date" data-f="affDate" value="${esc(e.affDate || '')}"></div>
-        <div class="fld"><label>الوحدة المدرسية</label>${units.length ? `<select class="inp" data-f="unit">${(e.unit && !units.includes(e.unit) ? [e.unit] : []).concat(units).map(u => `<option ${sameU(u, e.unit) ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>` : `<input class="inp" data-f="unit" value="${esc(e.unit)}">`}</div>
+        <div class="fld"><label>الوحدة المدرسية</label>${K.unitSelect('data-f="unit"', e.unit)}<span class="hint">الوحدات المدرسية المسجلة في الإعدادات فقط (مع رمز GRESA)</span></div>
         <div class="fld"><label>الأقسام / الأفواج المسندة (اختياري)</label><input class="inp" data-f="levels" value="${esc(e.levels)}" placeholder="مثال: الأولى أولي، الثانية أولي"></div>
         <div class="fld"><label>المؤسسة / الجمعية المشغلة</label><select class="inp" id="psOrg">${ORGS.map(o => `<option ${o === e.org ? 'selected' : ''}>${esc(o)}</option>`).join('')}<option value="__o" ${isOther() || !e.org ? 'selected' : ''}>مؤسسة أخرى (تكتب يدويا)</option></select></div>
         <div class="fld" id="psOrgO" style="${isOther() || !e.org ? '' : 'display:none'}"><label>اسم المؤسسة / الجمعية</label><input class="inp" id="psOrgT" value="${esc(isOther() ? e.org : '')}"></div>

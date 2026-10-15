@@ -41,7 +41,7 @@
           <div class="fld"><label>الساعة</label><input class="inp" data-f="time" value="${esc(v.time)}" dir="ltr" placeholder="09:00"></div>
           <div class="fld"><label>الأستاذ(ة)</label><select class="inp" data-f="eid"><option value="">— اختر —</option>${T.map(e => `<option value="${e.id}" ${e.id === v.eid ? 'selected' : ''}>${esc(fullN(e))}${e.unit ? ' — ' + esc(e.unit) : ''}</option>`).join('')}<option value="__" ${!v.eid && v.name ? 'selected' : ''}>اسم آخر…</option></select></div>
           <div class="fld" ${!v.eid && v.name ? '' : 'hidden'} id="vsOther"><label>الاسم</label><input class="inp" data-f="name" value="${esc(v.eid ? '' : v.name)}"></div>
-          <div class="fld"><label>الوحدة المدرسية</label><input class="inp" data-f="unit" value="${esc(v.unit)}" list="vsUnits"></div>
+          <div class="fld"><label>الوحدة المدرسية</label>${K.unitSelect('data-f="unit"', v.unit, { empty: '' })}</div>
           <div class="fld"><label>القسم / المستوى</label><input class="inp" data-f="cls" value="${esc(v.cls)}"></div>
           <div class="fld"><label>نوع الزيارة</label><select class="inp" data-f="kind">${KINDS.map(k => `<option ${k === v.kind ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
           <div class="fld"><label>المادة / الحصة (اختياري)</label><input class="inp" data-f="subj" value="${esc(v.subj)}"></div></div>

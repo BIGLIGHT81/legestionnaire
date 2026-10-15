@@ -60,7 +60,7 @@
     const b = document.createElement('div');
     b.innerHTML = `<div class="fgrid"><div class="fld"><label>نوع المرفق</label><select class="inp" data-f="kind"><option value="water" ${m.kind === 'water' ? 'selected' : ''}>💧 الماء</option><option value="elec" ${m.kind === 'elec' ? 'selected' : ''}>⚡ الكهرباء</option></select></div>
       <div class="fld"><label>رقم العداد</label><input class="inp" data-f="no" dir="ltr" value="${esc(m.no)}"></div>
-      <div class="fld"><label>الوحدة المدرسية</label><input class="inp" data-f="unit" list="cnU" value="${esc(m.unit)}"></div>
+      <div class="fld"><label>الوحدة المدرسية</label>${K.unitSelect('data-f="unit"', m.unit)}</div>
       <div class="fld"><label>المرفق / المكان</label><input class="inp" data-f="place" value="${esc(m.place)}" placeholder="الإدارة، الأقسام، السكن الوظيفي، المرافق الصحية..."></div>
       <div class="fld"><label>الجهة الموزعة</label><input class="inp" data-f="provider" value="${esc(m.provider)}" placeholder="المكتب الوطني للكهرباء والماء / الوكالة المستقلة..."></div>
       <div class="fld"><label>ثمن الوحدة التقريبي (درهم، اختياري)</label><input class="inp" data-f="price" dir="ltr" value="${esc(m.price)}"></div>

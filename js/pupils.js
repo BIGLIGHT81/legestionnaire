@@ -218,7 +218,7 @@
         ${lists.length ? `<div class="fld"><label>طريقة استيراد لوائح التلاميذ</label><select class="inp" id="pmMode"><option value="merge">إضافة وتحيين (حسب رمز مسار)</option><option value="replace" ${hasData ? '' : 'selected'}>تعويض لوائح هذا الموسم بهذه الملفات</option></select></div>` : '<input type="hidden" id="pmMode" value="merge">'}</div>
       ${SEC() ? '' : `<div class="sec-t">ربط كل مؤسسة في ملفات مسار بوحدة مدرسية</div>
       <p class="muted" style="font-size:12.5px;line-height:1.8;margin:0 0 8px">اختر الوحدة من الوحدات المسجلة في الإعدادات${regUnits().length ? ` (${regUnits().map(u => esc(u) + (gresaOfUnit(u) ? ' — ' + esc(gresaOfUnit(u)) : '')).join('، ')})` : ''}. تُقترح الوحدة تلقائيا حسب اسم المؤسسة، ويمكنك تغييرها أو كتابة اسم جديد.</p>
-      <div class="fgrid">${insts.map((n, i) => `<div class="fld"><label style="font-weight:500">${esc(n)}</label><input class="inp" data-inst="${i}" list="puRegUnits" value="${esc(names[n])}"></div>`).join('')}</div>
+      <div class="fgrid">${insts.map((n, i) => `<div class="fld"><label style="font-weight:500">${esc(n)}</label>${regUnits().length ? K.unitSelect(`data-inst="${i}"`, names[n]) : `<input class="inp" data-inst="${i}" list="puRegUnits" value="${esc(names[n])}">`}</div>`).join('')}</div>
       <datalist id="puRegUnits">${regUnits().map(u => `<option value="${esc(u)}">`).join('')}</datalist>`}
       <div class="sec-t">اللوائح</div>
       <div class="ag-wrap" style="max-height:34vh"><table class="tbl compact"><thead><tr><th>الملف</th>${SEC() ? '' : '<th>الوحدة</th>'}<th>القسم</th><th>المستويات</th><th>النوع</th><th>العدد</th></tr></thead><tbody>
