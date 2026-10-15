@@ -251,20 +251,33 @@ const isSecCycle = () => !!(window.Cyc && Cyc.isSec());
 // 1.9.4: one independent institution (collège / lycée / primary «مدرسة مستقلة»): no school units anywhere
 const isSingleOrg = () => !!(window.Cyc && Cyc.single());
 const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.cat ? ':' + a.cat : '') }, o || {});
+/* 1.9.4: four levels in every axis — the axis (sidebar) › its domains (coloured, secondary bar) › the sections of the domain (third bar)
+   › the tabs inside each page. Related axes are gathered (التقويم + التنظيم التربوي = التدبير التربوي, الوثائق الإدارية of the staff go
+   to الموارد البشرية, مكتب الضبط to التدبير الإداري...) and named as in the Moroccan public school administration. */
 const NAV = [
-  { id: 'home', c: '#0f6e5a', grps: [['لوحة القيادة', ['home', 'dash']], ['الطبع', ['printAll']]], label: 'لوحة القيادة', icon: 'home', tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل')] },
-  { id: 'staff', c: '#5b3fb0', grps: [['الموظفون', ['employees', 'presch']], ['الغياب والرخص والحوادث', ['absences', 'attoffSt', 'svcAcc']]], label: 'الموظفون', icon: 'users', tabs: () => [tab('employees', 'لائحة الموظفين'), tab('absences', 'الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية لغياب الموظفين'), tab('presch', 'مربو التعليم الأولي'), tab('svcAcc', 'حوادث المصلحة')] },
-  { id: 'docs', c: '#1d5fa6', grps: [['الوثائق الإدارية', ['documents:leave', 'documents:work', 'documents:peda', 'documents:cert', 'documents:mail']], ['الملفات والمتابعة', ['documents:files', 'documents:follow']], ['مكتب الضبط والمذكرات', ['mail', 'memos', 'records']]], label: 'الوثائق', icon: 'file', tabs: () => (Docs.CATS || [['all', 'الوثائق']]).map(([c, n]) => tab('documents', DOC_SHORT[c] || n, { cat: c }))
-      .concat([tab('documents', 'طلب وبعث الملفات', { cat: 'files' }), tab('documents', 'المتابعة والحراسة', { cat: 'follow' }), tab('memos', 'المذكرات الداخلية'), tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق')]) },
-  { id: 'pupils', c: '#0b7a8a', grps: [['التلاميذ والتسجيل', ['pupils', 'preins']], ['الشواهد المدرسية', ['certsCur', 'certs']], ['الحوادث المدرسية', ['incid']]], label: 'شؤون التلاميذ', icon: 'pupil', tabs: () => [tab('pupils', 'بطاقة التلاميذ'), tab('preins', 'طلبات التسجيل الجديدة'), tab('certsCur', 'الشواهد المدرسية (المتمدرسين)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'), tab('incid', 'الحوادث المدرسية')] },
-  { id: 'eval', c: '#a4570b', grps: [['الروائز والتقويم', ['roaiz', 'cceval', 'roaizx', 'support']], ['المواظبة والغياب', ['attend', 'absreg', 'vschool']], ['الامتحانات', ['exams']]], label: 'التقييم والتتبع', icon: 'chart', tabs: () => [tab('roaiz', 'استثمار النتائج (الروائز)'), tab('cceval', 'استثمار المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ'), tab('support', 'الدعم الممتد'), tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'),
-      tab('vschool', 'الحراسة العامة', null, { w: isSecCycle }), tab('exams', 'الامتحانات الإشهادية')] },
-  { id: 'life', c: '#b0215e', grps: [['الأندية والأنشطة', ['clubs', 'events', 'kudos']], ['الخلايا والشركاء', ['vigil', 'listen', 'partners']], ['التواصل والإعلام', ['flyers', 'mag']]], label: 'الحياة المدرسية', icon: 'star', tabs: () => [tab('clubs', 'الأندية التربوية وبطائقها'), tab('events', 'الاحتفالات والأنشطة'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والوساطة'),
-      tab('partners', 'التواصل مع الشركاء'), tab('kudos', 'التهاني والتقديرات'), tab('flyers', 'إعلانات الأنشطة والتصاميم'), tab('mag', 'مجلة المؤسسة')] },
-  { id: 'org', c: '#2f7d32', grps: [['البنية والتوزيع', ['board', 'teach']], ['البرنامج والمجالس', ['plan', 'councils']]], label: 'التنظيم التربوي', icon: 'council', tabs: () => [tab('board', 'السبورة المرجعية'), tab('plan', 'برنامج عمل المؤسسة'), tab('teach', 'توزيع الأساتذة'), tab('councils', 'المجالس التقنية')] },
-  { id: 'fin', c: '#7a4a1e', grps: [['التدبير المالي', ['dues', 'budget']], ['التدبير المادي', ['conso', 'stock']]], label: 'التدبير المالي والمادي', icon: 'coin', tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية'), tab('conso', 'استهلاك الماء والكهرباء'), tab('stock', 'إدارة العتاد والوسائل التعليمية')] },
-  { id: 'settings', c: '#455a64', label: 'الإعدادات', icon: 'gear', tabs: () => [tab('settings', 'الإعدادات')] },
-  { id: 'license', c: '#37474f', label: 'التفعيل', icon: 'key', tabs: () => [tab('license', 'التفعيل')] }
+  { id: 'home', c: '#0f6e5a', label: 'لوحة القيادة', icon: 'home', grps: [['لوحة القيادة والمؤشرات', ['home', 'dash']], ['الطبع الشامل', ['printAll']]],
+    tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل لوثائق الخانات')] },
+  { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['board', 'teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
+    tabs: () => [tab('board', 'البنية التربوية (السبورة المرجعية)'), tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
+      tab('roaiz', 'الروائز التشخيصية (TaRL)'), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ'), tab('support', 'الدعم التربوي الممتد'),
+      tab('exams', 'الامتحانات الإشهادية'), tab('documents', 'التأطير والتتبع التربوي', { cat: 'peda' })] },
+  { id: 'pupils', c: '#0b7a8a', label: 'شؤون التلاميذ', icon: 'pupil', grps: [['التمدرس والتسجيل', ['pupils', 'preins']], ['الملفات والشواهد المدرسية', ['mail:dos', 'documents:files', 'certsCur', 'certs']], ['المواظبة والانضباط', ['attend', 'absreg', 'vschool']], ['الصحة والسلامة المدرسية', ['incid']]],
+    tabs: () => [tab('pupils', 'بطاقة التلاميذ (مسار)'), tab('preins', 'طلبات التسجيل الجديدة'),
+      tab('mail', 'طلب وإرسال الملفات المدرسية', { dir: 'dos' }, { k: 'mail:dos' }), tab('documents', 'مراسلات الملفات والوثائق', { cat: 'files' }), tab('certsCur', 'الشواهد المدرسية (المتمدرسون)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'),
+      tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'), tab('vschool', 'الحراسة العامة', null, { w: isSecCycle }),
+      tab('incid', 'الحوادث المدرسية')] },
+  { id: 'life', c: '#b0215e', label: 'الحياة المدرسية', icon: 'star', grps: [['الأندية والأنشطة التربوية', ['clubs', 'events', 'kudos']], ['خلايا اليقظة والإنصات', ['vigil', 'listen']], ['الانفتاح والشراكة', ['partners']], ['الإعلام والتواصل', ['flyers', 'mag']]],
+    tabs: () => [tab('clubs', 'الأندية التربوية'), tab('events', 'الأنشطة والاحتفالات'), tab('kudos', 'التحفيز والتهاني'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والوساطة'),
+      tab('partners', 'الشركاء وجمعية الآباء'), tab('flyers', 'الإعلانات والتصاميم'), tab('mag', 'مجلة المؤسسة')] },
+  { id: 'staff', c: '#5b3fb0', label: 'الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'presch']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
+    tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'مربيات ومربو التعليم الأولي'), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
+      tab('documents', 'طلبات الرخص', { cat: 'leave' }), tab('documents', 'الاستئناف والانقطاع والاستفسار', { cat: 'work' }), tab('documents', 'الشهادات الإدارية وبطاقات التقديم', { cat: 'cert' }), tab('svcAcc', 'حوادث الشغل (المصلحة)')] },
+  { id: 'docs', c: '#1d5fa6', label: 'التدبير الإداري', icon: 'file', grps: [['مكتب الضبط', ['mail', 'records']], ['المراسلات والمذكرات', ['documents:mail', 'memos']], ['المتابعة اليومية', ['documents:follow']]],
+    tabs: () => [tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق المنجزة'), tab('documents', 'المراسلات الإدارية', { cat: 'mail' }), tab('memos', 'المذكرات الداخلية'), tab('documents', 'المتابعة اليومية والحراسة', { cat: 'follow' })]
+      .concat((Docs.CATS || []).filter(([c]) => !['leave', 'work', 'peda', 'cert', 'mail'].includes(c)).map(([c, n]) => tab('documents', n, { cat: c }))) },
+  { id: 'fin', c: '#7a4a1e', label: 'التدبير المالي والمادي', icon: 'coin', grps: [['التدبير المالي', ['dues', 'budget']], ['التدبير المادي', ['stock', 'conso']]],
+    tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية'), tab('stock', 'العتاد والوسائل التعليمية'), tab('conso', 'استهلاك الماء والكهرباء')] },
+  { id: 'settings', c: '#455a64', label: 'الإعدادات والتفعيل', icon: 'gear', tabs: () => [tab('settings', 'الإعدادات'), tab('license', 'التفعيل')] }
 ];
 // detail pages -> the tab they belong to (the route of the tab, or «route:cat» for the tabs of the documents page)
 const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
@@ -285,6 +298,7 @@ function curTabKey() {
     return 'documents:' + ((T && T.cat) || ((Docs.CATS || [['all']])[0][0]));
   }
   if (r === 'documents') return 'documents:' + (a.cat || ((Docs.CATS || [['all']])[0][0]));
+  if ((r === 'mail' && a.dir === 'dos') || (r === 'mailDoc' && /^dos/.test(a.kind || ''))) return 'mail:dos';
   return NAV_PARENT[r] || r;
 }
 function curNav() {
@@ -313,7 +327,7 @@ function renderNav() {
   // 1.9.4: every section has its colour (sidebar, secondary bar, sub-sections, selectors inside the pages), like the stages of «شؤون التلاميذ»
   const root = document.documentElement.style; root.setProperty('--sec', cg.c || '#0f6e5a'); root.setProperty('--sec2', navShade(cg.c || '#0f6e5a', -0.22)); root.setProperty('--secl', navShade(cg.c || '#0f6e5a', 0.9));
   $('#nav').innerHTML = NAV.map(g => `<a data-g="${g.id}" data-go="${g.id}" class="${cg.id === g.id ? 'on' : ''}" style="--gc:${g.c || '#0f6e5a'}"><i class="nv-ic">${ic(g.icon)}</i><span>${g.label}</span>
-    ${g.id === 'staff' && todayCount ? bAbs : ''}${g.id === 'license' && !LIC.active ? `<span class="badge red" title="${licText()}">!</span>` : ''}</a>`).join('');
+    ${g.id === 'staff' && todayCount ? bAbs : ''}${g.id === 'settings' && !LIC.active ? `<span class="badge red" title="${licText()}">!</span>` : ''}</a>`).join('');
   $$('#nav [data-g]').forEach(a => a.onclick = () => {
     const g = NAV.find(x => x.id === a.dataset.g), vt = visibleTabs(g);
     const t = cg.id !== g.id && lastTab[g.id] && vt.some(x => x.k === lastTab[g.id].k) ? lastTab[g.id] : vt[0];
@@ -328,7 +342,7 @@ function renderNav() {
     if (G.length > 1) {
       // three levels: the section (sidebar) -> its groups (coloured, like الكل / الأولي / الابتدائي) -> the sub-sections of the group
       sn.innerHTML = `<div class="sn-in"><span class="sn-t">${ic(cg.icon)}${cg.label}</span><div class="sn-tabs sn-grps">${G.map(x => `<a data-gk="${x.i}" class="sn-g ${x === cur ? 'on' : ''}" style="--gc:${x.c}"><i></i>${x.n}<b>${x.tabs.length}</b></a>`).join('')}</div></div>
-        <div class="sn-l3" style="--gc:${cur.c}"><div class="sn-in"><span class="sn-t3">${cur.n}</span><div class="sn-tabs">${cur.tabs.map(tabA).join('')}</div></div></div>`;
+        <div class="sn-l3" style="--gc:${cur.c}"><div class="sn-in"><span class="sn-t3">${cg.label} › ${cur.n}</span><div class="sn-tabs">${cur.tabs.map(tabA).join('')}</div></div></div>`;
     } else sn.innerHTML = `<div class="sn-in"><span class="sn-t">${ic(cg.icon)}${cg.label}</span><div class="sn-tabs">${vt.map(tabA).join('')}</div></div>`;
     $$('#subnav [data-k]').forEach(a => a.onclick = () => { const t = vt.find(x => x.k === a.dataset.k); go(t.r, t.a); });
     $$('#subnav [data-gk]').forEach(a => a.onclick = () => { const x = G[+a.dataset.gk]; const t = (lastTab['g:' + cg.id + ':' + x.i] && x.tabs.find(y => y.k === lastTab['g:' + cg.id + ':' + x.i].k)) || x.tabs[0]; go(t.r, t.a); });
@@ -422,7 +436,7 @@ function pageHome(v) {
   const PU = window.Pupils && Pupils.summary ? Pupils.summary() : null;
   const BU = window.Budget && Budget.summary ? Budget.summary() : null;
   const BL = window.Budget && Budget.summary ? Budget.summary('life') : null;
-  const dsec = id => { const g = NAV.find(x => x.id === id), t = visibleTabs(g)[0]; return `<div class="dsec" data-go2="${t.r}">${ic(g.icon)}${g.label}</div>`; };
+  const dsec = id => { const g = NAV.find(x => x.id === id); if (!g) return ''; const t = visibleTabs(g)[0]; return `<div class="dsec" data-go2="${t.r}">${ic(g.icon)}${g.label}</div>`; };
   const fr = r => window.Attend ? Attend.fmt(r) : '-';
   const hot = r => A && r != null && r > A.alert;
   const kv = (l, val, cls) => `<div class="kv-r"><span>${l}</span><b class="${cls || ''}">${val}</b></div>`;
