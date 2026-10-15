@@ -270,10 +270,13 @@ const NAV = [
       tab('mail', 'طلب وإرسال الملفات المدرسية', { dir: 'dos' }, { k: 'mail:dos' }), tab('documents', 'مراسلات الملفات والوثائق', { cat: 'files' }), tab('certsCur', 'الشواهد المدرسية (المتمدرسون)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'),
       tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'), tab('vschool', 'الحراسة العامة', null, { w: isSecCycle, k: 'vschool' }), tab('vschool', 'حراسة التلاميذ', null, { w: isPriCycle, k: 'vschool' }),
       tab('incid', 'الحوادث المدرسية')] },
-  { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['board', 'teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
-    tabs: () => [tab('board', 'البنية التربوية (السبورة المرجعية)'), tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
+  { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
+    tabs: () => [tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
       tab('roaiz', 'الروائز التشخيصية (TaRL)', null, { w: isPriCycle }), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ', null, { w: isPriCycle }), tab('support', 'الدعم التربوي الممتد'),
       tab('exams', 'الامتحانات الإشهادية'), tab('documents', 'التأطير والتتبع التربوي', { cat: 'peda' })] },
+  // 1.9.4: «السبورة المرجعية» is a main section; its sub-sections are the groups of documents of the board
+  { id: 'board', c: '#3949ab', label: 'السبورة المرجعية', icon: 'board', grps: [['المؤسسة والأطر', ['board:a1', 'board:a2', 'board:a3']], ['التلاميذ', ['board:b']], ['الوثائق المستوردة', ['board:c']]],
+    tabs: () => [tab('board', 'التعريف بالمؤسسة والتنظيم التربوي', { g: 'a1', only: ['a1'], title: 'السبورة المرجعية — التعريف بالمؤسسة والتنظيم التربوي' }, { k: 'board:a1' }), tab('board', 'الأطر والعاملون بالمؤسسة', { g: 'a2', only: ['a2'], title: 'السبورة المرجعية — الأطر والعاملون بالمؤسسة' }, { k: 'board:a2' }), tab('board', 'الجمعيات والمجالس والخلايا', { g: 'a3', only: ['a3'], title: 'السبورة المرجعية — الجمعيات والمجالس والخلايا' }, { k: 'board:a3' }), tab('board', 'إحصائيات التلاميذ', { g: 'b', only: ['b'], title: 'السبورة المرجعية — إحصائيات التلاميذ' }, { k: 'board:b' }), tab('board', 'وثائق مستوردة من أقسام البرنامج', { g: 'c', only: ['c'], title: 'السبورة المرجعية — وثائق مستوردة من أقسام البرنامج' }, { k: 'board:c' })] },
   { id: 'life', c: '#b0215e', label: 'الحياة المدرسية', icon: 'star', grps: [['الأندية والأنشطة التربوية', ['clubs', 'events', 'kudos']], ['خليتا اليقظة والإنصات والمصالحة', ['vigil', 'listen']], ['الانفتاح والشراكة', ['partners']], ['الإعلام والتواصل', ['flyers', 'mag']]],
     tabs: () => [tab('clubs', 'الأندية التربوية'), tab('events', 'الأنشطة والاحتفالات'), tab('kudos', 'التحفيز والتهاني'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والمصالحة'),
       tab('partners', 'الشركاء وجمعية الآباء'), tab('flyers', 'الإعلانات والتصاميم'), tab('mag', 'مجلة المؤسسة')] },
@@ -307,6 +310,8 @@ function curTabKey() {
   }
   if (r === 'documents' && a.cat === 'follow') return 'dayrep';
   if (r === 'documents') return 'documents:' + (a.cat || ((Docs.CATS || [['all']])[0][0]));
+  if (r === 'board') return 'board:' + ((a.only && a.only[0]) || a.g || 'a1');
+  if (r === 'boardDoc') { try { const c = K.centers.find(x => x.id === 'board'), d = c && c.docs().find(x => x.k === a.kind); if (d && d.grp) return 'board:' + d.grp; } catch (_) {} return 'board:a1'; }
   if (r === 'sagents') return a.v && a.v !== 'list' ? 'sagents:' + a.v : 'sagents';
   if (r === 'sagentsDoc') return a.kind === 'eval' ? 'sagents:sum' : a.kind === 'month' ? 'sagents:log' : 'sagents';
   if (r === 'budget' && a.part) return 'budget:' + a.part;
