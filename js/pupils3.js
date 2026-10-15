@@ -83,9 +83,9 @@
     add('err', 'وحدات في لوائح التلاميذ غير مسجلة في الإعدادات', units.filter(u => !u.reg).length, 'classes');
     if (!SEC()) add('warn', 'وحدات مدرسية دون رمز GRESA', units.filter(u => u.reg && !u.gresa).length, 'settings');
     add('warn', 'أقسام الابتدائي دون أستاذ(ة) مسند(ة)', units.reduce((a, u) => a + u.classes.filter(c => !c.pre && !c.staff.length).length, 0), 'teach');
-    add('warn', 'أقسام التعليم الأولي دون مرب(ية)', units.reduce((a, u) => a + u.classes.filter(c => c.pre && !c.staff.length).length, 0), 'presch');
+    if (!(window.Cyc && Cyc.isSec())) add('warn', 'أقسام التعليم الأولي دون مرب(ية)', units.reduce((a, u) => a + u.classes.filter(c => c.pre && !c.staff.length).length, 0), 'presch');
     add('warn', 'أساتذة دون وحدة مدرسية', teachers.filter(t => !t.unit).length, 'teach');
-    add('warn', 'مربون دون وحدة مدرسية', eds.filter(e => !e.unit).length, 'presch');
+    if (!(window.Cyc && Cyc.isSec())) add('warn', 'مربون دون وحدة مدرسية', eds.filter(e => !e.unit).length, 'presch');
     add('info', 'تلاميذ مستوى غير محدد', cur.filter(p => !p.lvl).length, 'list');
     return { units, lv, tot, ncls, issues, teachers, eds, cur, inSt };
   }

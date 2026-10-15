@@ -668,7 +668,7 @@ function empForm(e, after) {
   const data = Object.assign({}, e || {});
   const body = document.createElement('div');
   body.innerHTML = `<div class="emp-phrow"><div class="emp-ph big" id="efPh"></div><div class="btn-row"><button class="btn sm" id="efPick">${ic('up')} صورة الموظف(ة)</button><button class="btn sm danger" id="efDel" type="button">${ic('trash')} حذف الصورة</button></div></div>
-    <div class="fgrid">${EMP_FIELDS.filter(f0 => !(isSingleOrg() && (f0[0] === 'unit' || f0[0] === 'alsoAt'))).map(([k, l, t, req, dir, full, opts]) => k === '-' ? `<div class="fld-sep">${l}</div>` : `
+    <div class="fgrid">${EMP_FIELDS.filter(f0 => !(isSingleOrg() && (f0[0] === 'unit' || f0[0] === 'alsoAt'))).map(f0 => (f0[0] === 'cat' ? f0.slice(0, 6).concat([noPre(f0[6])]) : f0)).map(([k, l, t, req, dir, full, opts]) => k === '-' ? `<div class="fld-sep">${l}</div>` : `
     <div class="fld ${full ? 'full' : ''}"><label>${l}${req ? ' <span style="color:var(--red)">*</span>' : ''}</label>
     ${t === 'sex' ? `<select class="inp" data-k="${k}"><option value=""></option><option value="M" ${data[k] === 'M' ? 'selected' : ''}>ذكر</option><option value="F" ${data[k] === 'F' ? 'selected' : ''}>أنثى</option></select>`
       : t === 'sel' ? `<select class="inp" data-k="${k}">${opts.map(([v, lb]) => `<option value="${esc(v)}" ${String(data[k] || '') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>`

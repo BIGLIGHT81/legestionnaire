@@ -1,6 +1,8 @@
 'use strict';
 /* 1.9.4 — لوحة القيادة: «بحث» شامل (الخانات، الوثائق، الموظفون، التلاميذ) و«الطبع الشامل» لكل وثائق الخانات دفعة واحدة. */
 (function () {
+  // 1.9.4: the modules of the primary / preschool are left out for the collège and the lycée
+  const okC = c => { try { return !(typeof PRI_ONLY !== 'undefined' && isSecCycle() && (PRI_ONLY.includes(c.hubRoute) || PRI_ONLY.includes(c.route))); } catch (_) { return true; } };
   const Dx = window.Docs;
   const { esc } = Dx;
   const nh = s => (window.MK ? MK.hkey(s) : String(s || '').toLowerCase());
@@ -16,7 +18,7 @@
     // documents of «الوثائق»
     safe(() => Object.entries(Dx.TYPES || {}).forEach(([k, t]) => { if (!t.hidden) push('doc', t.title, (t.desc || '') + ' — الوثائق', () => go('editor', { type: k }), t.icon || '📄'); }));
     // documents of every module (documents centres)
-    ((window.K && K.centers) || []).forEach(c => safe(() => (c.docs() || []).forEach(d => safe(() => push('doc', String(typeof d.t === 'function' ? d.t() : d.t), c.title, () => go(c.route, { kind: d.k }), c.icon || '📄')))));
+    ((window.K && K.centers) || []).filter(okC).forEach(c => safe(() => (c.docs() || []).forEach(d => safe(() => push('doc', String(typeof d.t === 'function' ? d.t() : d.t), c.title, () => go(c.route, { kind: d.k }), c.icon || '📄')))));
     // employees
     safe(() => (DB.employees || []).forEach(e => push('emp', fullName(e), [e.ppr, e.cadre, e.cin].filter(Boolean).join(' — '), () => (typeof empProfile === 'function' ? (go('employees'), empProfile(e)) : go('employees')), '👤')));
     // pupils of the current year
@@ -63,7 +65,7 @@
   function warm() {
     if (warmed || typeof NAV === 'undefined') return false;
     warmed = true;
-    const tabs = NAV.flatMap(g => g.tabs()).filter(t => !['home', 'printAll', 'license', 'settings', 'editor'].includes(t.r));
+    const tabs = NAV.flatMap(g => (typeof visibleTabs === 'function' ? visibleTabs(g) : g.tabs())).filter(t => !['home', 'printAll', 'license', 'settings', 'editor'].includes(t.r));
     tabs.forEach(t => { try { go(t.r, t.a); } catch (_) {} });
     $('#modalRoot').innerHTML = '';
     return true;
@@ -71,7 +73,7 @@
   function pagePrintAll(v) {
     if (warm()) { setTimeout(() => go('printAll'), 50); v.innerHTML = '<div class="empty-state">…</div>'; return; }
     const sy = MK.curSy();
-    const C = ((window.K && K.centers) || []).filter(c => c.docs().length);
+    const C = ((window.K && K.centers) || []).filter(c => okC(c) && c.docs().length);
     if (!pst.sel) pst.sel = {};
     const total = C.reduce((a, c) => a + c.docs().length, 0), nSel = Object.values(pst.sel).filter(Boolean).length;
     v.innerHTML = `<div class="page-h"><button class="btn" id="paBack">${ic('back')} رجوع</button><h1>الطبع الشامل للوثائق</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}</span><span class="sp"></span>

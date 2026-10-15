@@ -81,7 +81,7 @@
   add({
     k: 'pupils', t: 'التلاميذ المستفيدون', grp: 'd', d: 'التلاميذ المستفيدون من الدعم الممتد، من نتائج استثمار الروائز (دون المستوى المستهدف) أو من بطاقة التلاميذ، مع المجموعة والمستوى.', auto: 'استثمار الروائز وبطاقة التلاميذ', page: 'a4',
     init: () => ({ rows: [] }),
-    defs: () => [{ t: 'html', html: '<button type="button" class="btn sm pri" data-act="roaiz">من استثمار الروائز (آخر فئة مستوردة)</button>' },
+    defs: () => [{ t: 'html', html: window.Cyc && Cyc.isSec() ? '' : '<button type="button" class="btn sm pri" data-act="roaiz">من استثمار الروائز (آخر فئة مستوردة)</button>' },
       { k: 'rows', l: 'المستفيدون', t: 'grid', cols: ['الاسم الكامل', 'رمز مسار', 'القسم', 'المادة', 'المجموعة', 'المستوى عند البداية', 'المستوى الحالي'], widths: ['1.4fr', '.9fr', '.6fr', '.9fr', '.8fr', '.8fr', '.8fr'],
         list: ['k2Pupils', 'k2Codes', null, 'spSubj', null, 'spLv', 'spLv'], dirs: [null, 'ltr', 'ltr', null, null, null, null], dls: { spSubj: SUBJ, spLv: [].concat(...Object.values(LEVELS)) }, link: { src: 'pupil', n: 0, cols: { code: 1, cls: 2 } } }],
     act: { roaiz: (f, sy, c) => {
@@ -188,7 +188,7 @@
     id: 'support', title: 'الدعم الممتد', icon: '🧩', route: 'supportDoc', hubRoute: 'support', docLabel: 'الخطوة / الوثيقة',
     groups: [['d', 'المعطيات (بالترتيب)', 'كل خطوة تُحفظ وتُطبع'], ['o', 'الوثائق والكشوف']], docs: () => DOCS, store: sy => Y(sy), years: () => Object.keys((DB.support || {}).years || {}),
     intro: 'الدعم الممتد بمؤسسات الريادة: أضف الأساتذة المتدخلين (تُملأ معطياتهم والحساب البنكي RIB من بطاقة الموظف)، ثم المجموعات والتلاميذ المستفيدين (من نتائج استثمار الروائز)، وسجّل الحصص في دفتر الحصص أو الساعات مباشرة؛ ويُستخرج الكشف الشهري للساعات الإضافية بنفس نموذج المديرية جاهزا للطباعة أو Word.',
-    hubButtons: () => `<button class="btn" id="spRoaiz">${ic('target')} استثمار الروائز</button>`,
+    hubButtons: () => (window.Cyc && Cyc.isSec() ? '' : `<button class="btn" id="spRoaiz">${ic('target')} استثمار الروائز</button>`),
     onHub: v => { const b = $('#spRoaiz', v); if (b) b.onclick = () => go('roaiz'); }
   }));
   window.Support = { migrate, DOCS: () => DOCS, hoursOf };

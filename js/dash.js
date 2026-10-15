@@ -8,6 +8,7 @@
   const { SB } = window.K;
   const nm = t => String(t == null ? '' : t).trim();
   const num = v => (+v || 0);
+  const SECX = () => !!(window.Cyc && Cyc.isSec());
   const PAL = ['#2e75b6', '#c55a11', '#548235', '#bf9000', '#7030a0', '#2f9ea8', '#a5a5a5', '#c00000', '#1f3864', '#7f6000'];
   const C = { m: '#2e75b6', f: '#e0457b', ok: '#548235', bad: '#c0392b', t: '#8e9aaf', g: '#548235', o: '#ed7d31' };
   const pc = (a, b, d) => (b ? (a / b * 100).toFixed(d == null ? 1 : d).replace(/\.0+$/, '') + '%' : '—');
@@ -150,11 +151,11 @@
       const comp = FL.map(([k, l]) => ({ label: l, v: E.length ? E.filter(e => nm(e[k])).length / E.length * 100 : 0, c: PAL[0] }));
       const lang = count(E.filter(e => nm(e.teachLang)), e => e.teachLang), st = count(E.filter(e => nm(e.status)), e => e.status);
       return [head('الموظفون والأطر'),
-        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التدريس' }, { v: B.a, l: 'هيئة الإدارة' }, { v: B.as, l: 'أساتذة مكلفون' }, { v: B.p, l: 'مربو التعليم الأولي' },
+        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التدريس' }, { v: B.a, l: 'هيئة الإدارة' }, { v: B.as, l: 'أساتذة مكلفون' }, ...(SECX() ? [] : [{ v: B.p, l: 'مربو التعليم الأولي' }]),
           { v: other, l: 'أطر وأعوان آخرون' }, { v: E.length ? pc(F, M + F) : '—', l: 'نسبة الإناث' }, { v: ages.length ? f1(+avg(ages).toFixed(1)) : '—', l: 'متوسط العمر (سنة)' },
           { v: sen.length ? f1(+avg(sen).toFixed(1)) : '—', l: 'متوسط الأقدمية (سنة)' }, { v: ages.filter(a => a >= 55).length, l: 'بلغوا 55 سنة فأكثر', c: ages.filter(a => a >= 55).length ? 'red' : '' }], 5)),
         blk(charts([{ t: 'التوزيع حسب الجنس', h: donut([{ label: 'ذكور', v: M, c: C.m }, { label: 'إناث', v: F, c: C.f }, { label: 'غير محدد', v: E.length - M - F, c: C.t }], { unit: 'موظف(ة)' }) },
-          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'التعليم الأولي', v: B.p }, { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
+          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, ...(SECX() ? [] : [{ label: 'التعليم الأولي', v: B.p }]), { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
         blk(charts([{ t: 'الفئات العمرية حسب الجنس', h: vbars(el, [{ name: 'ذكور', color: C.m, vals: ageBy('M') }, { name: 'إناث', color: C.f, vals: ageBy('F') }]) },
           { t: 'الأقدمية في الوظيفة (سنوات)', h: vbars(sl, [{ name: 'عدد الموظفين', color: C.g, vals: band(sen, sb, sl) }]) }])),
         blk(charts([{ t: 'الإطار (الأكثر تمثيلا)', h: hbar(top(count(E.filter(e => nm(e.cadre)), e => e.cadre), 8), { labW: 150, cut: 30 }) },
@@ -199,7 +200,7 @@
       return [head('التلاميذ'),
         blk(kpis([{ v: tot.t, l: 'مجموع التلاميذ' }, { v: tot.m, l: 'الذكور' }, { v: tot.f, l: 'الإناث' }, { v: pc(tot.f, tot.t), l: 'نسبة الإناث' }, { v: Y.lists.length, l: 'عدد الأقسام' },
           { v: Y.lists.length ? f1(+(tot.t / Y.lists.length).toFixed(1)) : '—', l: 'متوسط التلاميذ في القسم' }, { v: cl.length ? cl[0][1] : '—', l: 'أكبر قسم (تلميذ)' }, { v: cl.length ? cl[cl.length - 1][1] : '—', l: 'أصغر قسم (تلميذ)' },
-          { v: c.single ? '—' : units.length, l: 'الوحدات المدرسية' }, { v: pre ? pre : '—', l: 'أطفال التعليم الأولي' },
+          { v: c.single ? '—' : units.length, l: 'الوحدات المدرسية' }, ...(SECX() ? [] : [{ v: pre ? pre : '—', l: 'أطفال التعليم الأولي' }]),
           { v: mv('joined'), l: 'الوافدون' }, { v: mv('left'), l: 'المغادرون' }, { v: mv('drop'), l: 'المنقطعون', c: mv('drop') ? 'red' : '' }, { v: mv('notjoined'), l: 'غير الملتحقين', c: mv('notjoined') ? 'red' : '' },
           { v: ages.length ? f1(+avg(ages.map(x => x.a)).toFixed(1)) : '—', l: 'متوسط السن (سنة)' }], 5)),
         blk(charts([{ t: 'التلاميذ حسب المستوى والجنس', h: vbars(lv.map(LV.sh), [{ name: 'ذكور', color: C.m, vals: lv.map(l => cn(P, p => p.lvl === l).m) }, { name: 'إناث', color: C.f, vals: lv.map(l => cn(P, p => p.lvl === l).f) }], { w: 400, h: 175 }) },
@@ -288,7 +289,7 @@
           { t: 'وضعية المخزون', h: donut([{ label: 'متوفرة', v: Math.max(0, S1.items - S1.empty), c: C.ok }, { label: 'نفدت', v: S1.empty, c: C.bad }], { unit: 'مادة', w: 260 }) }])) : null];
     } });
 
-  sec({ k: 'roaiz', t: 'استثمار الروائز', has: c => !!(window.Roaiz && Roaiz.summary && safe(() => Roaiz.summary().groups, 0) > 0),
+  sec({ k: 'roaiz', t: 'استثمار الروائز', has: c => !SECX() && !!(window.Roaiz && Roaiz.summary && safe(() => Roaiz.summary().groups, 0) > 0),
     build: c => {
       const R = Roaiz.summary();
       return [head('استثمار الروائز'), blk(kpis([{ v: `${R.phases} من 8`, l: 'الفئات المستوردة' }, { v: R.groups, l: 'مجموعات الدعم' }, { v: c.single ? '—' : R.units, l: 'الوحدات المدرسية' }, { v: R.pupils, l: 'التلاميذ المعنيون' }, { v: c.P.length ? pc(R.pupils, c.P.length) : '—', l: 'نسبة التلاميذ المعنيين' }], 5)),
@@ -348,7 +349,7 @@
     try {
       if (c.E.length) {
         const B = window.Board ? { t: Board.teachers().length, a: Board.admins().length, as: Board.assigned().length, p: Board.preschool().length } : { t: 0, a: 0, as: 0, p: 0 };
-        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'التعليم الأولي', v: B.p }, { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as - B.p) }], { unit: 'موظف(ة)', w: 330 }) });
+        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, ...(SECX() ? [] : [{ label: 'التعليم الأولي', v: B.p }]), { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as - B.p) }], { unit: 'موظف(ة)', w: 330 }) });
       }
     } catch (e) { /* ignore */ }
     try {
