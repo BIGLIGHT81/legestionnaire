@@ -25,15 +25,27 @@
     const names = reg.map(u => u.name);
     cur.forEach(p => { if (p.unit && !names.some(n => K.U.same(n, p.unit))) names.push(p.unit); });
     // teachers: the assignment of «توزيع الأساتذة» first, else the employees (unit + levels of their card)
-    const asg = window.Teach && Teach.rows ? Teach.rows(sy) : [];
+    // the distribution of this school year, else the latest one typed (a table filled for another year still says who teaches where)
+    let asg = window.Teach && Teach.rows ? Teach.rows(sy) : [];
+    if (!asg.length && window.Teach && DB.teach && DB.teach.years) { const ys = Object.keys(DB.teach.years).filter(y => y !== sy && Teach.rows(y).length).sort(); if (ys.length) asg = Teach.rows(ys[ys.length - 1]); }
+    // 1.9.4: a teacher belongs to a unit through ANY of its links (the distribution table, the GRESA code of the Esise file, the unit of the card,
+    // the other units where it serves) and its classes through ANY of its level texts — an old text in one place no longer hides the others
+    const uOfE = e => (window.Teach && Teach.unitOfEmp ? Teach.unitOfEmp(e) : nm(e.unit));
     const teachers = (K.E.teachers() || []).map(e => {
-      const r = asg.find(a => nm(a[0]) === nm(fullN(e)));
-      return { e, name: fullN(e), unit: nm(r ? r[1] : '') || (window.Teach && Teach.unitOfEmp ? Teach.unitOfEmp(e) : nm(e.unit)), cls: nm(r ? r[2] : '') || nm(e.levels), src: r ? 'asg' : 'emp' };
+      const r = asg.find(a => nm(a[0]) === nm(fullN(e)) || (K.E.byName && K.E.byName(a[0]) === e));
+      const svc = Array.isArray(e.unitServices) ? e.unitServices : [];
+      const units = [r ? nm(r[1]) : '', uOfE(e), nm(e.unit)].concat(svc.map(x => nm(x.unit))).filter(Boolean);
+      const codes = [nm(e.unitGresa)].concat(svc.map(x => nm(x.code))).filter(Boolean);
+      const clsT = [r ? nm(r[2]) : '', nm(e.levels)].concat(svc.map(x => nm(x.levels))).filter(Boolean);
+      return { e, name: fullN(e), unit: units[0] || '', units, codes, clsT, cls: clsT[0] || '', src: r ? 'asg' : 'emp' };
     });
-    asg.forEach(r => { if (!teachers.some(t => nm(t.name) === nm(r[0]))) teachers.push({ e: null, name: nm(r[0]), unit: nm(r[1]), cls: nm(r[2]), src: 'asg' }); });
+    asg.forEach(r => { if (!teachers.some(t => nm(t.name) === nm(r[0]))) teachers.push({ e: null, name: nm(r[0]), unit: nm(r[1]), units: [nm(r[1])].filter(Boolean), codes: [], clsT: [nm(r[2])].filter(Boolean), cls: nm(r[2]), src: 'asg' }); });
+    const inUnit = (t, n, u) => t.units.some(x => K.U.same(x, n)) || (!!(u && u.gresa) && t.codes.includes(u.gresa));
     const eds = window.Presch ? Presch.eds() : [];
-    const matchCls = (txt, c, lvls) => {
-      const t = String(txt || ''); if (!t) return false;
+    const ORDW = [[/الأول|الاول|الأولى|الاولى/g, '1'], [/الثاني|الثانية/g, '2'], [/الثالث|الثالثة/g, '3'], [/الرابع/g, '4'], [/الخامس/g, '5'], [/السادس/g, '6']];
+    const matchCls = (txt0, c, lvls) => {
+      let t = String(txt0 || ''); if (!t) return false;
+      ORDW.forEach(([rx, d]) => { t = t.replace(rx, ' ' + d + ' '); });
       const parts = t.split(/[،,;+\s]+/).map(keyCls).filter(Boolean);
       if (parts.includes(keyCls(c))) return true;
       // «المستوى 2» / «2 و 3» / «الثاني»: the class goes with its level
@@ -46,14 +58,14 @@
       const P = cur.filter(p => K.U.same(p.unit, n));
       const PS = P.filter(inSt);
       const clsNames = Array.from(new Set(PS.map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
-      const T = teachers.filter(t => t.unit && K.U.same(t.unit, n)), E = eds.filter(e => e.unit && K.U.same(e.unit, n));
+      const T = teachers.filter(t => inUnit(t, n, u)), E = eds.filter(e => e.unit && K.U.same(e.unit, n));
       const classes = clsNames.map(c => {
         const L = PS.filter(p => p.cls === c), lvls = LV().sort(Array.from(new Set(L.map(p => p.lvl).filter(Boolean))));
         const pre = lvls.length && lvls.every(l => stOf(l) === 'pre');
         const list = y.lists.find(l => l.cls === c && K.U.same(l.unit, n));
         let staff = [];
         if (pre) { staff = E.filter(e => matchCls(e.levels, c, lvls)); if (!staff.length && E.length === 1) staff = E; staff = staff.map(e => ({ name: fullN(e), kind: 'ed', org: e.org || '' })); }
-        else { staff = T.filter(t => matchCls(t.cls, c, lvls)).map(t => ({ name: t.name, kind: 't', src: t.src })); }
+        else { staff = T.filter(t => t.clsT.some(x => matchCls(x, c, lvls))); if (!staff.length && clsNames.length === 1 && T.length === 1) staff = T; staff = staff.map(t => ({ name: t.name, kind: 't', src: t.src })); }
         const cc = X().cnt(L);
         return { cls: c, lvls, pre, list, staff, m: cc.m, f: cc.f, t: cc.t };
       });
@@ -101,7 +113,7 @@
     const c = u.c, staffT = u.T, staffE = u.E;
     return `<div class="card ps3-u"><div class="ps3-uh"><div><div class="ps3-un">🏫 ${esc(u.name)}</div>
         <div class="ps3-ug">${SEC() ? '' : u.gresa ? `رمز GRESA: <b dir="ltr">${esc(u.gresa)}</b>` : `<span class="ps3-miss">رمز GRESA غير مسجل — أضفه في الإعدادات</span>`}${u.reg ? '' : ' <span class="ps3-miss">وحدة غير مسجلة في الإعدادات</span>'}</div></div>
-        <div class="ps3-uk"><span><b>${c.t}</b> تلميذ(ة)</span><span>إناث <b>${c.f}</b></span>${!SEC() && u.cPre.t ? `<span style="color:${COLS.pre}">الأولي <b>${u.cPre.t}</b></span>` : ''}<span style="color:${COLS.pri}">${esc(X().ST.pri.t.replace('التعليم ', ''))} <b>${u.cPri.t}</b></span><span>الأقسام <b>${u.classes.length}</b></span><span>الأساتذة <b>${staffT.length}</b></span>${staffE.length ? `<span>المربون <b>${staffE.length}</b></span>` : ''}</div></div>
+        <div class="ps3-uk"><span><b>${c.t}</b> تلميذ(ة)</span><span>إناث <b>${c.f}</b></span>${!SEC() && u.cPre.t && st !== 'pri' ? `<span style="color:${COLS.pre}">الأولي <b>${u.cPre.t}</b></span>` : ''}${st !== 'pre' ? `<span style="color:${COLS.pri}">${esc(X().ST.pri.t.replace('التعليم ', ''))} <b>${u.cPri.t}</b></span>` : ''}<span>الأقسام <b>${u.classes.length}</b></span><span>الأساتذة <b>${staffT.length}</b></span>${staffE.length ? `<span>المربون <b>${staffE.length}</b></span>` : ''}</div></div>
       ${u.classes.length ? `<div style="overflow:auto"><table class="tbl compact ps3-t"><thead><tr><th>القسم</th><th>المستوى / المستويات</th><th>السلك</th><th>ذكور</th><th>إناث</th><th>المجموع</th><th>الأستاذ(ة) / المربي(ة)</th><th></th></tr></thead><tbody>
         ${u.classes.map(k => `<tr class="${k.pre ? 'pre' : 'pri'}"><td dir="ltr" style="text-align:right"><b>${esc(k.cls)}</b></td><td>${k.lvls.map(pill).join(' ')}</td><td><span class="ps3-dot" style="background:${k.pre ? COLS.pre : COLS.pri}"></span>${k.pre ? 'التعليم الأولي' : esc(X().ST.pri.t)}</td><td class="num">${k.m}</td><td class="num">${k.f}</td><td class="num"><b>${k.t}</b></td>
           <td>${k.staff.length ? k.staff.map(sx => `${esc(sx.name)}${sx.kind === 'ed' && sx.org ? ` <small class="muted">(${esc(sx.org.replace('المؤسسة المغربية للنهوض بالتعليم الأولي', 'FMPS'))})</small>` : ''}`).join('، ') : `<span class="ps3-miss">${k.pre ? 'لا مرب(ية)' : 'غير مسند'}</span>`}</td>
