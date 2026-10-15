@@ -94,6 +94,23 @@
     return s || 'صفر درهم';
   }
 
+  /* 1.9.4: wording of the help texts by the type of institution: one independent institution has no school units;
+     a collège / lycée has no pre-school, no TaRL tests (الروائز) and no primary school */
+  const UNIT_W = [['زيارات أساتذة الوحدات المدرسية', 'زيارات الأساتذة'], [' (حسب الوحدة المدرسية)', ''], ['(لكل وحدة مدرسية أو مرفق)', '(لكل مرفق)'], ['صفحة لكل وحدة مدرسية', 'صفحة واحدة'],
+    ['جدول الحراسة لكل وحدة مدرسية', 'جدول الحراسة'], ['لكل وحدة مدرسية', 'للمؤسسة'], ['(أساتذة الوحدة) والوحدات المدرسية', '(الأساتذة)'], ['أساتذة كل وحدة', 'أساتذة المؤسسة'], ['جداول الوحدات', 'جدول المؤسسة'],
+    ['لجميع الوحدات', 'للمؤسسة'], ['بالوحدات المدرسية', 'بالمؤسسة'], ['الأستاذ(ة)، الوحدة، ', 'الأستاذ(ة)، '], ['حسب الوحدة والمستوى', 'حسب المستوى'], ['والوحدات المدرسية', '']];
+  const SEC_W = [['مالية التعاونية المدرسية والجمعية الرياضية وجمعية دعم مدرسة النجاح', 'مالية الجمعية الرياضية وجمعية دعم مدرسة النجاح'],['والجمعية الرياضية والتعاونية المدرسية', 'والجمعية الرياضية المدرسية'], ['(التأمين، التعاونية، الجمعية الرياضية)', '(التأمين، الجمعية الرياضية)'],['روائز الموضعة', 'التقويم التشخيصي'], ['الروائز القبلية والبعدية', 'التقويم التشخيصي ونتائج المراقبة المستمرة'], ['الروائز القبلية/البعدية', 'التقويم التشخيصي'], ['الروائز القبلية', 'التقويم التشخيصي'],
+    ['الروائز البعدية', 'التقويمات البعدية'], ['استثمار الروائز', 'نتائج التقويم التشخيصي'], ['الروائز التشخيصية', 'التقويم التشخيصي'], [' (طارل)', ''], ['الأبواب المفتوحة، الورشات، الروائز، ', 'الأبواب المفتوحة، الورشات، '],
+    ['المواظبة، الروائز، ', 'المواظبة، '], ['الأبواب المفتوحة، الروائز، ', 'الأبواب المفتوحة، '], ['الدخول المدرسي والروائز', 'الدخول المدرسي'], ['الروائز', 'التقويمات التشخيصية'], ['دعم التعلمات الأساس', 'دعم التعلمات'], [' (TaRL)', ''], ['TaRL', '']];
+  function cycT(s) {
+    if (s == null || typeof s !== 'string') return s;
+    let one = false, sec = false; try { one = !!(window.Cyc && Cyc.single()); sec = !!(window.Cyc && Cyc.isSec()); } catch (_) {}
+    if (one) UNIT_W.forEach(([a, b]) => { if (s.indexOf(a) >= 0) s = s.split(a).join(b); });
+    if (sec) SEC_W.forEach(([a, b]) => { if (s.indexOf(a) >= 0) s = s.split(a).join(b); });
+    return s;
+  }
+  window.cycT = cycT;
+
   /* ================= levels (Massar codes) ================= */
   // off: normal age of the level at the start of the school year (born in startYear - off)
   const LEVELS = [
@@ -113,8 +130,11 @@
   const ORD_F = ['الأولى', 'الثانية', 'الثالثة'];
   const nh = s => MK.hkey(s);
   const LV = {
-    ALL: LEVELS, byK: k => LVK[k] || null,
-    ar: k => (LVK[k] ? LVK[k].ar : (k || '')), sh: k => (LVK[k] ? LVK[k].sh : (k || '')),
+    // 1.9.4: only the levels of the cycle chosen in the settings exist for the rest of the program; a level of another cycle
+    // (an older import) is always shown as the level of the chosen cycle
+    get ALL() { return LEVELS.filter(l => LV.okFor(l.k)); }, byK: k => LVK[k] || null,
+    ar: k => { k = LV.show(k); return LVK[k] ? LVK[k].ar : (k || ''); }, sh: k => { k = LV.show(k); return LVK[k] ? LVK[k].sh : (k || ''); },
+    show: k => (k && LVK[k] && !LV.okFor(k) && LV.cyc() !== 'pri' ? LV.cycFix(k, '', '') : k),
     idx: k => { const i = LEVELS.findIndex(l => l.k === k); return i < 0 ? 99 : i; },
     sort: ks => ks.slice().sort((a, b) => LV.idx(a) - LV.idx(b)),
     // levels of a Massar class code: «1APG-2APG», «DEPE-PS1-PS2», «4APG-5APG-6APG», «1APIC», «TCS»...
@@ -134,9 +154,33 @@
     },
     // «الأول ابتدائي عام», « الثانية أولي », «المستوى الثالث», «3»...
     fromLabel(label) {
+      const k0 = LV.fromLabel0(label);
+      return LV.cycFix(k0, '', label);
+    },
+    // 1.9.4: the cycle of the institution decides: a collège / lycée never gets a pre-school or primary level («الأولى» = الأولى إعدادي / باكالوريا)
+    cyc: () => { try { return window.Cyc ? Cyc.kind() : 'pri'; } catch (_) { return 'pri'; } },
+    okFor: (k, c) => { c = c || LV.cyc(); return !k || (c === 'col' ? /^C\d$/.test(k) : c === 'lyc' ? /^(TC|B\d)$/.test(k) : !/^(C\d|TC|B\d)$/.test(k)); },
+    cycFix(k, cls, label) {
+      const c = LV.cyc();
+      if (c === 'pri' || !k || LV.okFor(k, c)) return k;
+      const fromCls = LV.ofClass(cls).filter(x => LV.okFor(x, c));
+      if (fromCls.length) return fromCls[0];
+      const t = nh(String(label || ''));
+      if (c === 'lyc') { if (/جذع|tc/.test(t)) return 'TC'; const n = LV.no(k) || +String(k).replace(/\D/g, '') || 0; return n === 2 ? 'B2' : n === 1 ? 'B1' : 'TC'; }
+      const n = /^P(\d)$/.test(k) ? +k[1] : LV.no(k);
+      return n >= 1 && n <= 3 ? 'C' + n : 'C1';
+    },
+    // levels of the cycle of the institution (lists, filters, forms)
+    ofCycle: c => { c = c || LV.cyc(); return LEVELS.filter(l => LV.okFor(l.k, c)).map(l => l.k); },
+    fromLabel0(label) {
       const s = String(label || '').replace(/\s+/g, ' ').trim();
       if (!s) return '';
       const n = nh(s);
+      // French labels of Massar (collège / lycée): «1ère année collège», «2APIC», «Tronc commun», «1ère année bac»
+      const lo = s.toLowerCase();
+      if (/coll[eè]g|\bapic\b|\d\s*a(sc|c|pic)\b/.test(lo)) { const d = /([123])/.exec(lo); return d ? 'C' + d[1] : ''; }
+      if (/tronc|\btc/.test(lo)) return 'TC';
+      if (/bac/.test(lo)) return /2|deux/.test(lo) ? 'B2' : 'B1';
       if (/dep|صغري|روضالاطفال$/.test(n)) return 'DEPE';
       // secondary levels first: «الأولى إعدادي» / «الأولى باكالوريا» contain «أولى» like the pre-school levels do
       if (/اعدادي/.test(n)) { const i = ORD_F.findIndex(o => n.includes(nh(o))); return i >= 0 ? 'C' + (i + 1) : ''; }
@@ -148,7 +192,7 @@
       return '';
     },
     // name used on certificates and lists (the Massar label «DEPE» is not a school level name)
-    name: k => (k === 'DEPE' ? 'روض الأطفال' : LV.ar(k)),
+    name: k => (k === 'DEPE' && LV.cyc() === 'pri' ? 'روض الأطفال' : LV.ar(k)),
     // number of the level inside its stage, for «الثالثة إعدادي (03)»: the pre-school levels, the 6 primary levels, the 3 collège levels,
     // the two baccalaureate years (the common core «الجذع المشترك» has no number)
     no: k => ({ PS1: 1, PS2: 2, P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6, C1: 1, C2: 2, C3: 3, B1: 1, B2: 2 }[k] || 0),
@@ -404,7 +448,7 @@
      defs: [{sec}|{note}|{k, l, t: text|num|money|date|area|select|checks|grid|html, half, ph, opts, rows, cols, list, dir, hint}] */
   function fieldHtml(d, f) {
     if (d.sec) return `<div class="sec-t full">${d.sec}</div>`;
-    if (d.note) return `<p class="muted full" style="font-size:12px;line-height:1.7;margin:-4px 0 8px">${d.note}</p>`;
+    if (d.note) return `<p class="muted full" style="font-size:12px;line-height:1.7;margin:-4px 0 8px">${cycT(d.note)}</p>`;
     if (d.t === 'html') return `<div class="${d.half ? '' : 'full'}">${typeof d.html === 'function' ? d.html(f) : d.html}</div>`;
     const lab = d.l ? `<label>${d.l}</label>` : '';
     const v = f[d.k];
@@ -420,14 +464,17 @@
       case 'checks': return `<div class="${cls}">${lab}<div class="k2-checks">${d.opts.map((o, i) => `<label class="chk"><input type="checkbox" data-ck="${d.k}" data-i="${i}" ${v && v[i] ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div>${hint}</div>`;
       case 'grid': {
         const rows = v || [];
-        const tpl = `grid-template-columns:${(d.widths || d.cols.map(() => '1fr')).join(' ')} 28px`;
+        // 1.9.4: one independent institution (collège / lycée / independent school): the column of the school unit is not shown
+        const one = (() => { try { return !!(window.Cyc && Cyc.single()); } catch (_) { return false; } })(), hid = j => one && d.list && d.list[j] === 'k2Units';
+        const tpl = `grid-template-columns:${(d.widths || d.cols.map(() => '1fr')).filter((w, j) => !hid(j)).join(' ')} 28px`;
         return `<div class="${cls}">${lab}<div class="k2-grid">
-          <div class="k2-gh" style="${tpl}">${d.cols.map(c => `<span>${c}</span>`).join('')}<span></span></div>
-          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; if (d.list && d.list[j] === 'k2Units') return unitSelect(`data-g="${d.k}" data-r="${i}" data-c="${j}"`, r[j], { empty: '' }); return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
+          <div class="k2-gh" style="${tpl}">${d.cols.map((c, j) => (hid(j) ? '' : `<span>${c}</span>`)).join('')}<span></span></div>
+          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; if (hid(j)) return `<input type="hidden" data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : r[j])}">`; if (d.list && d.list[j] === 'k2Units') return unitSelect(`data-g="${d.k}" data-r="${i}" data-c="${j}"`, r[j], { empty: '' }); return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
             ${d.fixed ? '<span></span>' : `<button type="button" class="btn sm danger icon" data-gdel="${d.k}" data-r="${i}" title="حذف السطر">✕</button>`}</div>`).join('')}
           </div>${d.fixed ? '' : `<div class="btn-row" style="margin-top:6px"><button type="button" class="btn sm" data-gadd="${d.k}">${ic('plus')} إضافة سطر</button>${d.extraBtn || ''}</div>`}${hint}</div>`;
       }
-      default: if (d.list === 'k2Units') return `<div class="${cls}">${lab}${unitSelect(`data-k="${d.k}"`, v, /فارغ|كل/.test(d.l || '') ? { empty: (/فارغ = (.+?)\)/.exec(d.l || '') || [])[1] || 'كل الوحدات' } : null)}${hint}</div>`;
+      default: if (d.list === 'k2Units' && (() => { try { return !!(window.Cyc && Cyc.single()); } catch (_) { return false; } })()) return '';
+        if (d.list === 'k2Units') return `<div class="${cls}">${lab}${unitSelect(`data-k="${d.k}"`, v, /فارغ|كل/.test(d.l || '') ? { empty: (/فارغ = (.+?)\)/.exec(d.l || '') || [])[1] || 'كل الوحدات' } : null)}${hint}</div>`;
         return `<div class="${cls}">${lab}<input class="inp" data-k="${d.k}" value="${esc(v == null ? '' : v)}" placeholder="${esc(d.ph || '')}" ${d.list ? `list="${d.list}"` : ''}${dir}>${hint}</div>`;
     }
   }

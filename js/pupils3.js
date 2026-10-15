@@ -82,7 +82,7 @@
     add('err', 'تلاميذ دون وحدة مدرسية', cur.filter(p => !p.unit).length, 'classes');
     add('err', 'وحدات في لوائح التلاميذ غير مسجلة في الإعدادات', units.filter(u => !u.reg).length, 'classes');
     if (!SEC()) add('warn', 'وحدات مدرسية دون رمز GRESA', units.filter(u => u.reg && !u.gresa).length, 'settings');
-    add('warn', 'أقسام الابتدائي دون أستاذ(ة) مسند(ة)', units.reduce((a, u) => a + u.classes.filter(c => !c.pre && !c.staff.length).length, 0), 'teach');
+    add('warn', window.Cyc && Cyc.isSec() ? 'أقسام دون أستاذ(ة) مسند(ة)' : 'أقسام الابتدائي دون أستاذ(ة) مسند(ة)', units.reduce((a, u) => a + u.classes.filter(c => !c.pre && !c.staff.length).length, 0), 'teach');
     if (!(window.Cyc && Cyc.isSec())) add('warn', 'أقسام التعليم الأولي دون مرب(ية)', units.reduce((a, u) => a + u.classes.filter(c => c.pre && !c.staff.length).length, 0), 'presch');
     add('warn', 'أساتذة دون وحدة مدرسية', teachers.filter(t => !t.unit).length, 'teach');
     if (!(window.Cyc && Cyc.isSec())) add('warn', 'مربون دون وحدة مدرسية', eds.filter(e => !e.unit).length, 'presch');
@@ -93,14 +93,15 @@
   /* ---------- the tab ---------- */
   const big = (k, title, c, ncl, icon, nu) => `<button class="ps3-big ps3-${k} ${(X().stage || '') === (k === 'all' ? '' : k) ? 'on' : ''}" data-st3="${k === 'all' ? '' : k}" style="--c:${COLS[k]};--l:${LIGHT[k]}">
       <div class="i">${icon}</div><div class="b"><div class="t">${title}</div><div class="n">${c.t}</div><div class="s">ذكور ${c.m} — إناث ${c.f}${c.t ? ` (${Math.round(c.f * 1000 / c.t) / 10}%)` : ''}</div><div class="s">${ncl} قسم${nu != null ? ` — ${nu} وحدة` : ''}</div></div>${(X().stage || '') === (k === 'all' ? '' : k) ? '<span class="ck">✔</span>' : ''}</button>`;
+  const SECC = () => !!(window.Cyc && Cyc.isSec());   // 1.9.4: collège / lycée: one cycle, no pre-school column, no «السلك» column
   const pill = l => { const p = stOf(l) === 'pre'; return `<span class="ps3-pill" style="background:${p ? LIGHT.pre : LIGHT.pri};color:${p ? COLS.pre : COLS.pri}">${esc(LV().sh(l))}</span>`; };
   function tab(b, sy) {
     const st = X().stage || '', M = model(sy, st), x = X();
-    const showPre = !SEC() && M.tot.pre.t > 0;
+    const showPre = !SECC() && !SEC() && M.tot.pre.t > 0;
     b.innerHTML = `
-      <div class="ps3-bigs">${big('all', 'مجموع التلاميذ', M.tot.all, M.ncls(''), '📊', M.units.length)}${showPre || !SEC() ? big('pre', 'تلاميذ التعليم الأولي', M.tot.pre, M.ncls('pre'), '🧸') : ''}${big('pri', 'تلاميذ ' + (x.ST.pri.t || 'التعليم الابتدائي'), M.tot.pri, M.ncls('pri'), '🎒')}</div>
+      <div class="ps3-bigs">${big('all', 'مجموع التلاميذ', M.tot.all, M.ncls(''), '📊', SEC() ? null : M.units.length)}${!SECC() && (showPre || !SEC()) ? big('pre', 'تلاميذ التعليم الأولي', M.tot.pre, M.ncls('pre'), '🧸') : ''}${big('pri', 'تلاميذ ' + (x.ST.pri.t || 'التعليم الابتدائي'), M.tot.pri, M.ncls('pri'), '🎒')}</div>
       ${M.issues.length ? `<div class="card ps3-q"><div class="card-h"><h3>🛡️ مراقبة جودة المعطيات</h3><span class="muted" style="font-size:12px">لتكون كل الإحصائيات والوثائق صحيحة</span></div><div class="card-b">${M.issues.map(i => `<div class="ps3-qi ${i.lvl}"><b>${i.n}</b> ${esc(i.t)}<button class="btn sm" data-fix="${i.act}">${i.act === 'settings' ? 'الإعدادات' : i.act === 'teach' ? 'توزيع الأساتذة' : i.act === 'presch' ? 'مربو التعليم الأولي' : i.act === 'list' ? 'لائحة التلاميذ' : 'الوحدات والأقسام'}</button></div>`).join('')}</div></div>`
-        : '<div class="card ps3-q ok"><div class="card-b">✅ المعطيات مترابطة: كل التلاميذ في وحدات مسجلة، لكل وحدة رمز GRESA، ولكل قسم أستاذ(ة) أو مرب(ية).</div></div>'}
+        : `<div class="card ps3-q ok"><div class="card-b">✅ ${SEC() ? 'المعطيات مترابطة: كل التلاميذ في أقسام مسجلة ولكل قسم أستاذ(ة).' : 'المعطيات مترابطة: كل التلاميذ في وحدات مسجلة، لكل وحدة رمز GRESA، ولكل قسم أستاذ(ة) أو مرب(ية).'}</div></div>`}
       <div class="ps3-tb"><button class="btn sm pri" id="ps3Prn">${ic('print')} طباعة «البنية التربوية للمؤسسة»</button>${window.Cyc && Cyc.isSec() ? '' : `<span class="muted" style="font-size:12px">الألوان: <b style="color:${COLS.pre}">التعليم الأولي</b> — <b style="color:${COLS.pri}">${esc(x.ST.pri.t)}</b></span>`}</div>
       ${M.units.map(u => unitCard(u, st)).join('') || '<div class="empty-state">لا توجد وحدات مدرسية ولا لوائح تلاميذ بعد.</div>'}
       ${M.lv.length && M.units.length > 1 ? levelsCard(M) : ''}`;
@@ -114,11 +115,11 @@
     return `<div class="card ps3-u"><div class="ps3-uh"><div><div class="ps3-un">🏫 ${esc(u.name)}</div>
         <div class="ps3-ug">${SEC() ? '' : u.gresa ? `رمز GRESA: <b dir="ltr">${esc(u.gresa)}</b>` : `<span class="ps3-miss">رمز GRESA غير مسجل — أضفه في الإعدادات</span>`}${u.reg ? '' : ' <span class="ps3-miss">وحدة غير مسجلة في الإعدادات</span>'}</div></div>
         <div class="ps3-uk"><span><b>${c.t}</b> تلميذ(ة)</span><span>إناث <b>${c.f}</b></span>${!SEC() && u.cPre.t && st !== 'pri' ? `<span style="color:${COLS.pre}">الأولي <b>${u.cPre.t}</b></span>` : ''}${st !== 'pre' ? `<span style="color:${COLS.pri}">${esc(X().ST.pri.t.replace('التعليم ', ''))} <b>${u.cPri.t}</b></span>` : ''}<span>الأقسام <b>${u.classes.length}</b></span><span>الأساتذة <b>${staffT.length}</b></span>${staffE.length ? `<span>المربون <b>${staffE.length}</b></span>` : ''}</div></div>
-      ${u.classes.length ? `<div style="overflow:auto"><table class="tbl compact ps3-t"><thead><tr><th>القسم</th><th>المستوى / المستويات</th><th>السلك</th><th>ذكور</th><th>إناث</th><th>المجموع</th><th>الأستاذ(ة) / المربي(ة)</th><th></th></tr></thead><tbody>
-        ${u.classes.map(k => `<tr class="${k.pre ? 'pre' : 'pri'}"><td dir="ltr" style="text-align:right"><b>${esc(k.cls)}</b></td><td>${k.lvls.map(pill).join(' ')}</td><td><span class="ps3-dot" style="background:${k.pre ? COLS.pre : COLS.pri}"></span>${k.pre ? 'التعليم الأولي' : esc(X().ST.pri.t)}</td><td class="num">${k.m}</td><td class="num">${k.f}</td><td class="num"><b>${k.t}</b></td>
+      ${u.classes.length ? `<div style="overflow:auto"><table class="tbl compact ps3-t"><thead><tr><th>القسم</th><th>المستوى / المستويات</th>${SECC() ? '' : '<th>السلك</th>'}<th>ذكور</th><th>إناث</th><th>المجموع</th><th>${SECC() ? 'الأستاذ(ة)' : 'الأستاذ(ة) / المربي(ة)'}</th><th></th></tr></thead><tbody>
+        ${u.classes.map(k => `<tr class="${k.pre ? 'pre' : 'pri'}"><td dir="ltr" style="text-align:right"><b>${esc(k.cls)}</b></td><td>${k.lvls.map(pill).join(' ')}</td>${SECC() ? '' : `<td><span class="ps3-dot" style="background:${k.pre ? COLS.pre : COLS.pri}"></span>${k.pre ? 'التعليم الأولي' : esc(X().ST.pri.t)}</td>`}<td class="num">${k.m}</td><td class="num">${k.f}</td><td class="num"><b>${k.t}</b></td>
           <td>${k.staff.length ? k.staff.map(sx => `${esc(sx.name)}${sx.kind === 'ed' && sx.org ? ` <small class="muted">(${esc(sx.org.replace('المؤسسة المغربية للنهوض بالتعليم الأولي', 'FMPS'))})</small>` : ''}`).join('، ') : `<span class="ps3-miss">${k.pre ? 'لا مرب(ية)' : 'غير مسند'}</span>`}</td>
           <td><button class="btn sm" data-u="${esc(u.name)}" data-ucls="${esc(k.cls)}" title="لائحة تلاميذ القسم">👁</button></td></tr>`).join('')}
-        <tr class="att-tot"><td colspan="3">المجموع</td><td class="num">${c.m}</td><td class="num">${c.f}</td><td class="num">${c.t}</td><td colspan="2"></td></tr></tbody></table></div>` : '<div class="muted" style="padding:8px 14px">لا توجد أقسام لهذه الوحدة في هذا الاختيار.</div>'}
+        <tr class="att-tot"><td colspan="${SECC() ? 2 : 3}">المجموع</td><td class="num">${c.m}</td><td class="num">${c.f}</td><td class="num">${c.t}</td><td colspan="2"></td></tr></tbody></table></div>` : '<div class="muted" style="padding:8px 14px">لا توجد أقسام لهذه الوحدة في هذا الاختيار.</div>'}
       ${staffT.length || staffE.length ? `<div class="ps3-staff">${staffT.length ? `<div><b>هيئة التدريس:</b> ${staffT.map(t => `<span class="ps3-chip">${esc(t.name)}${t.cls ? ` <small>${esc(t.cls)}</small>` : ''}</span>`).join('')}</div>` : ''}${staffE.length ? `<div><b>مربو التعليم الأولي:</b> ${staffE.map(e => `<span class="ps3-chip pre">${esc(e.name)}${e.levels ? ` <small>${esc(e.levels)}</small>` : ''}</span>`).join('')}</div>` : ''}</div>` : ''}</div>`;
   }
   function levelsCard(M) {
@@ -134,12 +135,12 @@
     const st = o.stage || '', M = model(sy, st), x = X();
     const blocks = [];
     const kv = (a, b2, c) => `<td style="background:${c};-webkit-print-color-adjust:exact;print-color-adjust:exact"><b>${a}</b><br><span style="font-size:15pt;font-weight:700">${b2}</span></td>`;
-    blocks.push({ html: `<table class="tbl sb-t ps3-kt"><tbody><tr>${kv('مجموع التلاميذ', `${M.tot.all.t} <small>(إ ${M.tot.all.f})</small>`, LIGHT.all)}${!SEC() ? kv('التعليم الأولي', `${M.tot.pre.t} <small>(إ ${M.tot.pre.f})</small>`, LIGHT.pre) : ''}${kv(esc(x.ST.pri.t), `${M.tot.pri.t} <small>(إ ${M.tot.pri.f})</small>`, LIGHT.pri)}${kv('الوحدات المدرسية', M.units.length, '#f3f3f3')}${kv('الأقسام', M.ncls(st), '#f3f3f3')}</tr></tbody></table>` });
+    blocks.push({ html: `<table class="tbl sb-t ps3-kt"><tbody><tr>${kv('مجموع التلاميذ', `${M.tot.all.t} <small>(إ ${M.tot.all.f})</small>`, LIGHT.all)}${!SEC() ? kv('التعليم الأولي', `${M.tot.pre.t} <small>(إ ${M.tot.pre.f})</small>`, LIGHT.pre) : ''}${kv(esc(x.ST.pri.t), `${M.tot.pri.t} <small>(إ ${M.tot.pri.f})</small>`, LIGHT.pri)}${SEC() ? '' : kv('الوحدات المدرسية', M.units.length, '#f3f3f3')}${kv('الأقسام', M.ncls(st), '#f3f3f3')}</tr></tbody></table>` });
     M.units.forEach(u => {
       blocks.push({ before: `<div class="sb-cap r" style="margin-top:3mm">🏫 ${esc(u.name)}${SEC() ? '' : ` — رمز GRESA: <bdi dir="ltr">${esc(u.gresa || '……')}</bdi>`} — ${u.c.t} تلميذ(ة) (إناث ${u.c.f})${u.cPre.t && !SEC() ? ` — الأولي ${u.cPre.t}` : ''}</div>`, keepNext: true,
-        table: { cls: 'sb-t cmp', head: K.thr(['القسم', 'المستوى / المستويات', 'السلك', 'ذكور', 'إناث', 'المجموع', 'الأستاذ(ة) / المربي(ة)'].map(t => ({ t, c: 'd' }))),
-          rows: u.classes.map(k => `<tr><td class="b" dir="ltr">${esc(k.cls)}</td><td>${esc(k.lvls.map(l => LV().sh(l)).join(' + '))}</td><td style="color:${k.pre ? COLS.pre : COLS.pri};font-weight:700">${k.pre ? 'الأولي' : 'الابتدائي'}</td><td>${k.m}</td><td>${k.f}</td><td class="b">${k.t}</td><td class="r sm">${esc(k.staff.map(sx => sx.name).join('، ')) || '—'}</td></tr>`)
-            .concat([`<tr class="tot"><td colspan="3">المجموع</td><td>${u.c.m}</td><td>${u.c.f}</td><td>${u.c.t}</td><td class="r sm">${u.T.length} أستاذ(ة)${u.E.length ? ` — ${u.E.length} مرب(ية)` : ''}</td></tr>`]) }, minRows: 1 });
+        table: { cls: 'sb-t cmp', head: K.thr((SECC() ? ['القسم', 'المستوى', 'ذكور', 'إناث', 'المجموع', 'الأستاذ(ة)'] : ['القسم', 'المستوى / المستويات', 'السلك', 'ذكور', 'إناث', 'المجموع', 'الأستاذ(ة) / المربي(ة)']).map(t => ({ t, c: 'd' }))),
+          rows: u.classes.map(k => `<tr><td class="b" dir="ltr">${esc(k.cls)}</td><td>${esc(k.lvls.map(l => LV().sh(l)).join(' + '))}</td>${SECC() ? '' : `<td style="color:${k.pre ? COLS.pre : COLS.pri};font-weight:700">${k.pre ? 'الأولي' : 'الابتدائي'}</td>`}<td>${k.m}</td><td>${k.f}</td><td class="b">${k.t}</td><td class="r sm">${esc(k.staff.map(sx => sx.name).join('، ')) || '—'}</td></tr>`)
+            .concat([`<tr class="tot"><td colspan="${SECC() ? 2 : 3}">المجموع</td><td>${u.c.m}</td><td>${u.c.f}</td><td>${u.c.t}</td><td class="r sm">${u.T.length} أستاذ(ة)${u.E.length ? ` — ${u.E.length} مرب(ية)` : ''}</td></tr>`]) }, minRows: 1 });
     });
     if (M.lv.length && M.units.length > 1) {
       const U = M.units.filter(u => u.classes.length);
@@ -147,7 +148,7 @@
         table: { cls: 'sb-t cmp', head: K.thr(['المستوى'].concat(U.map(u => u.name + (u.gresa ? ' (' + u.gresa + ')' : '')), ['المجموع', 'إناث']).map(t => ({ t, c: 'd' }))),
           rows: M.lv.map(l => { const T = X().cnt(M.cur.filter(p => p.lvl === l)); return `<tr><td class="b" style="color:${stOf(l) === 'pre' ? COLS.pre : COLS.pri}">${esc(LV().sh(l))}</td>${U.map(u => `<td>${X().cnt(u.P.filter(p => p.lvl === l)).t || ''}</td>`).join('')}<td class="b">${T.t}</td><td>${T.f}</td></tr>`; }) }, minRows: 1 });
     }
-    return { title: 'البنية التربوية للمؤسسة' + (st === 'pre' ? ' — التعليم الأولي' : st === 'pri' ? ' — ' + x.ST.pri.t : ''), sub: `الموسم الدراسي ${esc(sy)} — الوحدات المدرسية ورموز GRESA، الأقسام والمستويات والأطر`, page: 'a4', blocks };
+    return { title: 'البنية التربوية للمؤسسة' + (st === 'pre' ? ' — التعليم الأولي' : st === 'pri' ? ' — ' + x.ST.pri.t : ''), sub: `الموسم الدراسي ${esc(sy)} — ${SEC() ? 'الأقسام والمستويات والأطر' : 'الوحدات المدرسية ورموز GRESA، الأقسام والمستويات والأطر'}`, page: 'a4', blocks };
   }
   Dx.modCss += `.ps3-kt td{text-align:center;padding:2mm;border:1px solid #9bb}`;
   const css = document.createElement('style');

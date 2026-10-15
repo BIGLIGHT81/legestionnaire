@@ -79,6 +79,8 @@
     const sy = sys.length === 1 ? sys[0] : MK.curSy();
     let nG = 0;
     found.forEach(c => c.pupils.forEach(p => { p.g = genders[p.code] || genderFromPupils(sy, p.code) || ''; if (p.g) nG++; }));
+    // 1.9.4: level and class from the imported pupils lists (by the Massar code), in every cycle
+    try { if (window.Pupils && Pupils.locate) found.forEach(c => { const L = Pupils.locate(c.pupils.map(p => p.code), sy); if (L.lvl) { c.lvl = L.lvl; c.level = K.LV.ar(L.lvl); } if (L.cls && (!c.cls || c.cls === c.sheet)) c.cls = L.cls; }); } catch (_) {}
     const nP = found.reduce((a, c) => a + c.pupils.length, 0);
     const body = document.createElement('div');
     body.innerHTML = `<p style="margin-top:0;line-height:1.8">تم العثور على <b>${found.length}</b> لائحة (قسم / مستوى) فيها <b>${nP}</b> تلميذ(ة)، الجنس معروف لـ <b>${nG}</b> منهم${nG < nP ? ' <span class="muted">(أضف ملفات «لائحة التلاميذ» من مسار أو استورد بطاقة التلاميذ لمعرفة جنس الباقين)</span>' : ''}.</p>

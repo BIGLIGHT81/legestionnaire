@@ -38,6 +38,22 @@
     p.alias = p.alias && typeof p.alias === 'object' ? p.alias : {};
   }
   const PD = () => DB.pupils;
+  // 1.9.4: collège / lycée: the levels guessed as primary / pre-school by an older import are corrected from the class code (1APIC -> الأولى إعدادي)
+  function normLv() {
+    try {
+      if (!DB || !DB.pupils) return 0; let n = 0;
+      Object.values(DB.pupils.years || {}).forEach(y => {
+        (y.lists || []).forEach(L => { const lv = (L.levels || []).map(k => LV.cycFix(k, L.cls, L.lvlLabel)); const ok = LV.ofClass(L.cls).filter(k => LV.okFor(k)); const nl = ok.length ? ok : Array.from(new Set(lv.filter(Boolean))); if (JSON.stringify(nl) !== JSON.stringify(L.levels || [])) { L.levels = nl; n++; } });
+        ['pupils', 'moves'].forEach(t => (y[t] || []).forEach(r => { if (!r.lvl || LV.okFor(r.lvl)) return; const k = LV.ofClass(r.cls).filter(x => LV.okFor(x))[0] || LV.cycFix(r.lvl, r.cls, ''); if (k && k !== r.lvl) { r.lvl = k; n++; } }));
+      });
+      // continuous assessment and tests imported before: level / class from the pupils lists
+      try { Object.entries((DB.cc && DB.cc.years) || {}).forEach(([y, o]) => Object.values(o || {}).forEach(arr => (Array.isArray(arr) ? arr : []).forEach(c => { if (!c || (c.lvl && LV.okFor(c.lvl))) return; const L = locate((c.pupils || []).map(p => p.code), y); const k = L.lvl || LV.cycFix(c.lvl, c.cls, c.level); if (k && k !== c.lvl) { c.lvl = k; c.level = LV.ar(k); n++; } }))); } catch (_) {}
+      try { Object.entries((DB.roaiz && DB.roaiz.years) || {}).forEach(([y, arr]) => (Array.isArray(arr) ? arr : []).forEach(g => { const k0 = LV.fromLabel(g.level || ''); if (k0 && LV.okFor(k0)) return; const L = locate((g.pupils || []).map(p => p.id || p.code), y); if (L.lvl && LV.sh(L.lvl) !== g.level) { g.level = LV.sh(L.lvl); n++; } })); } catch (_) {}
+      if (n && DB.certs && Array.isArray(DB.certs.students)) { const lab = new Map(); Object.values(DB.pupils.years || {}).forEach(y => (y.pupils || []).forEach(p => { if (p.code) lab.set(String(p.code).toUpperCase(), LV.name(p.lvl)); }));
+        DB.certs.students.forEach(x => { const l = x.code && lab.get(String(x.code).toUpperCase()); if (l && x.level !== l) x.level = l; }); }
+      return n;
+    } catch (_) { return 0; }
+  }
   // secondary cycles: every pupil / movement / list belongs to the institution itself (one «unit», never shown)
   function normSec() {
     try {
@@ -265,7 +281,8 @@
         const prev = y.pupils.find(x => x.code === r.code) || (mode === 'replace' ? old.get(r.code) : null);
         const keep = prev && prev.lsrc === 'man' && levels.includes(prev.lvl);
         // 1.9.4: the level written for the pupil in the Massar file (column «المستوى») wins over the guess by age of a combined class
-        const own = LV.fromLabel(r.lvlName || '');
+        let own = LV.fromLabel(r.lvlName || '');
+        if (own && levels.length && !levels.includes(own)) own = '';   // 1.9.4: the class code (1APIC, 2APG-3APG...) wins over a short label («الأولى»)
         const lvl = keep ? prev.lvl : own || LV.guess(levels, r.birth, sy);
         const o = Object.assign({}, prev || { id: uid('pp') }, r, { unit, cls: p.cls, lvl, lsrc: keep ? 'man' : own ? 'file' : levels.length > 1 ? 'age' : 'one', listId: L.id });
         if (prev && y.pupils.includes(prev)) Object.assign(prev, o); else y.pupils.push(o);
@@ -313,7 +330,7 @@
   const curS = (sy, st) => current(sy).filter(p => inStage(p, st == null ? stage : st));
   const movesS = (sy, cat, st) => movesOf(sy, cat).filter(m => inStage(m, st == null ? stage : st));
   function summary() {
-    migrate(DB); normSec();
+    migrate(DB); normSec(); if (normLv()) persist();
     const sy = curSy(), arr = current(sy);
     if (!Y(sy).pupils.length) return { n: 0 };
     const c = cnt(arr);
@@ -359,13 +376,23 @@
     });
     return { changed: n, guessed: y.pupils.filter(p => p.lsrc === 'age').length };
   }
+  // 1.9.4: the level and the class of pupils known by their Massar codes are taken from the imported pupils lists (every cycle):
+  // { lvl, cls } of the majority, and per code. The lists of the season sy are read first, then the other seasons.
+  function locate(codes, sy) {
+    const by = new Map(), want = new Set((codes || []).map(c => String(c || '').trim().toUpperCase()).filter(Boolean));
+    if (!want.size || !DB || !DB.pupils) return { lvl: '', cls: '', by };
+    const yrs = [sy || curSy()].concat(Object.keys(DB.pupils.years || {}).filter(y => y !== (sy || curSy())).sort().reverse());
+    yrs.forEach(y => { const Y0 = DB.pupils.years[y]; if (!Y0) return; (Y0.pupils || []).forEach(p => { const c = String(p.code || '').toUpperCase(); if (want.has(c) && !by.has(c) && (p.lvl || p.cls)) by.set(c, { lvl: p.lvl || '', cls: p.cls || '' }); }); });
+    const top = k => { const n = {}; by.forEach(v => { if (v[k]) n[v[k]] = (n[v[k]] || 0) + 1; }); return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || ''; };
+    return { lvl: top('lvl'), cls: top('cls'), by };
+  }
   // 1.9.4: the order of the Massar lists (class, then the rank in the list) — for the registers of absence and the class lists
   function massarOrder(arr, sy) {
     const all = Y(sy || curSy()).pupils, pos = new Map(all.map((p, i) => [p, i]));
     const cpos = new Map(); all.forEach(p => { if (!cpos.has(p.cls)) cpos.set(p.cls, cpos.size); });
     return arr.slice().sort((a, b) => ((cpos.get(a.cls) ?? 1e6) - (cpos.get(b.cls) ?? 1e6)) || ((a.ord || 1e6) - (b.ord || 1e6)) || ((pos.get(a) ?? 1e9) - (pos.get(b) ?? 1e9)));
   }
-  window.Pupils = { massarOrder, refineLevels, exactLevels, migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
+  window.Pupils = { normLv, locate, massarOrder, refineLevels, exactLevels, migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
 
 
   /* ---------- 1.9.2: same family name (siblings) ---------- */
@@ -510,7 +537,7 @@
     .pu-st-pre .tbl thead th,.pu-st-pri .tbl thead th{background:var(--stl)}
     @media(max-width:700px){.pu-stbar{grid-template-columns:1fr}}`; document.head.appendChild(c); }
   window.pagePupils = function (v, arg) {
-    migrate(DB); normSec();
+    migrate(DB); normSec(); if (normLv()) persist();
     if (SECL()) stage = ''; if (SEC()) { flt.unit = ''; flt.munit = ''; flt.dunit = ''; }
     if (arg && arg.tab) tab = arg.tab;
     if (arg && arg.cat) flt.mcat = arg.cat;
@@ -764,7 +791,7 @@
       { k: 'date', l: 'التاريخ', t: 'date', half: 1 }, { k: 'code', l: 'رمز مسار', half: 1, dir: 'ltr', list: 'k2Codes', link: pickLink },
       { k: 'last', l: 'النسب', half: 1 }, { k: 'first', l: 'الاسم', half: 1 },
       { k: 'g', l: 'الجنس', t: 'select', opts: [['M', 'ذكر'], ['F', 'أنثى']], half: 1 }, { k: 'birth', l: 'تاريخ الازدياد', t: 'date', half: 1 },
-      ...(SEC() ? [] : [{ k: 'unit', l: 'الوحدة المدرسية', list: 'k2Units', half: 1 }]), { k: 'lvl', l: 'المستوى', t: 'select', opts: LV.ALL.filter(l => !SEC() || Cyc.has(l.k)).map(l => [l.k, l.ar]), half: SEC() ? 0 : 1 },
+      ...(SEC() ? [] : [{ k: 'unit', l: 'الوحدة المدرسية', list: 'k2Units', half: 1 }]), { k: 'lvl', l: 'المستوى', t: 'select', opts: LV.ALL.filter(l => LV.okFor(l.k)).map(l => [l.k, l.ar]), half: SEC() ? 0 : 1 },
       { k: 'ttype', l: 'نوع التحويل (وافد / مغادر)', half: 1 }, { k: 'dis', l: 'نوع الإعاقة (وضعية إعاقة)', half: 1 },
       { k: 'orig', l: 'المؤسسة الأصلية', half: 1 }, { k: 'recv', l: 'مؤسسة الاستقبال', half: 1 },
       { k: 'note', l: 'ملاحظة (السبب...)' }], d);
@@ -1052,12 +1079,12 @@
     new1: { get t() { return (window.Cyc && Cyc.kind() === 'lyc') ? 'المسجلون الجدد بالجذع المشترك' : 'المسجلون الجدد بالسنة الأولى'; }, f: docNew1 }, moves: { t: 'جدول التتبع الدوري للحركية', f: (s, sy, st) => docMoves(s, sy, st) }, school: { t: 'لوحة إحصاء التمدرس', f: (s, sy, st) => Pupils2.docs.school(s, sy, st) }, threat: { t: 'لائحة وإحصاء التلاميذ المهددين بالفصل', f: (s, sy, st) => Pupils2.docs.threat(s, sy, st) },
     disab: { t: 'إحصاء ولائحة التلاميذ في وضعية إعاقة', f: (s, sy, st) => Pupils2.docs.disab(s, sy, st) }, xfer: { t: 'لائحة التحويلات (الوافدون / المغادرون / في طور التحويل)', f: (s, sy, st) => Pupils2.docs.xfer(s, sy, st) },
     movelist: { t: 'لائحة الحركية (حسب الفئة)', f: (s, sy, st) => (['joined', 'left', 'transit'].includes(st.cat) ? Pupils2.docs.xfer(s, sy, st) : docMoveList(s, sy, st.cat, st.stage)) },
-    struct: { t: 'البنية التربوية للمؤسسة (الوحدات، GRESA، الأقسام، المستويات، الأطر)', f: (s, sy, st) => window.Pupils3.doc(s, sy, st) },
+    struct: { get t() { return SEC() ? 'البنية التربوية للمؤسسة (الأقسام، المستويات، الأطر)' : 'البنية التربوية للمؤسسة (الوحدات، GRESA، الأقسام، المستويات، الأطر)'; }, f: (s, sy, st) => window.Pupils3.doc(s, sy, st) },
     list: { t: 'لائحة التلاميذ', f: (s, sy, st) => docList(s, sy, st) }, fam: { t: 'لائحة الأسماء العائلية المتشابهة (الإخوة)', f: (s, sy, st) => docFam(s, sy, st) }, cards: { t: 'بطاقات التلاميذ', f: null }
   };
   window.Pupils.docs = { gender: docGender, age: docAge, girls: docGirls, new1: docNew1, moves: docMoves };
   window.pagePupilDoc = function (v, arg) {
-    migrate(DB); normSec();
+    migrate(DB); normSec(); if (normLv()) persist();
     arg = arg || {};
     const sy0 = curSy();
     MK.docPage(v, {

@@ -107,7 +107,7 @@
     }, cfg));
     return centres[key];
   }
-  const center = () => centreOf('budget', () => parts.filter(p => !LIFE.includes(p.id)).map(p => p.id), {
+  const center = () => centreOf('budget', () => parts.filter(p => !LIFE.includes(p.id) && !(p.id === 'coop' && window.Cyc && Cyc.isSec())).map(p => p.id), {   // 1.9.4: no school cooperative in the collège / lycée
     id: 'budget', title: 'الميزانية', icon: '💰', route: 'budgetDoc', hubRoute: 'budget',
     intro: 'مالية التعاونية المدرسية والجمعية الرياضية وجمعية دعم مدرسة النجاح في مكان واحد: أدخل معطيات كل هيأة مرة واحدة وستنتقل تلقائيا إلى كل وثائقها (مشروع الصرف، دفاتر المصاريف، التقرير المالي، بطاقة التتبع، محاضر التحويل...). كل الوثائق بنفس تصميم السبورة المرجعية وجاهزة للطبع أو PDF.'
   });

@@ -128,7 +128,7 @@
       return [head('المؤشرات العامة للمؤسسة'), blk(kpis([
         { v: c.E.length, l: 'عدد الموظفين' }, { v: T, l: 'هيئة التدريس' }, { v: PU.n || '—', l: 'عدد التلاميذ' }, { v: PU.n ? PU.classes : '—', l: 'عدد الأقسام' },
         { v: PU.n && T ? f1(PU.n / T) : '—', l: 'تلميذ(ة) لكل أستاذ(ة)' },
-        { v: c.single ? '—' : (D ? D.units.filter(u => u.mine.length || u.c.t).length || '—' : '—'), l: 'الوحدات المدرسية' },
+        ...(c.single ? [] : [{ v: D ? D.units.filter(u => u.mine.length || u.c.t).length || '—' : '—', l: 'الوحدات المدرسية' }]),
         { v: safe(() => absentToday().length, 0), l: 'غائبون اليوم', c: safe(() => absentToday().length, 0) ? 'red' : '' },
         { v: A.length, l: 'حالات الغياب خلال الموسم' }, { v: days, l: 'أيام الغياب خلال الموسم' },
         { v: at && at.rate != null ? f1(+num(at.rate).toFixed(2)) + '%' : '—', l: 'نسبة غياب التلاميذ (السنوية)', c: at && at.rate != null && at.alert && at.rate > at.alert ? 'red' : '' },
@@ -200,7 +200,7 @@
       return [head('التلاميذ'),
         blk(kpis([{ v: tot.t, l: 'مجموع التلاميذ' }, { v: tot.m, l: 'الذكور' }, { v: tot.f, l: 'الإناث' }, { v: pc(tot.f, tot.t), l: 'نسبة الإناث' }, { v: Y.lists.length, l: 'عدد الأقسام' },
           { v: Y.lists.length ? f1(+(tot.t / Y.lists.length).toFixed(1)) : '—', l: 'متوسط التلاميذ في القسم' }, { v: cl.length ? cl[0][1] : '—', l: 'أكبر قسم (تلميذ)' }, { v: cl.length ? cl[cl.length - 1][1] : '—', l: 'أصغر قسم (تلميذ)' },
-          { v: c.single ? '—' : units.length, l: 'الوحدات المدرسية' }, ...(SECX() ? [] : [{ v: pre ? pre : '—', l: 'أطفال التعليم الأولي' }]),
+          ...(c.single ? [] : [{ v: units.length, l: 'الوحدات المدرسية' }]), ...(SECX() ? [] : [{ v: pre ? pre : '—', l: 'أطفال التعليم الأولي' }]),
           { v: mv('joined'), l: 'الوافدون' }, { v: mv('left'), l: 'المغادرون' }, { v: mv('drop'), l: 'المنقطعون', c: mv('drop') ? 'red' : '' }, { v: mv('notjoined'), l: 'غير الملتحقين', c: mv('notjoined') ? 'red' : '' },
           { v: ages.length ? f1(+avg(ages.map(x => x.a)).toFixed(1)) : '—', l: 'متوسط السن (سنة)' }], 5)),
         blk(charts([{ t: 'التلاميذ حسب المستوى والجنس', h: vbars(lv.map(LV.sh), [{ name: 'ذكور', color: C.m, vals: lv.map(l => cn(P, p => p.lvl === l).m) }, { name: 'إناث', color: C.f, vals: lv.map(l => cn(P, p => p.lvl === l).f) }], { w: 400, h: 175 }) },
@@ -333,7 +333,7 @@
         const f = Dd(); picked();
         const defs = () => [{ sec: 'الأقسام المراد إدراجها' },
           { note: 'تُحسب كل المؤشرات والمبيانات تلقائيا من معطيات البرنامج (الموظفون، الغياب، التلاميذ، الأساتذة، المواظبة، الوثائق، الشواهد، الأندية والشركاء، الميزانية والعتاد...). القسم الذي لا معطيات له لا يظهر في الوثيقة. اختر الأقسام ثم اضغط «طباعة» أو «PDF» أو «Word».' },
-          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => x.t + (has[i] ? '' : ' (لا معطيات بعد)')) },
+          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => cycT(x.t) + (has[i] ? '' : ' (لا معطيات بعد)')) },
           { k: 'note', l: 'ملاحظة أسفل الوثيقة', t: 'area', rows: 2 }];
         let t = null;
         K.form(box, defs, f, () => { clearTimeout(t); t = setTimeout(() => persist(), 300); refresh(); });

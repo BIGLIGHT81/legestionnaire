@@ -287,7 +287,7 @@ const NAV = [
     tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية (نظرة شاملة)'),
       tab('budget', 'جمعية دعم مدرسة النجاح', { part: 'najah', only: ['nj_', 'rg_nj'], title: 'جمعية دعم مدرسة النجاح' }, { k: 'budget:najah' }),
       tab('budget', 'الجمعية الرياضية المدرسية', { part: 'sport', only: ['sp_', 'rg_sp'], title: 'الجمعية الرياضية المدرسية' }, { k: 'budget:sport' }),
-      tab('budget', 'جمعية تنمية التعاون المدرسي', { part: 'coop', only: ['cp_', 'rg_cp'], title: 'جمعية تنمية التعاون المدرسي (التعاونية المدرسية)' }, { k: 'budget:coop' }), tab('stock', 'العتاد والوسائل التعليمية'), tab('conso', 'استهلاك الماء والكهرباء')] },
+      tab('budget', 'جمعية تنمية التعاون المدرسي', { part: 'coop', only: ['cp_', 'rg_cp'], title: 'جمعية تنمية التعاون المدرسي (التعاونية المدرسية)' }, { k: 'budget:coop', w: isPriCycle }), tab('stock', 'العتاد والوسائل التعليمية'), tab('conso', 'استهلاك الماء والكهرباء')] },
   { id: 'settings', c: '#455a64', label: 'الإعدادات', icon: 'gear', tabs: () => [tab('settings', 'الإعدادات')] },
   { id: 'license', c: '#37474f', label: 'التفعيل', icon: 'key', tabs: () => [tab('license', 'التفعيل')] }
 ];
@@ -381,6 +381,7 @@ function go(page, arg) {
   if (PRI_ONLY.includes(page) && isSecCycle()) { page = 'home'; arg = null; }
   $('#modalRoot').innerHTML = '';
   current = page; currentArg = arg || null;
+  try { if (window.Pupils && Pupils.normLv && Pupils.normLv()) persist(); } catch (_) {}
   try { if (window.Units && Units.normSec && Units.normSec()) persist(); } catch (e) { /* alignment of the units with the institution (collège / lycée) is best effort */ }
   renderNav();
   const v = $('#view');
@@ -1130,7 +1131,7 @@ function pageDocuments(v, arg) {
   const fileCards = q => (window.Files ? Files.DOCS().filter(d => !q || (d.t + ' ' + d.d).includes(q)) : []).map(d => `<div class="card doc-card" data-fl="${d.k}"><div class="e">${d.grp === 'p' ? '🎒' : '📨'}</div>
         <div><h3>${d.t}</h3><p>${d.d}</p></div></div>`).join('');
   const followCards = q => {
-    const t = 'شبكة تتبع العمل التربوي بالمؤسسة', d = 'جدول بالأساتذة والمهام المطلوبة منهم (الأبواب المفتوحة، الورشات، الروائز، استعمال الزمن، الغياب…) والمنجز يظهر بوجه مبتسم أخضر';
+    const t = 'شبكة تتبع العمل التربوي بالمؤسسة', d = cycT('جدول بالأساتذة والمهام المطلوبة منهم (الأبواب المفتوحة، الورشات، الروائز، استعمال الزمن، الغياب…) والمنجز يظهر بوجه مبتسم أخضر');
     const sm = window.Track ? Track.summary() : { n: 0, avg: 0 };
     const gt = 'جداول الحراسة', gd = `جدول الحراسة${vsec ? '' : ' لكل وحدة مدرسية'} (صباحا ومساء: الاسم، رقم التأجير، التوقيع، التوجيهات) — تناوب تلقائي من الموظفين، حراسة اليوم وبديل الغائب، إحصاء الحصص`;
     const gs = window.Guard ? Guard.summary() : { units: 0, teachers: 0 };
@@ -1142,7 +1143,7 @@ function pageDocuments(v, arg) {
     return `${showT ? `<div class="card doc-card" data-trk="1"><div class="e">🙂</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} شبكة، الإنجاز ${sm.avg}%` : ''}</p></div></div>` : ''}${showG ? `<div class="card doc-card" data-grd="1"><div class="e">🛡️</div><div><h3>${gt}</h3><p>${gd}${gs.teachers ? ` — ${gs.teachers} أستاذ(ة) مكلف(ة)` : ''}</p></div></div>` : ''}${showR ? `<div class="card doc-card" data-drp="1"><div class="e">📋</div><div><h3>${rt}</h3><p>${rd}</p></div></div>` : ''}${showV ? `<div class="card doc-card" data-vsc="1"><div class="e">📨</div><div><h3>${vt}</h3><p>${vd}</p></div></div>` : ''}`;
   };
   // 1.9.4: the digital register of the inspection and follow-up visits, first card of «التأطير والتتبع»
-  const visitCard = q => { const t = 'سجل الزيارات التفقدية والتتبع التربوي', d = 'توثيق زيارات أساتذة الوحدات المدرسية: التاريخ، الأستاذ(ة)، الوحدة، التأشير على المذكرة اليومية وسجل الغياب ودفاتر التلاميذ والجذاذات واستعمال الزمن واحترام التوصيات السابقة، الملاحظات والتوصيات'; if (q && !(t + ' ' + d + ' زيارة').includes(q)) return ''; const sm = window.Visits ? Visits.summary() : { n: 0 }; return `<div class="card doc-card" data-vst="1"><div class="e">🗂️</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} زيارة` : ''}</p></div></div>`; };
+  const visitCard = q => { const t = 'سجل الزيارات التفقدية والتتبع التربوي', d = cycT('توثيق زيارات أساتذة الوحدات المدرسية: التاريخ، الأستاذ(ة)، الوحدة، التأشير على المذكرة اليومية وسجل الغياب ودفاتر التلاميذ والجذاذات واستعمال الزمن واحترام التوصيات السابقة، الملاحظات والتوصيات'); if (q && !(t + ' ' + d + ' زيارة').includes(q)) return ''; const sm = window.Visits ? Visits.summary() : { n: 0 }; return `<div class="card doc-card" data-vst="1"><div class="e">🗂️</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} زيارة` : ''}</p></div></div>`; };
   const cardsOf = (id, q) => id === 'files' ? fileCards(q) : id === 'follow' ? followCards(q) : id === 'peda' ? visitCard(q) + typeCards(id, q) : typeCards(id, q);
   const nOf = id => (id === 'files' ? (window.Files ? Files.DOCS().length : 0) : id === 'follow' ? 4 : id === 'peda' ? 1 + Object.values(TYPES).filter(t => !t.hidden && t.cat === 'peda').length : Object.values(TYPES).filter(t => !t.hidden && (t.cat || 'all') === id).length);
   const cur = SECS.find(x => x.id === cat);
@@ -1828,9 +1829,12 @@ function openResume(empId, from, to, reason, back) {
   $$('[data-m]', body).forEach(b => b.onclick = () => go('editor', { type: b.dataset.m, empId, preset: { from, to, afterType: String(reason || '').trim() === 'غياب' ? 'تغيب أو انقطاع العمل' : reason }, from: back || 'absences' }));
 }
 // ended absences of the school year for which no resume-of-work document was made yet
+// 1.9.4: a resumption marked as done (green tick) leaves the list of the pending reports
+const resKey = a => `${a.rec.empId}|${a.from}|${a.to}`;
+const resDone = () => (DB.resumeDone = DB.resumeDone && typeof DB.resumeDone === 'object' ? DB.resumeDone : {});
 function pendingResumes() {
-  const t = todayIso(), y0 = MK.syStart(MK.curSy()) + '-09-01';
-  return absenceEntries().filter(a => a.to < t && a.to >= y0 && a.reason !== 'إذن بالتغيب' && !hasResume(a.rec.empId, a.from, a.to))
+  const t = todayIso(), y0 = MK.syStart(MK.curSy()) + '-09-01', D = resDone();
+  return absenceEntries().filter(a => a.to < t && a.to >= y0 && a.reason !== 'إذن بالتغيب' && !D[resKey(a)] && !hasResume(a.rec.empId, a.from, a.to))
     .sort((p, q) => q.to.localeCompare(p.to));
 }
 function pageAbsences(v, arg) {
@@ -1859,9 +1863,10 @@ function pageAbsences(v, arg) {
     { // ended absences without a «محضر استئناف العمل»: one click creates it
       const P = pendingResumes();
       $('#aPend').innerHTML = P.length ? `<div class="card" style="margin-bottom:16px;border-color:#e6c36a;background:#fffaf0"><div class="card-h"><h3>محاضر استئناف العمل المنتظرة (${P.length})</h3></div>
-        <div class="card-b" style="padding:6px 16px"><table class="tbl"><tbody>${P.slice(0, 8).map((a, i) => `<tr><td class="name-cell"><b>${esc(recName(a.rec))}</b><small>${esc(a.reason)}</small></td><td class="num">${fmtDate(a.from)} ← ${fmtDate(a.to)}</td><td class="act"><button class="btn sm pri" data-pr="${i}">إنشاء محضر الاستئناف</button></td></tr>`).join('')}</tbody></table>
+        <div class="card-b" style="padding:6px 16px"><table class="tbl"><tbody>${P.slice(0, 8).map((a, i) => `<tr><td class="name-cell"><b>${esc(recName(a.rec))}</b><small>${esc(a.reason)}</small></td><td class="num">${fmtDate(a.from)} ← ${fmtDate(a.to)}</td><td class="act" style="white-space:nowrap"><button class="btn sm pri" data-pr="${i}">إنشاء محضر الاستئناف</button> <button class="btn sm" data-prok="${i}" title="استأنف الموظف(ة) عمله: يُحذف من اللائحة" style="background:#e8f7ee;border-color:#2e9e5b;color:#1e7d45;font-weight:700">✔ استأنف عمله</button></td></tr>`).join('')}</tbody></table>
         ${P.length > 8 ? `<div class="muted" style="font-size:12px;margin-top:4px">و${P.length - 8} حالات أخرى…</div>` : ''}</div></div>` : '';
       $$('#aPend [data-pr]').forEach(b => b.onclick = () => { const a = P[+b.dataset.pr]; openResume(a.rec.empId, a.from, a.to, a.reason); });
+      $$('#aPend [data-prok]').forEach(b => b.onclick = () => { const a = P[+b.dataset.prok]; resDone()[resKey(a)] = todayIso(); persist(); draw(); toast(`تم تسجيل استئناف ${recName(a.rec)} لعمله`); });
     }
     const line = (r, off) => `<tr data-id="${r.rec.id}" class="${off ? 'off' : ''}">
       <td class="name-cell"><b>${esc(r.name)}</b><small>${esc(r.ppr)}</small></td>
@@ -2033,7 +2038,7 @@ async function pageSettings(v) {
         <div class="card"><div class="card-h"><h3>الموسم الدراسي</h3></div><div class="card-b">
           <div class="btn-row"><label class="b" for="sySet">الموسم الدراسي النشط :</label><select class="inp" id="sySet" style="width:auto;min-width:200px"></select>
             <label class="chk"><input type="checkbox" id="syAuto" ${MK.isAutoSy() ? 'checked' : ''}> تلقائي حسب التاريخ</label></div>
-          <p class="muted" style="font-size:12.5px;line-height:1.7;margin:8px 0 0">تعمل كل الأقسام (بطاقة التلاميذ، المواظبة، الروائز، التواصل، السبورة المرجعية، الميزانية، العطل، لوحة القيادة) على الموسم النشط، ويمكن تغييره أيضا من القائمة الجانبية. تبقى معطيات كل موسم محفوظة للرجوع إليها.</p>
+          <p class="muted" style="font-size:12.5px;line-height:1.7;margin:8px 0 0">تعمل كل الأقسام (بطاقة التلاميذ، المواظبة، ${isSecCycle() ? 'التقويم' : 'الروائز'}، التواصل، السبورة المرجعية، الميزانية، العطل، لوحة القيادة) على الموسم النشط، ويمكن تغييره أيضا من القائمة الجانبية. تبقى معطيات كل موسم محفوظة للرجوع إليها.</p>
         </div></div>
         <div class="card"><div class="card-h"><h3>العطل المدرسية</h3></div><div class="card-b">
           <p class="muted" style="margin-top:0;font-size:12.5px;line-height:1.7">لائحة العطل الرسمية (الفترات البينية، الأعياد، عطلة منتصف السنة...) قابلة للتعديل، وتظهر العطلة القادمة في لوحة القيادة.</p>
@@ -2105,7 +2110,7 @@ async function pageSettings(v) {
       return `<div class="fld"><label>${l}</label><input class="inp${t === 'tif' ? ' tif' : ''}" data-k="${k}" value="${esc(val)}" ${['email', 'schoolFr', 'cityFr', 'directorateFr', 'phone'].includes(k) ? 'dir="ltr"' : ''}${t === 'tif' ? ' dir="ltr" placeholder="ⵜⵉⴼⵉⵏⴰⵖ"' : ''}></div>`;
     }).join('');
     // 1.9.4: independent primary school  <->  school group (units): every section follows the choice
-    const applyOrg = () => { try { if (window.Units) { Units.normSec(); Units.card($('#unitsBox')); } } catch (_) {} persist(); drawFields(); renderNav(); };
+    const applyOrg = () => { try { if (window.Pupils && Pupils.normLv) Pupils.normLv(); } catch (_) {} try { if (window.Units) { Units.normSec(); Units.card($('#unitsBox')); } } catch (_) {} persist(); drawFields(); renderNav(); };
     $$('#instFields [name=orgMode]').forEach(r => r.onchange = async () => {
       if (!r.checked) return;
       const i = inst(), want = r.value, B = (DB.board = DB.board || {}), nUnits = (B.units || []).filter(u => u && u.name).length;

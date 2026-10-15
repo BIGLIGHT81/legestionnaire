@@ -136,13 +136,13 @@
   add({
     k: 'assoc', t: 'تركيبة الجمعيات الفاعلة بالمؤسسة', grp: 'a', d: 'مكاتب جمعية دعم مدرسة النجاح والجمعية الرياضية والتعاونية المدرسية.', auto: 'لوائح الموظفين (اختر الاسم فتُملأ بقية الخانات)',
     init: () => ({ najah: defaultBureau('najah'), sport: defaultBureau('sport'), coop: defaultBureau('coop') }),
-    defs: () => ASSOC.map(([k, l]) => gridDef(k, l, asCols, {
+    defs: () => ASSOC.filter(([k]) => !(k === 'coop' && secNow())).map(([k, l]) => gridDef(k, l, asCols, {
       widths: ['1.5fr', '1.3fr', '1fr', '.9fr', '.9fr', '1fr', '1.6fr'], list: ['k2Emps'],
       fill: r => { const e = K.E.byName(r[0]); if (!e) return null; const m = memberRow(e); return [m[0], r[1] || m[1], r[2], m[3], m[4], m[5], m[6]]; }
     })),
     build: (s, f) => ({
       title: 'تركيبة الجمعيات الفاعلة بالمؤسسة', sign: SIGN(s),
-      blocks: ASSOC.map(([k, l]) => tbl(thr([{ t: l, c: 'd', s: 8 }]) + thr(['ر.ت'].concat(asCols).map(t => ({ t, c: 'd' }))),
+      blocks: ASSOC.filter(([k]) => !(k === 'coop' && secNow())).map(([k, l]) => tbl(thr([{ t: l, c: 'd', s: 8 }]) + thr(['ر.ت'].concat(asCols).map(t => ({ t, c: 'd' }))),
         (f[k] || []).filter(r => r.some(x => String(x || '').trim())).map((r, i) => tr([i + 1, { t: r[0], c: 'b r' }, { t: r[1], c: 'sm' }, r[2], r[3], { t: r[4], c: 'ltr' }, { t: r[5], c: 'nw' }, { t: r[6], c: 'xs r' }]))))
     })
   });
@@ -388,7 +388,7 @@
     return [fullName(e), ds.join('+'), String(c.m), String(c.f), '', '', ''];
   });
   add({
-    k: 'coopOffices', t: 'أعضاء مكاتب التعاونيات الفصلية والتعاونية المدرسية', grp: 'a', d: 'مكتب تعاونية كل قسم (رئيس، كاتب، أمين) ومكتب التعاونية المدرسية.', auto: 'الأساتذة والمستويات وأعداد التلاميذ',
+    k: 'coopOffices', noSec: true, t: 'أعضاء مكاتب التعاونيات الفصلية والتعاونية المدرسية', grp: 'a', d: 'مكتب تعاونية كل قسم (رئيس، كاتب، أمين) ومكتب التعاونية المدرسية.', auto: 'الأساتذة والمستويات وأعداد التلاميذ',
     init: (s, sy) => ({ classes: coopDefault(sy), office: [['الرئيس', '', '', ''], ['نائبه', '', '', ''], ['الكاتب', '', '', ''], ['نائبه', '', '', ''], ['الأمين', '', '', ''], ['نائبه', '', '', ''], ['مستشار', '', '', ''], ['مستشار', '', '', ''], ['مستشار', '', '', '']] }),
     defs: () => [gridDef('classes', 'مكاتب تعاونيات الأقسام', ['الأستاذ(ة)', 'المستوى', 'ذ', 'إ', 'الرئيس', 'الكاتب', 'الأمين'], { widths: ['1.5fr', '.7fr', '.5fr', '.5fr', '1.1fr', '1.1fr', '1.1fr'], list: ['k2Emps', null, null, null, 'k2Pupils', 'k2Pupils', 'k2Pupils'] }),
       gridDef('office', 'مكتب التعاونية المدرسية (تلاميذ)', ['المهمة', 'الاسم الكامل', 'المستوى', 'الوحدة'], { widths: ['.8fr', '1.5fr', '1fr', '1fr'], list: [null, 'k2People', null, 'k2Units'], link: { src: 'any', n: 1, cols: { lvl: 2, unit: 3 } } })],

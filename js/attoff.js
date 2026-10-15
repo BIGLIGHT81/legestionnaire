@@ -365,7 +365,7 @@
     id: 'attoff', title: 'وثائق مواظبة التلاميذ', icon: '🗂️', route: 'attoffDoc', hubRoute: 'attoff', years: () => Object.keys(AO().years),
     groups: [['pu', 'مواظبة المتعلمين', 'النموذج الرسمي الشهري المعتمد']],
     intro: 'وثائق مواظبة التلاميذ: النموذج الرسمي الشهري للمواظبة (يُحسب من لوائح التلاميذ ومن «إحصاء مواظبة التلاميذ»)، مع الوصول السريع إلى تقارير المواظبة وسجل غياب التلاميذ. <span class="muted">نماذج غياب الموظفين توجد في خانة «الموظفون».</span>',
-    docs: () => DOCS.filter(d => d.grp === 'pu'), store: sy => store(sy),
+    docs: () => DOCS.filter(d => d.grp === 'pu' && !(window.Cyc && Cyc.isSec())), store: sy => store(sy),
     hubButtons: () => `<button class="btn" id="aoBack">${ic('back')} إحصاء مواظبة التلاميذ</button><button class="btn" id="aoReg">${ic('cal')} سجل غياب التلاميذ</button>`,
     onHub: v => {
       const b = $('#aoBack', v); if (b) b.onclick = () => go('attend');

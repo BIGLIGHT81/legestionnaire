@@ -145,6 +145,8 @@
       });
     });
     fillGender(groups);
+    // 1.9.4: the level and the class come from the imported pupils lists (by the Massar code): «1APIC» is «الأولى إعدادي», a combined class gets the level of its pupils
+    try { if (window.Pupils && Pupils.locate) groups.forEach(g => { const L = Pupils.locate((g.pupils || []).map(p => p.id || p.code), MK.curSy()); if (L.lvl) g.level = K.LV.sh(L.lvl); (g.pupils || []).forEach(p => { const x = L.by.get(String(p.id || p.code || '').toUpperCase()); if (x && x.cls && !p.cls) p.cls = x.cls; }); }); } catch (_) {}
     // 1.9.4: the same Massar export downloaded several times (…_1, …_5…) must not double the pupils
     let nDup = 0;
     { const seen = new Set(); const keep = []; groups.forEach(g => { const k = [g.phase, g.unit, g.level, g.pupils.map(x => x.id || x.name).sort().join(',')].join('|'); if (seen.has(k)) { nDup++; return; } seen.add(k); keep.push(g); }); groups.length = 0; keep.forEach(g => groups.push(g)); }

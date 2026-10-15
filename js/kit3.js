@@ -73,12 +73,12 @@
       const gBar = gTabs ? `<div class="seg cf-gt" style="margin-bottom:12px;flex-wrap:wrap">${groups.map(([g, l]) => [g, shortG(l)]).concat([['*', 'الكل']]).map(([g, l]) => `<button data-cg="${g}" class="${g === (gSel || '*') ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` : '';
       if (gSel) groups = groups.filter(x => x[0] === gSel);
       v.innerHTML = `<div class="page-h"><h1>${esc(arg.title || '') || cfg.title}</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}${cfg.sub ? ' — ' + cfg.sub : ''}</span><span class="sp"></span>${cfg.hubButtons ? cfg.hubButtons() : ''}</div>
-        ${!arg.only && (typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro) ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro}</div>` : ''}
+        ${!arg.only && (typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro) ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${cycT(typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro)}</div>` : ''}
         ${gBar}${groups.map(([g, label, hint]) => {
           const list = docs.filter(d => (d.grp || '') === g);
           if (!list.length) return '';
           return `<div class="sec-t" style="margin:14px 0 8px">${label}${hint ? `<span class="muted" style="font-weight:400;font-size:12px"> — ${hint}</span>` : ''}</div>
-            <div class="hub-grid">${list.map(d => `<div class="card hub-card" data-k="${d.k}"><div class="hub-t">${d.t}</div><div class="hub-d">${d.d || ''}</div>${d.auto ? `<div class="hub-a">${ic('check')} ${d.auto}</div>` : ''}</div>`).join('')}</div>`;
+            <div class="hub-grid">${list.map(d => `<div class="card hub-card" data-k="${d.k}"><div class="hub-t">${d.t}</div><div class="hub-d">${cycT(d.d || '')}</div>${d.auto ? `<div class="hub-a">${ic('check')} ${cycT(d.auto)}</div>` : ''}</div>`).join('')}</div>`;
         }).join('')}`;
       $$('.hub-card', v).forEach(c => c.onclick = () => go(cfg.route, { kind: c.dataset.k }));
       $$('[data-cg]', v).forEach(b => b.onclick = () => go(cfg.hubRoute, Object.assign({}, arg, { g: b.dataset.cg })));
@@ -116,7 +116,7 @@
             box.innerHTML = `<div class="sec-t">${cfg.docLabel || 'الوثيقة'}</div>
               <div class="fld"><select class="inp" id="cfDoc">${(groupsOf() || [['', '']]).map(([g, label]) => { const l = docs.filter(x => (x.grp || '') === g); return l.length ? `<optgroup label="${esc(label)}">${l.map(x => `<option value="${x.k}" ${x.k === st.kind ? 'selected' : ''}>${x.t}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></div>
               ${cfg.noSy ? '' : `<div class="fld"><label>الموسم الدراسي</label><select class="inp" id="cfSy">${MK.syList(cfg.years ? cfg.years() : []).map(y => `<option value="${y}" ${y === st.sy ? 'selected' : ''}>${MK.syDash(y)}</option>`).join('')}</select></div>`}
-              ${d.auto ? `<p class="muted" style="font-size:12px;line-height:1.7;margin:2px 0 6px">${ic('check')} يُملأ تلقائيا من: ${d.auto}. يمكن تعديل أي خانة وستُحفظ تعديلاتك.</p>` : ''}
+              ${d.auto ? `<p class="muted" style="font-size:12px;line-height:1.7;margin:2px 0 6px">${ic('check')} يُملأ تلقائيا من: ${cycT(d.auto)}. يمكن تعديل أي خانة وستُحفظ تعديلاتك.</p>` : ''}
               <div id="cfBody"></div>
               <div class="btn-row" style="margin-top:10px"><button class="btn sm" id="cfReset">${ic('hist')} إعادة التعبئة التلقائية</button></div>`;
             $('#cfDoc', box).onchange = e => { st.kind = e.target.value; mount(); refresh(); };

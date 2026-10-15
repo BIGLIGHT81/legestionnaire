@@ -40,7 +40,9 @@
 
   function newGrid(sy, kind, memo) {
     const g = { id: uid('tg'), title: 'شبكة تتبع العمل التربوي بالمؤسسة خلال', period: kind === 'sem2' ? 'الأسدوس الثاني' : 'الأسدوس الأول', inspector: '', upd: Dx.todayIso(), cols: [], rows: [] };
-    if (kind === 'sem1') g.cols = PRESET_COLS.map(n => ({ id: colId(), name: n }));
+    // 1.9.4: collège / lycée: diagnostic evaluation and time-table, no TaRL tests
+    const SEC_COLS = ['الأبواب المفتوحة واستقبال التلاميذ', 'الورشات التذكيرية', 'إنجاز التقويم التشخيصي', 'تسليم نتائج التقويم التشخيصي وخطة الدعم', 'تسليم استعمال الزمن', 'غياب شهر شتنبر'];
+    if (kind === 'sem1') g.cols = (window.Cyc && Cyc.isSec() ? SEC_COLS : PRESET_COLS).map(n => ({ id: colId(), name: n }));
     if (kind === 'sem2') g.cols = ['مسك نقط المراقبة المستمرة', 'تسليم تقرير نتائج الأسدس', 'تسليم خطة الدعم والمعالجة', 'تسليم الوثائق التربوية (دفتر النصوص، سجل التقويم)', 'غياب شهر ماي'].map(n => ({ id: colId(), name: n }));
     if (memo) g.cols.push({ id: colId(), name: memo });
     addTeachers(g);
@@ -155,10 +157,10 @@
   function list(v) {
     const sy = MK.curSy(), L = grids(sy);
     v.innerHTML = `<div class="page-h"><button class="btn" id="tkBack">${ic('back')} رجوع</button><h1>شبكة تتبع العمل التربوي بالمؤسسة</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}</span><span class="sp"></span></div>
-      <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">شبكة تُبيّن لكل أستاذ(ة) (حسب الوحدة المدرسية) ما أنجزه من المهام المطلوبة منه: <b>الأبواب المفتوحة، الورشات التذكيرية، روائز الموضعة، تسليم استعمال الزمن، غياب الشهر…</b> وتستطيع إضافة أي مهمة جديدة في أي وقت (حتى انطلاقا من مذكرة داخلية). الخانة المنجزة تظهر بوجه مبتسم أخضر فاتح، وتُطبع الشبكة بتوقيع المدير والمفتش المواكب.</div>
+      <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${cycT('شبكة تُبيّن لكل أستاذ(ة) (حسب الوحدة المدرسية) ما أنجزه من المهام المطلوبة منه:')} <b>${cycT('الأبواب المفتوحة، الورشات التذكيرية، روائز الموضعة، تسليم استعمال الزمن، غياب الشهر…')}</b> وتستطيع إضافة أي مهمة جديدة في أي وقت (حتى انطلاقا من مذكرة داخلية). الخانة المنجزة تظهر بوجه مبتسم أخضر فاتح، وتُطبع الشبكة بتوقيع المدير والمفتش المواكب.</div>
       <div class="sec-t" style="margin:6px 0 8px">إنشاء شبكة جديدة</div>
       <div class="hub-grid">
-        <div class="card hub-card" data-new="sem1"><div class="hub-t">شبكة الأسدوس الأول</div><div class="hub-d">بمهام الدخول المدرسي: الأبواب المفتوحة، الورشات، الروائز، استعمال الزمن، غياب شتنبر.</div><div class="hub-a">${ic('plus')} إنشاء</div></div>
+        <div class="card hub-card" data-new="sem1"><div class="hub-t">شبكة الأسدوس الأول</div><div class="hub-d">${cycT('بمهام الدخول المدرسي: الأبواب المفتوحة، الورشات، الروائز، استعمال الزمن، غياب شتنبر.')}</div><div class="hub-a">${ic('plus')} إنشاء</div></div>
         <div class="card hub-card" data-new="sem2"><div class="hub-t">شبكة الأسدوس الثاني</div><div class="hub-d">مسك النقط، تقرير النتائج، خطة الدعم، الوثائق التربوية.</div><div class="hub-a">${ic('plus')} إنشاء</div></div>
         <div class="card hub-card" data-new="blank"><div class="hub-t">شبكة فارغة</div><div class="hub-d">ابدأ بالأساتذة فقط وأضف المهام التي تريد.</div><div class="hub-a">${ic('plus')} إنشاء</div></div></div>
       ${L.length ? `<div class="sec-t" style="margin:16px 0 8px">شبكات الموسم</div><div class="hub-grid">${L.map(g => `<div class="card hub-card" data-open="${g.id}"><div class="hub-t">${esc(g.title)} ${esc(g.period)}</div><div class="hub-d">${g.cols.length} مهمة — ${g.rows.length} أستاذ(ة) — الإنجاز ${progress(g)}%</div>

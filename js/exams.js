@@ -23,8 +23,9 @@
   const kindNow = () => (window.Cyc ? Cyc.kind() : 'pri');
   // 1.9.4: «كل الأسلاك»: any certified level / type (a school can be the centre of an exam of another cycle)
   const allC = () => { try { return !!(DB.exams && DB.exams.allCycles); } catch (e) { return false; } };
-  const levelsFor = k => allC() ? ALL_LEVELS.slice() : ALL_LEVELS.filter(l => (k || kindNow()) === 'lyc' ? /^B/.test(l[0]) : (k || kindNow()) === 'col' ? l[0] === 'C3' : l[0] === 'P6');
-  const typesFor = k => { if (allC()) return ALL_TYPES.slice(); k = k || kindNow(); return k === 'lyc' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الأولى باكالوريا)'], ['nat', 'الامتحان الوطني الموحد (الثانية باكالوريا)']]
+  const secI = () => { try { return !!(window.Cyc && Cyc.isSec()); } catch (_) { return false; } };   // 1.9.4: a collège / lycée never sees the primary exam
+  const levelsFor = k => allC() ? ALL_LEVELS.filter(l => !(secI() && l[0] === 'P6')) : ALL_LEVELS.filter(l => (k || kindNow()) === 'lyc' ? /^B/.test(l[0]) : (k || kindNow()) === 'col' ? l[0] === 'C3' : l[0] === 'P6');
+  const typesFor = k => { if (allC()) return ALL_TYPES.filter(t => !(secI() && t[0] === 'prov')); k = k || kindNow(); return k === 'lyc' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الأولى باكالوريا)'], ['nat', 'الامتحان الوطني الموحد (الثانية باكالوريا)']]
     : k === 'col' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الثالثة إعدادي)']] : [['local', 'الامتحان الموحد على صعيد المؤسسة'], ['prov', 'الامتحان الموحد الإقليمي']]; };
   const TYPES = ALL_TYPES, LEVELS = ALL_LEVELS;
   // a second mark column (local exam of 3AC / regional exam of the 1st year of the baccalauréat) when the average combines three parts
@@ -53,8 +54,8 @@
     const s = S(), i = Y(sy).info, k = kindNow();
     const lv = levelsFor(k).map(x => x[0]), ty = typesFor(k).map(x => x[0]);
     let level = i.level || (k === 'lyc' ? 'B2' : k === 'col' ? 'C3' : 'P6');
-    if (!lv.includes(level) && !i.keepLevel) level = lv[lv.length - 1];       // the level follows the cycle of the settings
-    let type = i.type || 'local'; if (!ty.includes(type) && !i.keepLevel) type = ty[0];
+    if (!lv.includes(level) && (!i.keepLevel || (secI() && level === 'P6'))) level = lv[lv.length - 1];       // the level follows the cycle of the settings
+    let type = i.type || 'local'; if (!ty.includes(type) && (!i.keepLevel || (secI() && type === 'prov'))) type = ty[0];
     const I0 = { type, level };
     const three = hasLoc(I0);   // 3AC: MG = (3·MC + 3·ML + 4·MR) / 10 (30% + 30% + 40%); 2BAC: 25% continuous + 25% regional (1BAC) + 50% national
     const bac = /^B/.test(level), colg = isCol(level) || bac;
@@ -186,7 +187,7 @@
       if (k === 'allc') { DB.exams.allCycles = !!f.allc; if (f.allc) { Y(sy).info.keepLevel = true; } return 'redraw'; }
       if (k === 'centerUnit') { const c = f.centerUnit ? Units.centerOf(f.centerUnit) : null; if (c) { f.center = c.name; f.code = c.code; st.center = c.name; st.code = c.code; } return 'redraw'; }
     },
-    defs: () => [{ sec: 'الامتحان' }, { k: 'allc', l: 'الأسلاك', t: 'select', opts: [['', 'حسب سلك المؤسسة في الإعدادات'], ['1', 'كل الأسلاك (الابتدائي، الإعدادي، التأهيلي)']], half: true }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
+    defs: () => [{ sec: 'الامتحان' }, { k: 'allc', l: 'الأسلاك', t: 'select', opts: [['', 'حسب سلك المؤسسة في الإعدادات'], ['1', secI() ? 'السلكان الإعدادي والتأهيلي' : 'كل الأسلاك (الابتدائي، الإعدادي، التأهيلي)']], half: true }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
       { sec: 'مركز الامتحان' }, { k: 'centerUnit', l: (window.Cyc ? Cyc.group() : kindNow() === 'pri') ? 'اختيار المركز من الوحدات المدرسية (تُملأ الخانتان التاليتان تلقائيا)' : 'اعتماد المؤسسة مركزا للامتحان (تُملأ الخانتان التاليتان تلقائيا)', t: 'select', opts: () => Units.centerOptions() }, { k: 'center', l: 'مركز الامتحان', half: true }, { k: 'code', l: 'رمز المركز (GRESA)', half: true, dir: 'ltr' }, { k: 'head', l: 'رئيس(ة) مركز الامتحان', half: true, list: 'k2Emps' }, { k: 'first', l: 'أول رقم امتحان', t: 'num', half: true },
       { sec: 'احتساب النتائج' }, { k: 'max', l: 'النقطة القصوى', t: 'num', half: true }, { k: 'pass', l: 'معدل النجاح', t: 'num', half: true },
       { k: 'wcc', l: 'نسبة المراقبة المستمرة %', t: 'num', half: true }, { k: 'wex', l: 'نسبة الامتحان الموحد (أو الجهوي) %', t: 'num', half: true }, { k: 'wloc', l: 'نسبة الامتحان المحلي % (الجهوي فقط)', t: 'num', half: true },
