@@ -21,8 +21,10 @@
   const ALL_TYPES = [['local', 'الامتحان الموحد على صعيد المؤسسة'], ['prov', 'الامتحان الموحد الإقليمي'], ['reg', 'الامتحان الجهوي الموحد'], ['nat', 'الامتحان الوطني الموحد (الثانية باكالوريا)']];
   const ALL_LEVELS = [['P6', 'السادس ابتدائي'], ['C1', 'الأولى إعدادي'], ['C2', 'الثانية إعدادي'], ['C3', 'الثالثة إعدادي'], ['TC', 'الجذع المشترك'], ['B1', 'الأولى باكالوريا'], ['B2', 'الثانية باكالوريا']];
   const kindNow = () => (window.Cyc ? Cyc.kind() : 'pri');
-  const levelsFor = k => ALL_LEVELS.filter(l => (k || kindNow()) === 'lyc' ? /^B/.test(l[0]) : (k || kindNow()) === 'col' ? l[0] === 'C3' : l[0] === 'P6');
-  const typesFor = k => { k = k || kindNow(); return k === 'lyc' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الأولى باكالوريا)'], ['nat', 'الامتحان الوطني الموحد (الثانية باكالوريا)']]
+  // 1.9.4: «كل الأسلاك»: any certified level / type (a school can be the centre of an exam of another cycle)
+  const allC = () => { try { return !!(DB.exams && DB.exams.allCycles); } catch (e) { return false; } };
+  const levelsFor = k => allC() ? ALL_LEVELS.slice() : ALL_LEVELS.filter(l => (k || kindNow()) === 'lyc' ? /^B/.test(l[0]) : (k || kindNow()) === 'col' ? l[0] === 'C3' : l[0] === 'P6');
+  const typesFor = k => { if (allC()) return ALL_TYPES.slice(); k = k || kindNow(); return k === 'lyc' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الأولى باكالوريا)'], ['nat', 'الامتحان الوطني الموحد (الثانية باكالوريا)']]
     : k === 'col' ? [['local', 'الامتحان الموحد المحلي (على صعيد المؤسسة)'], ['reg', 'الامتحان الجهوي الموحد (الثالثة إعدادي)']] : [['local', 'الامتحان الموحد على صعيد المؤسسة'], ['prov', 'الامتحان الموحد الإقليمي']]; };
   const TYPES = ALL_TYPES, LEVELS = ALL_LEVELS;
   // a second mark column (local exam of 3AC / regional exam of the 1st year of the baccalauréat) when the average combines three parts
@@ -35,7 +37,11 @@
     B2: [['اللغة العربية', 2], ['اللغة الفرنسية', 2], ['اللغة الإنجليزية', 2], ['الفلسفة', 2], ['التربية الإسلامية', 1], ['الرياضيات', 7], ['علوم الحياة والأرض', 5], ['الفيزياء والكيمياء', 7]],
     C3: [['اللغة العربية', 3], ['اللغة الفرنسية', 3], ['الرياضيات', 3], ['التربية الإسلامية', 2], ['الاجتماعيات', 2], ['علوم الحياة والأرض', 2], ['الفيزياء والكيمياء', 2], ['اللغة الإنجليزية', 2]]
   };
-  const ROLES = ['رئيس مركز الامتحان', 'مراقب(ة) الإجراء', 'ملاحظ(ة)', 'الكتابة', 'مكلف بجناح', 'مداوم(ة)', 'التصحيح', 'رئيس مركز التصحيح', 'كتابة مركز التصحيح', 'منسق(ة) المسك', 'طاقم النظافة', 'أخرى'];
+  // 1.9.4: the subjects proposed follow the cycle, the level and the kind of exam (they stay editable)
+  const defSubj = I => (I.level === 'P6' && I.type === 'prov' ? [['اللغة العربية والتربية الإسلامية', 2], ['الرياضيات', 2], ['اللغة الفرنسية', 1]]
+    : I.level === 'B1' && I.type === 'reg' ? [['اللغة العربية', 2], ['اللغة الفرنسية', 2], ['التربية الإسلامية', 2], ['التاريخ والجغرافيا', 2]]
+      : SUBJ[I.level] || SUBJ.C1);
+  const ROLES = ['رئيس مركز الامتحان', 'مراقب(ة) الإجراء', 'مراقب(ة) احتياطي(ة)', 'ملاحظ(ة)', 'الكتابة', 'مكلف بجناح', 'مداوم(ة)', 'مراقب(ة) الجودة', 'حارس أمن', 'التصحيح', 'رئيس مركز التصحيح', 'كتابة مركز التصحيح', 'منسق(ة) المسك', 'طاقم النظافة', 'أخرى'];
   // explanations that follow the cycle of the settings
   const WEIGHTS = ' (غيّر النسب حسب المذكرة المعمول بها: اترك أحد الأجزاء فارغا ليُهمل).';
   const noteCalc = () => { const k = kindNow(); return k === 'lyc' ? 'الأولى باكالوريا: «الامتحان الموحد المحلي» أو «الامتحان الجهوي الموحد». الثانية باكالوريا: «الامتحان الوطني الموحد» (المعدل العام = 25% مراقبة مستمرة + 25% امتحان جهوي + 50% امتحان وطني)' + WEIGHTS
@@ -64,8 +70,8 @@
   const subjects = sy => (Y(sy).subjects.rows || []).filter(r => nm(r[0]));
   const rooms = sy => (Y(sy).rooms.rows || []).filter(r => nm(r[0]));
   const staff = sy => (Y(sy).staff.rows || []).filter(r => nm(r[0]));
-  const C = { no: 0, name: 1, code: 2, g: 3, birth: 4, cls: 5, room: 6, origin: 7 };
-  const CAND_COLS = ['رقم الامتحان', 'الاسم الكامل', 'الرقم الوطني', 'الجنس', 'تاريخ الازدياد', 'القسم', 'القاعة', 'المؤسسة الأصلية'];
+  const C = { no: 0, name: 1, code: 2, g: 3, birth: 4, cls: 5, room: 6, origin: 7, track: 8, desk: 9 };
+  const CAND_COLS = ['رقم الامتحان', 'الاسم الكامل', 'الرقم الوطني', 'الجنس', 'تاريخ الازدياد', 'القسم', 'القاعة', 'المؤسسة الأصلية', 'المسلك / الشعبة', 'رقم الطاولة'];
   const isF = g => /أنثى|انثى|^f$|^F$|إناث/.test(nm(g));
   const sortRooms = (a, b) => String(a).localeCompare(String(b), 'ar', { numeric: true });
   const byRoom = sy => { const m = new Map(); rooms(sy).forEach(r => m.set(nm(r[0]), [])); cands(sy).forEach(c => { const k = nm(c[C.room]) || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(c); }); return m; };
@@ -87,10 +93,11 @@
       sh.rows.slice(h.hi + 1).forEach(r => {
         const g = k => (ix(k) >= 0 ? nm(r[ix(k)]) : '');
         if (!g('name') && !g('code')) return;
-        out.push([g('no'), g('name'), g('code').toUpperCase(), g('g'), g('birth'), g('cls'), g('room').replace(/^\d+-\s*Salle\s*/i, '').replace(/^(\d+)-(\d+)$/, '$2') || g('room'), g('origin')]);
+        out.push([g('no'), g('name'), g('code').toUpperCase(), g('g'), g('birth'), g('cls'), g('room').replace(/^\d+-\s*Salle\s*/i, '').replace(/^(\d+)-(\d+)$/, '$2') || g('room'), g('origin'), g('level'), '']);
         center = center || g('center'); ccode = ccode || g('ccode'); level = level || g('level');
       });
     });
+    { const lv = new Set(out.map(r => r[8]).filter(Boolean)); if (lv.size <= 1 && !Array.from(lv).some(t => /مسار|أصيل|اصيل|مهني|شعبة|مسلك|علوم|آداب|اداب|رياض|خيار/.test(t))) out.forEach(r => { r[8] = ''; }); }
     if (!out.length) return c.toast('لم يتم العثور على لائحة المترشحين (رقم الامتحان، الاسم الكامل، الرقم الوطني...) في الملف', true);
     f.rows = out; c.save('rows');
     const I = Y(sy).info;
@@ -176,9 +183,10 @@
     k: 'info', t: 'المعطيات العامة وبطاقة مركز الامتحان', grp: 'd', d: 'نوع الامتحان (على صعيد المؤسسة أو إقليمي)، المستوى الإشهادي، الدورة، مركز الامتحان ورئيسه، طريقة احتساب المعدل.', auto: 'معطيات المؤسسة', page: 'a4',
     init: (s, sy) => info(sy),
     onSave: (k, f, sy, st) => {
+      if (k === 'allc') { DB.exams.allCycles = !!f.allc; if (f.allc) { Y(sy).info.keepLevel = true; } return 'redraw'; }
       if (k === 'centerUnit') { const c = f.centerUnit ? Units.centerOf(f.centerUnit) : null; if (c) { f.center = c.name; f.code = c.code; st.center = c.name; st.code = c.code; } return 'redraw'; }
     },
-    defs: () => [{ sec: 'الامتحان' }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
+    defs: () => [{ sec: 'الامتحان' }, { k: 'allc', l: 'الأسلاك', t: 'select', opts: [['', 'حسب سلك المؤسسة في الإعدادات'], ['1', 'كل الأسلاك (الابتدائي، الإعدادي، التأهيلي)']], half: true }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
       { sec: 'مركز الامتحان' }, { k: 'centerUnit', l: (window.Cyc ? Cyc.group() : kindNow() === 'pri') ? 'اختيار المركز من الوحدات المدرسية (تُملأ الخانتان التاليتان تلقائيا)' : 'اعتماد المؤسسة مركزا للامتحان (تُملأ الخانتان التاليتان تلقائيا)', t: 'select', opts: () => Units.centerOptions() }, { k: 'center', l: 'مركز الامتحان', half: true }, { k: 'code', l: 'رمز المركز (GRESA)', half: true, dir: 'ltr' }, { k: 'head', l: 'رئيس(ة) مركز الامتحان', half: true, list: 'k2Emps' }, { k: 'first', l: 'أول رقم امتحان', t: 'num', half: true },
       { sec: 'احتساب النتائج' }, { k: 'max', l: 'النقطة القصوى', t: 'num', half: true }, { k: 'pass', l: 'معدل النجاح', t: 'num', half: true },
       { k: 'wcc', l: 'نسبة المراقبة المستمرة %', t: 'num', half: true }, { k: 'wex', l: 'نسبة الامتحان الموحد (أو الجهوي) %', t: 'num', half: true }, { k: 'wloc', l: 'نسبة الامتحان المحلي % (الجهوي فقط)', t: 'num', half: true },
@@ -198,7 +206,7 @@
     k: 'cands', t: 'المترشحون (استيراد ولائحة)', grp: 'd', d: 'استيراد لائحة المترشحين من ملف Excel (GEXA / مسار: لائحة المترشحين حسب مركز الامتحان) أو من بطاقة التلاميذ، مع لائحة المترشحين حسب الأقسام.', auto: 'ملف GEXA أو بطاقة التلاميذ', page: 'a4',
     init: () => ({ rows: [] }),
     defs: () => [{ t: 'html', html: '<div class="btn-row"><button type="button" class="btn sm pri" data-act="imp">استيراد ملف المترشحين (Excel)</button><button type="button" class="btn sm" data-act="pup">من بطاقة التلاميذ</button><button type="button" class="btn sm" data-act="dist">ترقيم وتوزيع على القاعات</button></div>' },
-      { k: 'rows', l: 'لائحة المترشحين', t: 'grid', cols: CAND_COLS, widths: ['.6fr', '1.5fr', '1fr', '.55fr', '.85fr', '.7fr', '.55fr', '1fr'], dirs: ['ltr', null, 'ltr', null, null, 'ltr', null, null], list: [null, 'k2Pupils', 'k2Codes', null, null, null, null, null],
+      { k: 'rows', l: 'لائحة المترشحين', t: 'grid', cols: CAND_COLS, widths: ['.55fr', '1.4fr', '.95fr', '.5fr', '.8fr', '.65fr', '.5fr', '.95fr', '.8fr', '.45fr'], dirs: ['ltr', null, 'ltr', null, null, 'ltr', null, null, null, 'ltr'], list: [null, 'k2Pupils', 'k2Codes', null, null, null, null, null, null, null],
         link: { src: 'pupil', n: 1, cols: { code: 2, gender: 3, birth: 4, cls: 5 } } }],
     act: { imp: (f, sy, c) => importCands(f, sy, c), pup: (f, sy, c) => fromPupils(f, sy, c), dist: (f, sy, c) => { distribute(f, sy, c); c.redraw(); } },
     build: (s, f, sy) => {
@@ -211,8 +219,8 @@
   // --- 3. timetable
   add({
     k: 'subjects', t: 'جدولة الامتحان (المواد والتوقيت)', grp: 'd', d: 'مواد الامتحان وتواريخها ومواقيتها ومعاملاتها، وتُطبع جدولة الامتحان للتعليق.', auto: 'المواد الافتراضية للمستوى', page: 'a4',
-    init: (s, sy) => ({ rows: (SUBJ[info(sy).level] || SUBJ.C1).map(([n, w]) => [n, '', '', '', String(w)]) }),
-    defs: () => [{ k: 'rows', l: 'المواد', t: 'grid', cols: ['المادة', 'التاريخ', 'من', 'إلى', 'المعامل'], widths: ['1.5fr', '1fr', '.6fr', '.6fr', '.5fr'], types: ['text', 'date', 'text', 'text', 'num'], dirs: [null, null, 'ltr', 'ltr', null] },
+    init: (s, sy) => ({ rows: defSubj(info(sy)).map(([n, w]) => [n, '', '', '', String(w), '']) }),
+    defs: () => [{ k: 'rows', l: 'المواد', t: 'grid', cols: ['المادة', 'التاريخ', 'من', 'إلى', 'المعامل', 'المسالك المعنية (فارغ = الكل)'], widths: ['1.4fr', '1fr', '.55fr', '.55fr', '.45fr', '1.2fr'], types: ['text', 'date', 'text', 'text', 'num', 'text'], dirs: [null, null, 'ltr', 'ltr', null, null] },
       { note: 'اكتب التوقيت هكذا: 08:30 . ترتيب المواد هنا هو ترتيب الحصص في جدول الحراسة والمحاضر.' }],
     build: (s, f, sy) => {
       const rows = subjects(sy).map((r, i) => tr([i + 1, { t: r[1] ? K.dayName(r[1]) : '' }, { t: MK.showDate(r[1]) }, { t: r[0], c: 'b' }, { t: r[2] ? `من ${r[2]} إلى ${r[3] || ''}` : '', c: 'ltr' }, r[4]]));
@@ -240,7 +248,7 @@
     k: 'staff', t: 'طاقم مركز الامتحان', grp: 'd', d: 'أعضاء المركز ومهامهم (رئيس المركز، المراقبون، الكتابة، المداومون...)، تُملأ من لائحة الموظفين.', auto: 'لائحة الموظفين', page: 'a4',
     init: () => ({ rows: [] }),
     defs: () => [{ t: 'html', html: '<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة كمراقبين</button>' },
-      { k: 'rows', l: 'الطاقم', t: 'grid', cols: ['الاسم الكامل', 'رقم التأجير', 'الإطار / المادة', 'المهمة', 'مقر العمل'], widths: ['1.4fr', '.8fr', '1.1fr', '1fr', '1fr'], list: ['k2Emps', null, null, 'exRoles', null], dirs: [null, 'ltr', null, null, null], dls: { exRoles: ROLES },
+      { k: 'rows', l: 'الطاقم', t: 'grid', cols: ['الاسم الكامل', 'رقم التأجير', 'الإطار / المادة', 'المهمة', 'مقر العمل', 'غير متوفر (أرقام الحصص)'], widths: ['1.3fr', '.75fr', '1.05fr', '.95fr', '.95fr', '.75fr'], list: ['k2Emps', null, null, 'exRoles', null, null], dirs: [null, 'ltr', null, null, null, 'ltr'], dls: { exRoles: ROLES },
         link: { src: 'emp', n: 0, cols: { ppr: 1, cadre: 2 } } }],
     act: { all: (f, sy, c) => { const I = info(sy); f.rows = [[I.head, '', 'مدير(ة) المؤسسة', ROLES[0], S().school || '']].concat(K.E.teachers().map(e => [fullName(e), e.ppr || '', e.subject || e.cadre || '', ROLES[1], S().school || ''])); c.save('rows'); } },
     build: (s, f, sy) => {
@@ -623,15 +631,20 @@
   .docx-pb{display:none}`;
 
   const store = sy => Y(sy);
+  // 1.9.4: the groups of the documents (the smart layer «exams2.js» adds its own and re-orders the documents)
+  const GROUPS = [['d', 'إعداد الامتحان (بالترتيب)', 'كل خطوة تعدّل المعطيات المشتركة وتُطبع'], ['o', 'وثائق مركز الامتحان', 'تُملأ تلقائيا'], ['p', 'المحاضر والمطبوعات'], ['r', 'التصحيح والنتائج']];
   let CC = null;
   const center = () => CC || (CC = K.center({
     id: 'exams', title: 'تدبير الامتحان الإشهادي', icon: '📝', route: 'examsDoc', hubRoute: 'exams', docLabel: 'الخطوة / الوثيقة',
-    groups: [['d', 'إعداد الامتحان (بالترتيب)', 'كل خطوة تعدّل المعطيات المشتركة وتُطبع'], ['o', 'وثائق مركز الامتحان', 'تُملأ تلقائيا'], ['p', 'المحاضر والمطبوعات'], ['r', 'التصحيح والنتائج']],
-    docs: () => DOCS, store, years: () => Object.keys((DB.exams || {}).years || {}),
+    groups: () => GROUPS, groupTabs: true,
+    docs: () => { const I = info(MK.curSy()), k = kindNow(); return DOCS.filter(d => !d.when || d.when(I, k)); }, store, years: () => Object.keys((DB.exams || {}).years || {}),
     intro: () => introTxt(),
     hubButtons: () => { const sy = MK.curSy(), L = cands(sy); return `<span class="tag2">${esc(typeName(info(sy).type))} — ${esc(levelName(info(sy).level))} — المترشحون: ${L.length}</span>`; }
   }));
-  window.Exams = { migrate, DOCS: () => DOCS, results, cands, info };
+  window.Exams = { migrate, DOCS: () => DOCS, results, cands, info,
+    // 1.9.4: the internals used by the smart layer (exams2.js)
+    X: { Y, info, cands, subjects, rooms, staff, guardRows, byRoom, sub, signHead, C, CAND_COLS, isF, examTitle, levelName, typeName, add, kv, roomPages, sessLabel, sessOf, sortRooms,
+      results, f2, rng, kindNow, defSubj, subjOpts, subjIdx, sjDate, gCount, pb, dots, ROLES, GROUPS, DOCS, hasLoc, mention, num, nm, SUBJ, ALL_LEVELS, ALL_TYPES, center: () => center() } };
   window.pageExams = (v, a) => { migrate(DB); center().hub(v, a); };
   window.pageExamsDoc = (v, a) => { migrate(DB); center().doc(v, a); };
 })();

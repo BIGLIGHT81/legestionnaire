@@ -248,6 +248,10 @@ function historyFor(empId, refDate, excludeId) {
 // short labels of the categories of administrative documents for the secondary bar (the page title keeps the full name)
 const DOC_SHORT = { leave: 'الرخص والغياب', work: 'الاستئناف والاستفسار', peda: 'التأطير والتتبع', cert: 'الشهادات والبطاقات', mail: 'المراسلات' };
 const isSecCycle = () => !!(window.Cyc && Cyc.isSec());
+// 1.9.4: what belongs to the primary / preschool only (hidden for the collège and the lycée)
+const isPriCycle = () => !isSecCycle();
+const PRI_ONLY = ['presch', 'preschDoc', 'roaiz', 'roaizDoc', 'roaizx', 'roaizxDoc', 'level1'];
+const noPre = o => (isSecCycle() ? (o || []).filter(x => x[0] !== 'preschool') : o);
 // 1.9.4: one independent institution (collège / lycée / primary «مدرسة مستقلة»): no school units anywhere
 const isSingleOrg = () => !!(window.Cyc && Cyc.single());
 const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.cat ? ':' + a.cat : '') }, o || {});
@@ -258,12 +262,12 @@ const NAV = [
   { id: 'home', c: '#0f6e5a', label: 'لوحة القيادة', icon: 'home', grps: [['لوحة القيادة والمؤشرات', ['home', 'dash']], ['الطبع الشامل', ['printAll']]],
     tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل لوثائق الخانات')] },
   { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
-    tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'مربيات ومربو التعليم الأولي'),
+    tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'مربيات ومربو التعليم الأولي', null, { w: isPriCycle }),
       tab('sagents', 'بطاقات الأعوان والشركات المشغلة', { v: 'list' }, { k: 'sagents' }), tab('sagents', 'تتبع القيام بالأعمال', { v: 'log' }, { k: 'sagents:log' }), tab('sagents', 'الحصيلة الشهرية وتقييم الخدمة', { v: 'sum' }, { k: 'sagents:sum' }), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
       tab('documents', 'طلبات الرخص', { cat: 'leave' }), tab('documents', 'الاستئناف والانقطاع والاستفسار', { cat: 'work' }), tab('documents', 'الشهادات الإدارية وبطاقات التقديم', { cat: 'cert' }), tab('svcAcc', 'حوادث الشغل (المصلحة)')] },
   { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['board', 'teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
     tabs: () => [tab('board', 'البنية التربوية (السبورة المرجعية)'), tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
-      tab('roaiz', 'الروائز التشخيصية (TaRL)'), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ'), tab('support', 'الدعم التربوي الممتد'),
+      tab('roaiz', 'الروائز التشخيصية (TaRL)', null, { w: isPriCycle }), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ', null, { w: isPriCycle }), tab('support', 'الدعم التربوي الممتد'),
       tab('exams', 'الامتحانات الإشهادية'), tab('documents', 'التأطير والتتبع التربوي', { cat: 'peda' })] },
   { id: 'pupils', c: '#0b7a8a', label: 'شؤون التلاميذ', icon: 'pupil', grps: [['التمدرس والتسجيل', ['pupils', 'preins']], ['الملفات والشواهد المدرسية', ['mail:dos', 'documents:files', 'certsCur', 'certs']], ['المواظبة والانضباط', ['attend', 'absreg', 'vschool']], ['الصحة والسلامة المدرسية', ['incid']]],
     tabs: () => [tab('pupils', 'بطاقة التلاميذ (مسار)'), tab('preins', 'طلبات التسجيل الجديدة'),
@@ -369,6 +373,7 @@ function renderSy() {
   sel.onchange = () => { MK.setSy(sel.value); toast('الموسم الدراسي النشط: ' + MK.syDash(MK.curSy())); go(current === 'editor' ? 'home' : current); };
 }
 function go(page, arg) {
+  if (PRI_ONLY.includes(page) && isSecCycle()) { page = 'home'; arg = null; }
   $('#modalRoot').innerHTML = '';
   current = page; currentArg = arg || null;
   try { if (window.Units && Units.normSec && Units.normSec()) persist(); } catch (e) { /* alignment of the units with the institution (collège / lycée) is best effort */ }
@@ -495,7 +500,7 @@ function pageHome(v) {
       ${A ? mod('attend', 'chart', 'مواظبة التلاميذ', kv(A.last ? `نسبة الغياب (${esc(A.last.label)})` : 'نسبة الغياب', A.last ? fr(A.last.rate) + '%' : '-', hot(A.last && A.last.rate) ? 'red' : '')
         + kv('نسبة الغياب السنوية', A.rate == null ? '-' : fr(A.rate) + '%', hot(A.rate) ? 'red' : '') + kv('نسبة الحضور السنوية', A.rate == null ? '-' : (100 - A.rate).toFixed(2) + '%', 'green') + kv('الأشهر المملوءة', `${A.n} من 10`),
         A.n ? MK.svgBars(A.monthly, { alert: A.alert, w: 420, h: 120, fs: 8.5 }) : '<span class="muted">أدخل معطيات المواظبة الشهرية لتظهر هنا النسب والمبيان.</span>') : ''}
-      ${R && R.groups ? mod('roaiz', 'target', 'استثمار الروائز', kv('الفئات المستوردة', R.phases + ' من 8') + kv('مجموعات الدعم', R.groups) + (isSingleOrg() ? '' : kv('الوحدات المدرسية', R.units)) + kv('التلاميذ المعنيون', R.pupils)) : ''}
+      ${R && R.groups && !isSecCycle() ? mod('roaiz', 'target', 'استثمار الروائز', kv('الفئات المستوردة', R.phases + ' من 8') + kv('مجموعات الدعم', R.groups) + (isSingleOrg() ? '' : kv('الوحدات المدرسية', R.units)) + kv('التلاميذ المعنيون', R.pupils)) : ''}
     </div>
     ${dsec('life')}<div class="mods">
       ${BL && BL.rows.length ? mod('clubs', 'star', 'الأندية والأنشطة', BL.rows.map(r => kv(r[0], r[1], r[2])).join('')) : ''}

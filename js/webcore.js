@@ -451,7 +451,8 @@ function patchXlsx(buf, sheetName, cells) {
     const re = new RegExp(`<c r="${ref}"(\\s[^>]*?)?(?:/>|>[\\s\\S]*?</c>)`);
     const old = re.exec(xml);
     const sAttr = old && old[1] ? (/\bs="(\d+)"/.exec(old[1]) || [])[0] || '' : '';
-    const cell = val === '' ? `<c r="${ref}"${sAttr ? ' ' + sAttr : ''}/>` : `<c r="${ref}"${sAttr ? ' ' + sAttr : ''} t="s"><v>${idxOf(val)}</v></c>`;
+    // 1.9.4: a number (exam marks) is written as a number, the rest as shared strings
+    const cell = val === '' ? `<c r="${ref}"${sAttr ? ' ' + sAttr : ''}/>` : typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${sAttr ? ' ' + sAttr : ''}><v>${v}</v></c>` : `<c r="${ref}"${sAttr ? ' ' + sAttr : ''} t="s"><v>${idxOf(val)}</v></c>`;
     if (old) { xml = xml.slice(0, old.index) + cell + xml.slice(old.index + old[0].length); n++; return; }
     if (val === '') return;
     // the cell does not exist: inserted in its row, in column order
