@@ -301,9 +301,22 @@
     ['contest', 'مسابقة', { title: 'مسابقة ثقافية', sub: 'شارك واربح جوائز قيمة', det: 'آخر أجل للمشاركة: ..........', icon: '🏅' }],
     ['health', 'حملة تحسيسية', { title: 'حملة تحسيسية', sub: 'صحتك أمانة', det: 'حول النظافة والتغذية السليمة\nيوم ..........', icon: '🩺' }],
     ['reading', 'القراءة والمكتبة', { title: 'تحدي القراءة', sub: 'اقرأ… تتعلم… تتألق', det: 'استعارة الكتب من المكتبة المدرسية\nكل يوم ..........', icon: '📚' }],
-    ['sport', 'نشاط رياضي', { title: 'الدوري المدرسي', sub: 'لكرة القدم المصغرة', det: 'ابتداء من ..........\nبملعب المؤسسة', icon: '⚽' }]
+    ['sport', 'نشاط رياضي', { title: 'الدوري المدرسي', sub: 'لكرة القدم المصغرة', det: 'ابتداء من ..........\nبملعب المؤسسة', icon: '⚽' }],
+    // 1.9.4: «إخبارات» — notices to the parents, the pupils and the staff
+    ['n_general', 'إخبار عام', { title: 'إخبار', sub: 'إلى السادة أمهات وآباء وأولياء أمور التلاميذ', det: 'تخبر إدارة المؤسسة السادة الأولياء أنه ..........\n..........\nوشكرا على تعاونكم', icon: '📢', n: 1 }],
+    ['n_holiday', 'إخبار بعطلة', { title: 'إخبار', sub: 'عطلة ..........', det: 'تخبر إدارة المؤسسة التلميذات والتلاميذ وأولياءهم أن العطلة\nتبتدئ يوم .......... على أن تستأنف الدراسة\nيوم .......... على الساعة الثامنة صباحا', icon: '🏖️', n: 1 }],
+    ['n_time', 'إخبار بتغيير التوقيت', { title: 'إخبار', sub: 'تغيير التوقيت المدرسي', det: 'ابتداء من يوم .......... يصبح التوقيت المدرسي كالتالي:\nالفترة الصباحية: من .......... إلى ..........\nالفترة المسائية: من .......... إلى ..........', icon: '⏰', n: 1 }],
+    ['n_meeting', 'إخبار باجتماع', { title: 'إخبار', sub: 'اجتماع مع أولياء أمور التلاميذ', det: 'يعقد اجتماع يوم .......... على الساعة ..........\nبفضاء المؤسسة لتدارس: ..........\nحضوركم ضروري', icon: '🤝', n: 1 }],
+    ['n_stop', 'إخبار بتوقف الدراسة', { title: 'إخبار', sub: 'توقف الدراسة', det: 'تتوقف الدراسة يوم .......... بسبب ..........\nوتستأنف يوم .......... في التوقيت المعتاد', icon: '⛔', n: 1 }],
+    ['n_results', 'إخبار بتسليم النتائج', { title: 'إخبار', sub: 'تسليم بيانات النقط والنتائج', det: 'تسلم بيانات النقط لأولياء أمور التلاميذ\nيوم .......... من الساعة .......... إلى الساعة ..........\nبحضور الأستاذات والأساتذة', icon: '📊', n: 1 }],
+    ['n_health', 'إخبار بحملة صحية', { title: 'إخبار', sub: 'حملة الصحة المدرسية', det: 'تنظم بالمؤسسة يوم .......... حملة ..........\nلفائدة التلميذات والتلاميذ بشراكة مع المركز الصحي\nالمرجو إحضار الدفتر الصحي', icon: '🩺', n: 1 }],
+    ['n_reg', 'إخبار بالتسجيل', { title: 'إخبار', sub: 'التسجيل وإعادة التسجيل', det: 'تنطلق عملية التسجيل وإعادة التسجيل يوم ..........\nالوثائق المطلوبة: عقد الازدياد، صورتان، ..........\nآخر أجل: ..........', icon: '📝', n: 1 }],
+    ['n_dues', 'إخبار بأداء الواجبات', { title: 'إخبار', sub: 'التأمين المدرسي والانخراط في الجمعيات', det: 'يؤدى واجب التأمين المدرسي والانخراط ابتداء من ..........\nلدى ..........  مقابل وصل\nآخر أجل: ..........', icon: '💳', n: 1 }],
+    ['n_exam', 'إخبار بموعد الامتحان', { title: 'إخبار', sub: 'موعد الامتحان الموحد', det: 'يجرى الامتحان الموحد أيام ..........\nيرجى الحضور نصف ساعة قبل بداية الاختبار\nمع إحضار ..........', icon: '🎓', n: 1 }]
   ];
-  const LAYOUTS = ['band', 'diag', 'circle', 'frame', 'side', 'wave', 'ribbon', 'card', 'burst', 'minimal', 'arch', 'split'];
+  const isN = c => /^n_/.test(c[0]);
+  const LAYOUTS = ['band', 'diag', 'circle', 'frame', 'side', 'wave', 'ribbon', 'card', 'burst', 'minimal', 'arch', 'split', 'notice', 'board', 'memo'];
+  const N_LAYS = [12, 13, 14];   // the layouts made for the notices (إخبارات)
   function schoolTxt() { try { const s = S(); return { school: s.school || 'اسم المؤسسة', city: s.city || '', dir: s.directorate || '' }; } catch (_) { return { school: 'اسم المؤسسة', city: '', dir: '' }; } }
   // one template = layout × palette × category: a full document filled with the school's data
   function template(lay, pi, cat, size) {
@@ -366,6 +379,40 @@
         shp('round', W / 2, H * .55, W * .74, H * .82, P.a, { r: W * .37 }); shp('round', W / 2, H * .56, W * .66, H * .76, P.c, { r: W * .33, stroke: P.b, sw: 4 });
         emb(W / 2, H * .22, 60 * S0); txt(st.school, H * .29, 20, P.t, { font: 'Amiri', w: W * .6 }); icon(H * .4, 100); txt(C.title, H * .52, 54, P.a, { font: 'Amiri', w: W * .58 });
         txt(C.sub, H * .64, 24, P.t, { w: W * .58 }); txt(C.det, H * .75, 20, P.t, { bold: false, w: W * .58 }); foot(); break;
+      // 1.9.4: notice layouts (إخبارات): an official notice, a pinned paper on a cork board, a memo with a side band
+      case 'notice': {
+        doc.bg = { t: 'solid', c1: '#ffffff' };
+        shp('rect', W / 2, H * .11, W, H * .22, P.a); shp('rect', W / 2, H * .222, W, 8 * S0, P.b); head(P.l);
+        shp('round', W / 2, H * .305, W * .44, 96 * S0, P.b, { r: 48 * S0, sh: true, shB: 14 }); txt(C.title, H * .305, 56, P.t, { font: 'Amiri' });
+        icon(H * .395, 66); txt(C.sub, H * .465, 30, P.a, { font: 'Amiri' });
+        shp('round', W / 2, H * .655, W * .86, H * .29, P.c, { r: 24 * S0, stroke: P.a, sw: 3 }); txt(C.det, H * .655, 27, P.t, { bold: false, w: W * .8 });
+        txt(`حرر ب${st.city || '..........'} في: ..........`, H * .835, 17, P.t, { bold: false }); txt('الإدارة', H * .875, 24, P.a, { font: 'Amiri' });
+        shp('rect', W / 2, H - 14 * S0, W, 28 * S0, P.a); foot(P.t); break;
+      }
+      case 'board': {
+        doc.bg = { t: 'solid', c1: '#c9a26b', pat: 'dots', patC: '#7a5a2e', patS: 18, patOp: .25 };
+        shp('rect', W / 2 + 6 * S0, H / 2 + 8 * S0, W * .86, H * .88, 'rgba(0,0,0,.25)', { rot: -1.5 });
+        shp('rect', W / 2, H / 2, W * .86, H * .88, '#fffdf5', { rot: -1.5, sh: true, shB: 20 });
+        [[W * .14, H * .07], [W * .86, H * .07], [W * .14, H * .93], [W * .86, H * .93]].forEach(([x, y]) => { shp('ellipse', x, y, 30 * S0, 30 * S0, P.b, { sh: true, shB: 6 }); shp('ellipse', x - 4 * S0, y - 4 * S0, 9 * S0, 9 * S0, '#ffffff', { op: .8 }); });
+        head(P.t); shp('line', W / 2, H * .2, W * .56, 6, '', { stroke: P.a, sw: 3 });
+        txt(C.title, H * .275, 64, P.a, { font: 'Amiri' }); icon(H * .37, 70); txt(C.sub, H * .445, 29, P.t, { font: 'Amiri' });
+        txt(C.det, H * .6, 26, P.t, { bold: false, w: W * .74 }); shp('line', W / 2, H * .74, W * .56, 6, '', { stroke: P.b, sw: 2 });
+        txt(`${st.city || '..........'} في: ..........`, H * .79, 17, P.t, { bold: false }); txt('الإدارة', H * .84, 24, P.a, { font: 'Amiri' }); break;
+      }
+      case 'memo': {
+        doc.bg = { t: 'grad', c1: '#ffffff', c2: P.c, ang: 180 };
+        shp('rect', W * .955, H / 2, W * .09, H, P.a); shp('rect', W * .905, H / 2, 6 * S0, H, P.b);
+        add({ type: 'text', text: C.title, x: W * .955, y: H * .5, w: H * .6, h: 70, size: 48 * S0, font: 'Amiri', bold: true, color: P.l, fill: P.l, align: 'center', rot: 90 });
+        const cx = W * .45, cw = W * .78;
+        emb(cx, H * .07, 48 * S0); txt(st.school, H * .13, 21, P.t, { x: cx, w: cw, font: 'Amiri' });
+        shp('ellipse', cx, H * .25, 120 * S0, 120 * S0, P.a, { stroke: P.b, sw: 6 }); add({ type: 'icon', text: C.icon, x: cx, y: H * .25, w: 70 * S0, h: 70 * S0 });
+        txt(C.title, H * .35, 58, P.a, { x: cx, w: cw, font: 'Amiri' });
+        shp('banner', cx, H * .44, W * .74, 78 * S0, P.a, { sh: true }); txt(C.sub, H * .44, 26, P.l, { x: cx, w: W * .66 });
+        txt(C.det, H * .6, 26, P.t, { x: cx, w: cw * .95, bold: false });
+        shp('line', cx, H * .74, W * .5, 6, '', { stroke: P.b, sw: 3 });
+        txt(`حرر ب${st.city || '..........'} في: ..........`, H * .79, 17, P.t, { x: cx, w: cw, bold: false }); txt('الإدارة', H * .84, 24, P.a, { x: cx, w: cw, font: 'Amiri' });
+        txt([st.city, st.dir].filter(Boolean).join(' — ') || st.school, H - 30 * S0, 14, P.t, { x: cx, w: cw, bold: false }); break;
+      }
       case 'split':
         shp('rect', W / 2, H * .25, W, H * .5, P.a); shp('ellipse', W / 2, H * .5, 220 * S0, 220 * S0, P.c, { stroke: P.b, sw: 10 });
         head(P.l); txt(C.title, H * .3, 60, P.l, { font: 'Amiri' }); add({ type: 'icon', text: C.icon, x: W / 2, y: H * .5, w: 130 * S0, h: 130 * S0 });
@@ -924,7 +971,9 @@
           ${kudos ? '' : `<button class="btn gold" id="dzBrand" title="تصميم شعار المؤسسة وترويسة الوثائق">🏫 شعار وترويسة المؤسسة</button>`}<button class="btn pri" id="dzNew">${ic('plus')} تصميم جديد</button></div>
         <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">صمّم إعلانات الأنشطة والملصقات والتهاني والدعوات: أكثر من ${LAYOUTS.length * PAL.length * CATS.length} قالبا جاهزا (${CATS.length} مواضيع)، كل الخطوط، الأشكال والرموز، مكتبة صور ورسوم (جوائز، مدرسة، احتفالات، مناسبات، زخارف، خلفيات...)، الصور مع أدوات احترافية (السطوع والتباين والتشبع، إزالة الخلفية، القص، الحدة، الصبغة، تظليل الأطراف، تلاشي الحواف، حد الملصق، مرشحات جاهزة)، أوضاع مزج الطبقات، الرسم الحر بالفرشاة، القطارة، الشبكة والمحاذاة، النص المقوس والمجوف، نسخ النمط، الخلفيات والتدرجات والزخارف، الطبقات، ثم الحفظ صورة PNG (أو PNG شفاف) أو PDF أو الطباعة مباشرة. يعمل دون إنترنت.</div>
         <div class="sec-t">ابدأ من قالب</div>
-        <div class="dz-start">${CATS.filter(c => !kudos || ['congrats', 'thanks', 'exam', 'celeb'].includes(c[0])).map(c => `<button class="card dz-cat" data-cat="${c[0]}"><img src="${toCanvas(template(CATS.indexOf(c) % LAYOUTS.length, CATS.indexOf(c) % PAL.length, c[0]), 120 / 1123).toDataURL('image/jpeg', .7)}"><span>${c[1]}</span></button>`).join('')}</div>
+        <div class="dz-start">${CATS.filter(c => !isN(c) && (!kudos || ['congrats', 'thanks', 'exam', 'celeb'].includes(c[0]))).map(c => `<button class="card dz-cat" data-cat="${c[0]}"><img src="${toCanvas(template(CATS.indexOf(c) % LAYOUTS.length, CATS.indexOf(c) % PAL.length, c[0]), 120 / 1123).toDataURL('image/jpeg', .7)}"><span>${c[1]}</span></button>`).join('')}</div>
+        ${kudos ? '' : `<div class="sec-t" style="margin-top:16px">📢 إخبارات <span class="muted" style="font-weight:400;font-size:12px">— للأولياء والتلاميذ والأطر، بتصاميم جاهزة (اضغط لفتح الإخبار وتعديل نصه)</span></div>
+        <div class="dz-start">${CATS.filter(isN).map((c, i) => { const lay = N_LAYS[i % N_LAYS.length], pal = (i * 3) % PAL.length; return `<button class="card dz-cat" data-ncat="${c[0]}" data-lay="${lay}" data-pal="${pal}"><img src="${toCanvas(template(lay, pal, c[0]), 120 / 1123).toDataURL('image/jpeg', .7)}"><span>${c[1]}</span></button>`; }).join('')}</div>`}
         <div class="sec-t" style="margin-top:16px">تصاميمي (${L.length})</div>
         ${L.length ? `<div class="dz-mine">${L.map(d => `<div class="card dz-my"><img src="${d.thumb}" data-open="${d.id}"><div class="dz-myb"><b>${escH(d.name)}</b><span class="muted">${escH(String(d.at || '').slice(0, 10))}</span>
             <div class="btn-row"><button class="btn sm" data-open="${d.id}">${ic('edit')} فتح</button><button class="btn sm" data-copy="${d.id}">نسخة</button><button class="btn sm danger" data-del="${d.id}">${ic('trash')}</button></div></div></div>`).join('')}</div>`
@@ -933,6 +982,7 @@
       if ($('#dzBrand', v)) $('#dzBrand', v).onclick = () => go('flyers', { cat: 'brand' });
       $('#dzNew', v).onclick = () => openD({ cat: kudos ? 'congrats' : 'activity', doc: { w: 794, h: 1123, bg: { t: 'solid', c1: '#ffffff' }, objs: [] } });
       $$('[data-cat]', v).forEach(b => b.onclick = () => openD({ cat: b.dataset.cat, doc: template(CATS.findIndex(c => c[0] === b.dataset.cat) % LAYOUTS.length, 0, b.dataset.cat) }));
+      $$('[data-ncat]', v).forEach(b => b.onclick = () => openD({ cat: b.dataset.ncat, doc: template(+b.dataset.lay, +b.dataset.pal, b.dataset.ncat) }));
       $$('[data-open]', v).forEach(b => b.onclick = () => openD({ id: b.dataset.open }));
       $$('[data-copy]', v).forEach(b => b.onclick = () => { const d = DG().find(x => x.id === b.dataset.copy); if (!d) return; const c = clone(d); c.id = uid('dz'); c.name = d.name + ' (نسخة)'; c.at = new Date().toISOString(); DG().unshift(c); persist(); draw(); });
       $$('[data-del]', v).forEach(b => b.onclick = async () => { if (!(await confirmBox('حذف هذا التصميم نهائيا؟', 'حذف'))) return; DB.designs = DG().filter(x => x.id !== b.dataset.del); persist(); draw(); });

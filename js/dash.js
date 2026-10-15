@@ -98,7 +98,7 @@
 
   /* ---------- the data of the school ---------- */
   function ctx(sy) {
-    const E = DB.employees || [], bd = safe(() => MK.syBoundsOf(sy), { from: '', to: '' }), y0 = safe(() => MK.syStart(sy), new Date().getFullYear());
+    const E = (DB.employees || []).filter(e => !(typeof isEdu === 'function' && isEdu(e))), bd = safe(() => MK.syBoundsOf(sy), { from: '', to: '' }), y0 = safe(() => MK.syStart(sy), new Date().getFullYear());
     if (window.Pupils && Pupils.summary) safe(() => Pupils.summary());
     const P = window.Pupils ? safe(() => Pupils.current(sy), []) : [];
     const single = !!(window.Cyc && Cyc.single());
@@ -143,7 +143,7 @@
       const ages = E.map(e => yrs(e.birth)).filter(a => a != null && a > 15 && a < 90);
       const sen = E.map(e => yrs(e.hire)).filter(a => a != null && a >= 0 && a < 60);
       const B = window.Board ? { t: safe(() => Board.teachers().length, 0), a: safe(() => Board.admins().length, 0), as: safe(() => Board.assigned().length, 0), p: safe(() => Board.preschool().length, 0) } : { t: 0, a: 0, as: 0, p: 0 };
-      const other = Math.max(0, E.length - B.t - B.a - B.as - B.p);
+      const other = Math.max(0, E.length - B.t - B.a - B.as);
       const eb = [0, 30, 40, 50, 60, 200], el = ['أقل من 30', '30–39', '40–49', '50–59', '60 فأكثر'];
       const ageBy = sx => band(E.filter(e => e.sex === sx).map(e => yrs(e.birth)).filter(a => a != null && a > 15 && a < 90), eb, el);
       const sb = [0, 5, 10, 20, 30, 100], sl = ['أقل من 5', '5–9', '10–19', '20–29', '30 فأكثر'];
@@ -151,11 +151,11 @@
       const comp = FL.map(([k, l]) => ({ label: l, v: E.length ? E.filter(e => nm(e[k])).length / E.length * 100 : 0, c: PAL[0] }));
       const lang = count(E.filter(e => nm(e.teachLang)), e => e.teachLang), st = count(E.filter(e => nm(e.status)), e => e.status);
       return [head('الموظفون والأطر'),
-        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التدريس' }, { v: B.a, l: 'هيئة الإدارة' }, { v: B.as, l: 'أساتذة مكلفون' }, ...(SECX() ? [] : [{ v: B.p, l: 'مربو التعليم الأولي' }]),
+        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التدريس' }, { v: B.a, l: 'هيئة الإدارة' }, { v: B.as, l: 'أساتذة مكلفون' }, 
           { v: other, l: 'أطر وأعوان آخرون' }, { v: E.length ? pc(F, M + F) : '—', l: 'نسبة الإناث' }, { v: ages.length ? f1(+avg(ages).toFixed(1)) : '—', l: 'متوسط العمر (سنة)' },
           { v: sen.length ? f1(+avg(sen).toFixed(1)) : '—', l: 'متوسط الأقدمية (سنة)' }, { v: ages.filter(a => a >= 55).length, l: 'بلغوا 55 سنة فأكثر', c: ages.filter(a => a >= 55).length ? 'red' : '' }], 5)),
         blk(charts([{ t: 'التوزيع حسب الجنس', h: donut([{ label: 'ذكور', v: M, c: C.m }, { label: 'إناث', v: F, c: C.f }, { label: 'غير محدد', v: E.length - M - F, c: C.t }], { unit: 'موظف(ة)' }) },
-          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, ...(SECX() ? [] : [{ label: 'التعليم الأولي', v: B.p }]), { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
+          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
         blk(charts([{ t: 'الفئات العمرية حسب الجنس', h: vbars(el, [{ name: 'ذكور', color: C.m, vals: ageBy('M') }, { name: 'إناث', color: C.f, vals: ageBy('F') }]) },
           { t: 'الأقدمية في الوظيفة (سنوات)', h: vbars(sl, [{ name: 'عدد الموظفين', color: C.g, vals: band(sen, sb, sl) }]) }])),
         blk(charts([{ t: 'الإطار (الأكثر تمثيلا)', h: hbar(top(count(E.filter(e => nm(e.cadre)), e => e.cadre), 8), { labW: 150, cut: 30 }) },
@@ -289,6 +289,18 @@
           { t: 'وضعية المخزون', h: donut([{ label: 'متوفرة', v: Math.max(0, S1.items - S1.empty), c: C.ok }, { label: 'نفدت', v: S1.empty, c: C.bad }], { unit: 'مادة', w: 260 }) }])) : null];
     } });
 
+  // 1.9.4: the pre-school educators: a section of their own (not in the staff statistics)
+  sec({ k: 'presch', t: 'مربيات ومربو التعليم الأولي', has: c => !SECX() && (DB.employees || []).some(e => typeof isEdu === 'function' && isEdu(e)),
+    build: c => {
+      const L = (DB.employees || []).filter(e => isEdu(e)), F = L.filter(e => e.sex === 'F').length;
+      const org = o => (/النهوض/.test(o || '') ? 'FMPS' : /زاكورة/.test(o || '') ? 'زاكورة' : (o || 'غير محدد'));
+      const byO = {}; L.forEach(e => { const k = org(e.org); byO[k] = (byO[k] || 0) + 1; });
+      const byU = {}; L.forEach(e => { const k = e.unit || 'غير محدد'; byU[k] = (byU[k] || 0) + 1; });
+      return [head('مربيات ومربو التعليم الأولي'),
+        blk(kpis([{ v: L.length, l: 'مجموع المربيات والمربين' }, { v: F, l: 'المربيات' }, { v: L.length - F, l: 'المربون' }, { v: Object.keys(byO).length, l: 'الجهات المشغلة' }].concat(c.single ? [] : [{ v: Object.keys(byU).length, l: 'الوحدات المدرسية' }]), 5)),
+        blk(charts([{ t: 'التوزيع حسب الجهة المشغلة', h: donut(Object.keys(byO).map((k, i) => ({ label: k, v: byO[k], c: PAL[i % PAL.length] })), { unit: 'مرب(ية)' }) }].concat(c.single ? [] : [{ t: 'التوزيع حسب الوحدة المدرسية', h: hbar(Object.keys(byU).map(k => ({ label: k, v: byU[k], c: PAL[0] })), { labW: 150, cut: 30 }) }])))];
+    } });
+
   sec({ k: 'roaiz', t: 'استثمار الروائز', has: c => !SECX() && !!(window.Roaiz && Roaiz.summary && safe(() => Roaiz.summary().groups, 0) > 0),
     build: c => {
       const R = Roaiz.summary();
@@ -333,7 +345,7 @@
         const f = Dd(); picked();
         const defs = () => [{ sec: 'الأقسام المراد إدراجها' },
           { note: 'تُحسب كل المؤشرات والمبيانات تلقائيا من معطيات البرنامج (الموظفون، الغياب، التلاميذ، الأساتذة، المواظبة، الوثائق، الشواهد، الأندية والشركاء، الميزانية والعتاد...). القسم الذي لا معطيات له لا يظهر في الوثيقة. اختر الأقسام ثم اضغط «طباعة» أو «PDF» أو «Word».' },
-          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => cycT(x.t) + (has[i] ? '' : ' (لا معطيات بعد)')) },
+          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => (x.k === 'presch' && SECX() ? null : cycT(x.t) + (has[i] ? '' : ' (لا معطيات بعد)'))) },
           { k: 'note', l: 'ملاحظة أسفل الوثيقة', t: 'area', rows: 2 }];
         let t = null;
         K.form(box, defs, f, () => { clearTimeout(t); t = setTimeout(() => persist(), 300); refresh(); });
@@ -349,7 +361,7 @@
     try {
       if (c.E.length) {
         const B = window.Board ? { t: Board.teachers().length, a: Board.admins().length, as: Board.assigned().length, p: Board.preschool().length } : { t: 0, a: 0, as: 0, p: 0 };
-        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, ...(SECX() ? [] : [{ label: 'التعليم الأولي', v: B.p }]), { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as - B.p) }], { unit: 'موظف(ة)', w: 330 }) });
+        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as) }], { unit: 'موظف(ة)', w: 330 }) });
       }
     } catch (e) { /* ignore */ }
     try {

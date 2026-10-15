@@ -514,9 +514,12 @@
       { k: 'minRows', l: 'عدد الأسطر الأدنى في جدول الحاضرين', t: 'num', half: 1 },
       { sec: 'التوقيعات' }, { k: 'sigRap', l: 'المقرر', half: 1 }, { k: 'sigDir', l: 'مدير المؤسسة', half: 1 }, { k: 'sigPres', l: 'رئيس الجمعية', half: 1 }],
     invite: f => {
-      const cls = window.Pupils ? Array.from(new Set(Pupils.current(MK.curSy()).map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'ar', { numeric: true })) : [];
+      // 1.9.4: a school group chooses the school unit(s) invited: the parents of its pupils, its teachers
+      const grpU = !(window.Cyc && Cyc.single()), inU = p => !f.iunit || (window.K && K.U ? K.U.same(p.unit, f.iunit) : p.unit === f.iunit);
+      const cls = window.Pupils ? Array.from(new Set(Pupils.current(MK.curSy()).filter(inU).map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'ar', { numeric: true })) : [];
       return [
         { sec: 'الدعوة' }, { k: 'to', l: 'المدعوون', t: 'select', opts: INV_TO },
+        grpU && (f.to === 'parents' || f.to === 'staff') ? { k: 'iunit', l: 'الوحدة المدرسية', t: 'select', half: 1, opts: [['', 'كل الوحدات المدرسية']].concat(((window.K && K.unitList ? K.unitList().map(u => u.name) : []).concat(window.Pupils && Pupils.unitNames ? Pupils.unitNames() : [])).filter((u, i, a) => u && a.findIndex(x => (window.K && K.U ? K.U.same(x, u) : x === u)) === i).map(u => [u, u])) } : null,
         f.to === 'parents' ? { k: 'cls', l: 'دعوة اسمية لأولياء تلاميذ', t: 'select', half: 1, opts: [['', 'دعوة عامة (بدون أسماء)'], ['*', 'كل التلاميذ'], ...cls.map(c => [c, 'القسم: ' + c])] } : null,
         (f.to === 'parents' && !f.cls) ? { k: 'copies', l: 'عدد النسخ', t: 'num', half: 1 } : null,
         f.to === 'one' ? { k: 'one', l: 'إلى السيد(ة)', ph: 'مثال: السيد رئيس المجلس الجماعي' } : null,
@@ -774,14 +777,14 @@
     if (f.to === 'parents') {
       if (!f.cls) to = Array.from({ length: Math.max(1, Math.min(300, +f.copies || 1)) }, () => `${sir} ولي(ة) أمر التلميذ(ة): ${'.'.repeat(40)} القسم: ${'.'.repeat(12)}`);
       else {
-        const L = (window.Pupils ? Pupils.current(MK.curSy()) : []).filter(p => f.cls === '*' || p.cls === f.cls).sort((a, b) => String(a.cls || '').localeCompare(String(b.cls || ''), 'ar', { numeric: true }) || `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar'));
+        const L = (window.Pupils ? Pupils.current(MK.curSy()) : []).filter(p => (f.cls === '*' || p.cls === f.cls) && (!f.iunit || (window.K && K.U ? K.U.same(p.unit, f.iunit) : p.unit === f.iunit))).sort((a, b) => String(a.cls || '').localeCompare(String(b.cls || ''), 'ar', { numeric: true }) || `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar'));
         to = L.map(p => { const gd = f.guard ? guardianOf(p) : null; const pup = `${p.g === 'F' ? 'التلميذة' : 'التلميذ'}: <b>${esc(`${p.last || ''} ${p.first || ''}`.trim())}</b>${p.cls ? ` — القسم: <b>${esc(p.cls)}</b>` : ''}${p.unit && units().length > 1 ? ` — ${esc(p.unit)}` : ''}`;
           return gd ? `${gd.title}: <b>${esc(gd.name)}</b>، ولي(ة) أمر ${pup}` : `${sir} ولي(ة) أمر ${pup}`; });
         if (!to.length) to = [`${sir} ولي(ة) أمر التلميذ(ة): ${'.'.repeat(40)}`];
       }
     } else if (f.to === 'assoc') to = PD().members.filter(m => m.name).map(m => `${sir}: <b>${esc(m.name)}</b>${m.role ? ` — ${esc(m.role)}` : ''}`);
     else if (f.to === 'others') to = PD().others.filter(m => m.name).map(m => `${sir}: <b>${esc(m.name)}</b>${m.role ? ` — ${esc(m.role)}` : ''}`);
-    else if (f.to === 'staff') to = sortedEmps().filter(e => !(window.K && K.E && K.E.cat) || ['admin', 'teacher', 'assigned'].includes(K.E.cat(e))).map(e => `${/^(F|f|أنثى|انثى)$/.test(String(e.sex || '')) || (!e.sex && (/ة\s*$/.test(String(e.firstAr || '').trim()) || /أستاذة|مديرة|متصرفة|ملحقة/.test(String(e.cadre || '')))) ? 'السيدة' : 'السيد'}: <b>${esc(fullName(e))}</b>${e.cadre ? ` — ${esc(e.cadre)}` : ''}`);
+    else if (f.to === 'staff') to = sortedEmps().filter(e => (!(window.K && K.E && K.E.cat) || ['admin', 'teacher', 'assigned'].includes(K.E.cat(e))) && (!f.iunit || !e.unit || (window.K && K.U ? K.U.same(e.unit, f.iunit) : e.unit === f.iunit))).map(e => `${/^(F|f|أنثى|انثى)$/.test(String(e.sex || '')) || (!e.sex && (/ة\s*$/.test(String(e.firstAr || '').trim()) || /أستاذة|مديرة|متصرفة|ملحقة/.test(String(e.cadre || '')))) ? 'السيدة' : 'السيد'}: <b>${esc(fullName(e))}</b>${e.cadre ? ` — ${esc(e.cadre)}` : ''}`);
     else to = [f.one ? `<b>${esc(f.one)}</b>` : `${sir}: ${'.'.repeat(50)}`];
     if (!to.length) to = [`${sir}: ${'.'.repeat(50)}`];
     const hdr = f.from === 'assoc' ? assocHdr(assocFull(s), s.commune) : compactHdr(s);

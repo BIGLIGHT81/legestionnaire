@@ -461,7 +461,7 @@
       case 'date': return `<div class="${cls}">${lab}<input class="inp" type="date" data-k="${d.k}" value="${esc(v || '')}">${hint}</div>`;
       case 'num': case 'money': return `<div class="${cls}">${lab}<input class="inp" type="number" ${d.t === 'money' ? 'step="0.01"' : 'step="1"'} data-k="${d.k}" value="${esc(v == null ? '' : v)}" placeholder="${esc(d.ph || '')}">${hint}</div>`;
       case 'select': return `<div class="${cls}">${lab}<select class="inp" data-k="${d.k}">${(typeof d.opts === 'function' ? d.opts() : d.opts).map(o => { const [k, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(k)}" ${String(v == null ? '' : v) === String(k) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select>${hint}</div>`;
-      case 'checks': return `<div class="${cls}">${lab}<div class="k2-checks">${d.opts.map((o, i) => `<label class="chk"><input type="checkbox" data-ck="${d.k}" data-i="${i}" ${v && v[i] ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div>${hint}</div>`;
+      case 'checks': return `<div class="${cls}">${lab}<div class="k2-checks">${d.opts.map((o, i) => o == null ? '' : `<label class="chk"><input type="checkbox" data-ck="${d.k}" data-i="${i}" ${v && v[i] ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div>${hint}</div>`;
       case 'grid': {
         const rows = v || [];
         // 1.9.4: one independent institution (collège / lycée / independent school): the column of the school unit is not shown

@@ -217,7 +217,7 @@
     .sa-tag{display:inline-block;padding:1px 9px;border-radius:12px;background:var(--b);color:var(--c);font-weight:700;font-size:12px}
     .sa-bar{display:inline-block;width:80px;height:8px;background:#eee;border-radius:4px;overflow:hidden;vertical-align:middle;margin-inline-end:6px}.sa-bar span{display:block;height:100%}`; document.head.appendChild(c); }
   Dx.modCss += `.sa-month td,.sa-month th{font-size:8pt;padding:.4mm .5mm!important;text-align:center}`;
-  window.SAgents = { list: () => R().agents, TYPES, monthStat };
+  window.SAgents = { list: () => R().agents, TYPES, monthStat, summary: () => ({ n: R().agents.length, firms: companies().join('، ') }) };
   window.pageSAgents = (v, a) => page(v, a);
   window.pageSAgentsDoc = (v, a) => docPage(v, a);
 })();

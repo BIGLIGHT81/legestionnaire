@@ -186,6 +186,10 @@ function confirmBox(msg, okLabel = 'تأكيد', danger = true) {
 const empById = id => DB.employees.find(e => e.id === id);
 const empLabel = e => `${fullName(e)} — ${e.ppr || ''}`;
 const sortedEmps = () => DB.employees.slice().sort((a, b) => fullName(a).localeCompare(fullName(b), 'ar'));
+// 1.9.4: the pre-school educators (employed by FMPS, Zakoura...) have their own section: they are not in the staff list, its statistics or its absences
+const isEdu = e => !!e && (e.cat === 'preschool' || (!e.cat && !!(window.K && K.E && K.E.cat(e) === 'preschool')));
+const staffEmps = () => sortedEmps().filter(e => !isEdu(e));
+const staffAll = () => (DB.employees || []).filter(e => !isEdu(e));
 const addDays = (iso, n) => { const d = toDate(iso); if (!d) return ''; d.setUTCDate(d.getUTCDate() + n); return isoOf(d); };
 const lastF = (type, k) => { const r = DB.records.filter(x => x.type === type && x.f && x.f[k]).sort((a, b) => (b.updated || '').localeCompare(a.updated || ''))[0]; return r ? r.f[k] : ''; };
 const recName = r => { const e = empById(r.empId); return e ? fullName(e) : (r.snap && r.snap.name) || '—'; };
@@ -215,6 +219,7 @@ function absenceEntries() {
   DB.records.forEach(r => {
     const a = absenceOf(r);
     if (!a) return;
+    if (isEdu(empById(r.empId))) return;   // 1.9.4: the pre-school educators are not in the staff absences
     const key = r.empId + '|' + a.from + '|' + a.to;
     const prev = seen.get(key);
     // prefer a medical receipt / manual entry reason over a generic leave request
@@ -261,8 +266,8 @@ const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.c
 const NAV = [
   { id: 'home', c: '#0f6e5a', label: 'لوحة القيادة', icon: 'home', grps: [['لوحة القيادة والمؤشرات', ['home', 'dash']], ['الطبع الشامل', ['printAll']]],
     tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل لوثائق الخانات')] },
-  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['المتابعة اليومية للموظفين', ['track', 'guard']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
-    tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'مربيات ومربو التعليم الأولي', null, { w: isPriCycle }),
+  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees']], ['مربيات ومربو التعليم الأولي', ['presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['المتابعة اليومية للموظفين', ['track', 'guard']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
+    tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'بطاقات المربيات والمربين ووثائقهم', null, { w: isPriCycle }),
       tab('sagents', 'بطاقات الأعوان والشركات المشغلة', { v: 'list' }, { k: 'sagents' }), tab('sagents', 'تتبع القيام بالأعمال', { v: 'log' }, { k: 'sagents:log' }), tab('sagents', 'الحصيلة الشهرية وتقييم الخدمة', { v: 'sum' }, { k: 'sagents:sum' }), tab('track', 'شبكة تتبع العمل التربوي'), tab('guard', 'جداول الحراسة'), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
       tab('documents', 'طلبات الرخص', { cat: 'leave' }), tab('documents', 'الاستئناف والانقطاع والاستفسار', { cat: 'work' }), tab('documents', 'الشهادات الإدارية وبطاقات التقديم', { cat: 'cert' }), tab('svcAcc', 'حوادث الشغل (المصلحة)')] },
   { id: 'pupils', c: '#0b7a8a', label: 'شؤون التلاميذ', icon: 'pupil', grps: [['التمدرس والتسجيل', ['pupils', 'preins']], ['الملفات والشواهد المدرسية', ['mail:dos', 'documents:files', 'certsCur', 'certs']], ['المواظبة والانضباط', ['attend', 'absreg', 'vschool']], ['الصحة والسلامة المدرسية', ['incid']]],
@@ -438,14 +443,15 @@ function pageHome(v) {
   const rows = monthRows(y, m);
   const daysMonth = rows.reduce((s, r) => s + r.days, 0);
   const docsMonth = DB.records.filter(r => r.type !== 'absence' && (r.created || '').startsWith(`${y}-${String(m).padStart(2, '0')}`)).length;
-  const today = absentToday();
+  const today = absentToday().filter(a => !isEdu(empById(a.rec.empId)));
   const recent = DB.records.slice().sort((a, b) => (b.updated || '').localeCompare(a.updated || '')).slice(0, 6);
   // figures of every part of the application
   const sy = window.MK ? MK.curSy() : '';
   const syB = window.MK ? MK.syBoundsOf(sy) : { from: '', to: '' };
   const absSy = absenceEntries().filter(a => a.to >= syB.from && a.from <= syB.to);
   const medSy = absSy.filter(a => /مرضية|رخصة مرض/.test(a.reason)).length;
-  const teachers = DB.employees.filter(e => /أستاذ|استاذ/.test(e.cadre || '')).length;
+  const STF = staffAll(), EDU = (DB.employees || []).filter(isEdu);
+  const teachers = STF.filter(e => /أستاذ|استاذ/.test(e.cadre || '')).length;
   const C = DB.certs || { students: [], issued: [] };
   const certsYear = (C.issued || []).filter(r => +r.year === y).length;
   const curPupils = (C.students || []).filter(x => x.status === 'current').length;
@@ -484,14 +490,16 @@ function pageHome(v) {
       </div>
     </div>
     <div class="stats">
-      ${stat('users', DB.employees.length, 'عدد الموظفين', '#e3f0ec', '#0e5a4a')}
+      ${stat('users', STF.length, 'عدد الموظفين', '#e3f0ec', '#0e5a4a')}
       ${stat('user', today.length, 'غائبون اليوم', '#fbe9e7', '#b3261e')}
       ${stat('cal', daysMonth, `أيام غياب الموظفين في ${MONTHS[m - 1]}`, '#e6f0fa', '#1f5f9e')}
       ${stat('file', docsMonth, 'وثائق هذا الشهر', '#f7efdc', '#8a6418')}
     </div>
     ${miniCharts()}
     ${dsec('staff')}<div class="mods">
-      ${mod('employees', 'users', 'الموظفون', kv('مجموع الموظفين', DB.employees.length) + kv('هيئة التدريس', teachers) + kv('أطر أخرى', DB.employees.length - teachers))}
+      ${mod('employees', 'users', 'الموظفون', kv('مجموع الموظفين', STF.length) + kv('هيئة التدريس', teachers) + kv('أطر أخرى', STF.length - teachers))}
+      ${isPriCycle() ? mod('presch', 'pupil', 'مربيات ومربو التعليم الأولي', kv('عدد المربيات والمربين', EDU.length) + kv('المربيات', EDU.filter(e => e.sex === 'F').length) + (isSingleOrg() ? '' : kv('الوحدات المدرسية', new Set(EDU.map(e => e.unit).filter(Boolean)).size)) + kv('الجهات المشغلة', Array.from(new Set(EDU.map(e => (/النهوض/.test(e.org || '') ? 'FMPS' : /زاكورة/.test(e.org || '') ? 'زاكورة' : e.org)).filter(Boolean))).join('، ') || '—')) : ''}
+      ${window.SAgents && SAgents.summary ? (x => mod('sagents', 'shield', 'أعوان الحراسة والنظافة', kv('عدد الأعوان', x.n) + kv('الشركات المشغلة', x.firms || '—')))(SAgents.summary()) : ''}
       ${mod('absences', 'cal', 'الغياب والرخص', kv('غائبون اليوم', today.length, today.length ? 'red' : '') + kv(`أيام الغياب في ${MONTHS[m - 1]}`, daysMonth) + kv('حالات الغياب خلال الموسم', absSy.length) + kv('منها رخص مرضية', medSy))}
     </div>
     ${dsec('docs')}<div class="mods">
@@ -618,7 +626,7 @@ function pageEmployees(v) {
     </div>`;
   const draw = () => {
     const q = empQuery.trim().toLowerCase();
-    const list = sortedEmps().filter(e => !q || [fullName(e), e.firstFr, e.lastFr, e.ppr, e.cin, e.cadre].join(' ').toLowerCase().includes(q));
+    const list = staffEmps().filter(e => !q || [fullName(e), e.firstFr, e.lastFr, e.ppr, e.cin, e.cadre].join(' ').toLowerCase().includes(q));
     $('#empCount').textContent = `${DB.employees.length} موظف`;
     $$('#empSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === empView));
     if (empView === 'cards') {
@@ -725,7 +733,7 @@ const DATE_KEYS = ['birth', 'hire', 'affDate', 'asgFrom', 'asgTo', 'dirDate', 'g
 const csvCols = () => isSingleOrg() ? CSV_COLS.filter(c => c[0] !== 'unit') : CSV_COLS;
 const xlWidths = () => isSingleOrg() ? XL_WIDTHS.filter((w, i) => i !== CSV_COLS.findIndex(c => c[0] === 'unit') + 1) : XL_WIDTHS;
 async function exportCsv() {
-  const rows = [['ر.ت'].concat(csvCols().map(c => c[1]))].concat(sortedEmps().map((e, i) => [String(i + 1)].concat(csvCols().map(([k]) => DATE_KEYS.includes(k) ? fmtDate(e[k]) : (e[k] == null ? '' : String(e[k]))))));
+  const rows = [['ر.ت'].concat(csvCols().map(c => c[1]))].concat(staffEmps().map((e, i) => [String(i + 1)].concat(csvCols().map(([k]) => DATE_KEYS.includes(k) ? fmtDate(e[k]) : (e[k] == null ? '' : String(e[k]))))));
   const r = await window.api.saveXlsx(rows, 'لائحة_الموظفين.xlsx', 'الموظفون', xlWidths());
   if (r.ok) toast('تم تصدير اللائحة إلى Excel');
 }
@@ -790,7 +798,7 @@ function parseCsv(text) {
 async function downloadTemplate() {
   const save = async filled => {
     const rows = [['ر.ت'].concat(csvCols().map(c => c[1]))];
-    if (filled) sortedEmps().forEach((e, i) => rows.push([String(i + 1)].concat(csvCols().map(([k]) => DATE_KEYS.includes(k) ? fmtDate(e[k]) : (e[k] == null ? '' : String(e[k]))))));
+    if (filled) staffEmps().forEach((e, i) => rows.push([String(i + 1)].concat(csvCols().map(([k]) => DATE_KEYS.includes(k) ? fmtDate(e[k]) : (e[k] == null ? '' : String(e[k]))))));
     const upTo = Math.max(50, rows.length + 9);
     for (let i = rows.length; i <= upTo; i++) rows.push([String(i)].concat(csvCols().map(() => '')));
     const r = await window.api.saveXlsx(rows, filled ? 'لائحة_الموظفين_للاستكمال.xlsx' : 'نموذج_استيراد_الموظفين.xlsx', 'الموظفون', xlWidths());
@@ -1914,7 +1922,7 @@ function absForm(r, after) {
   const other = !!f.reason && !known;
   const body = document.createElement('div');
   body.innerHTML = `<div class="fgrid">
-    <div class="fld full"><label>الموظف</label><select class="inp" id="aEmp"><option value=""></option>${sortedEmps().map(e => `<option value="${e.id}">${esc(empLabel(e))}</option>`).join('')}</select></div>
+    <div class="fld full"><label>الموظف</label><select class="inp" id="aEmp"><option value=""></option>${staffEmps().map(e => `<option value="${e.id}">${esc(empLabel(e))}</option>`).join('')}</select></div>
     <div class="fld"><label>من</label><input class="inp" type="date" id="aFrom" value="${esc(f.from)}"></div>
     <div class="fld"><label>إلى</label><input class="inp" type="date" id="aTo" value="${esc(f.to)}"></div>
     <div class="fld full"><label>سبب الغياب <span style="color:var(--red)">*</span></label>

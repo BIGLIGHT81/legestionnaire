@@ -26,7 +26,7 @@
   const defMonth = sy => { const m = MK.syRef(sy).slice(5, 7); return MONTHS().some(x => x[0] === m) ? m : (m === '07' || m === '08' ? '06' : '09'); };
   const monthOpts = () => MONTHS().map(([k, l]) => [k, l]);
   const sexOf = e => e.sex || (/ة\s*$/.test(nm(e.firstAr)) ? 'F' : 'M');
-  const emps = () => sortedEmps();
+  const emps = () => (typeof staffEmps === 'function' ? staffEmps() : sortedEmps());   // 1.9.4: without the pre-school educators
   const cat = e => K.E.cat(e);
   const teachersIn = () => emps().filter(e => (cat(e) === 'teacher' && !nm(e.assigned)) || cat(e) === 'assigned');
   const teachersOut = () => emps().filter(e => cat(e) === 'teacher' && nm(e.assigned));
