@@ -541,6 +541,54 @@
     names: (s, f) => ({ name: f.person, role: f.role })
   });
 
+  /* ===================== R — 1.9.4: طلب تشجيع موظف(ين) (مراسلة إلى المديرية الإقليمية) ===================== */
+  const encRows = rows => (rows || []).filter(r => String(r[0] || '').trim());
+  const pprOf = n => { const e = K.E.byName(n); return e ? (e.ppr || '') : ''; };
+  const encFill = r => { const e = K.E.byName(r[0]); return e ? [r[0], r[1] || e.ppr || ''] : null; };
+  const encTable = rows => `<table class="lt-t sb-t" style="width:78%;margin:2mm auto 3mm"><thead><tr><th class="d">${esc(rows.length > 1 || !rows.length ? 'اسم الأستاذ(ة) / الموظف(ة)' : 'الاسم الكامل')}</th><th class="d" style="width:32%">رقم التأجير</th></tr></thead><tbody>${rows.map(r => `<tr><td class="b">${esc(r[0])}</td><td class="b" dir="ltr">${esc(r[1] || pprOf(r[0]))}</td></tr>`).join('')}</tbody></table>`;
+  add({
+    k: 'kd_encourage', t: 'طلب تشجيع موظف(ة) أو مجموعة من الأطر', grp: 'r', page: 'a4',
+    d: 'مراسلة إلى السيد المدير الإقليمي (مصلحة الشؤون القانونية والتواصل والشراكة) لطلب تشجيع أستاذ(ة) أو موظف(ة)، أو مجموعة من الأطر في جدول بأسمائهم وأرقام تأجيرهم، مع جدول ثان اختياري.',
+    auto: 'الموظفون (الاسم ورقم التأجير)',
+    init: s => ({ mode: 'one', no: '', city: s.city || '', date: Dx.todayIso(), emp: '', ppr: '', reason: '', rows: [['', '']], reason2: '', rows2: [], text: '',
+      service: 'مصلحة الشؤون القانونية والتواصل والشراكة' }),
+    defs: f => [{ sec: 'المراسلة' }, { k: 'mode', l: 'نوع الطلب', t: 'select', half: true, opts: [['one', 'تشجيع موظف(ة) واحد(ة)'], ['group', 'تشجيع مجموعة من الأطر (جدول)']] },
+      { k: 'no', l: 'رقم الإرسال', half: true, dir: 'ltr', ph: '22/051' }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true },
+      { k: 'service', l: 'المصلحة المرسل إليها بالمديرية', ph: 'مصلحة الشؤون القانونية والتواصل والشراكة' },
+      { sec: f.mode === 'group' ? 'الأطر المعنيون' : 'الموظف(ة) المعني(ة)' }]
+      .concat(f.mode === 'group' ? [
+        gridDef('rows', 'الجدول الأول: الأطر المعنيون', ['الاسم الكامل', 'رقم التأجير'], { widths: ['1.6fr', '.8fr'], list: ['k2Emps', null], dirs: [null, 'ltr'], fill: encFill }),
+        { k: 'reason', l: 'سبب التشجيع (الجدول الأول)', t: 'area', rows: 3, ph: 'نظير مساهمتهم الفعالة في إنجاح عملية ... التي نظمها ... يوم ...' },
+        gridDef('rows2', 'الجدول الثاني (اختياري): أطر آخرون لسبب آخر', ['الاسم الكامل', 'رقم التأجير'], { widths: ['1.6fr', '.8fr'], list: ['k2Emps', null], dirs: [null, 'ltr'], fill: encFill }),
+        { k: 'reason2', l: 'سبب التشجيع (الجدول الثاني)', t: 'area', rows: 2, ph: 'نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة ...' }
+      ] : [
+        { k: 'emp', l: 'الموظف(ة)', list: 'k2Emps', half: true }, { k: 'ppr', l: 'رقم التأجير (يُملأ تلقائيا)', half: true, dir: 'ltr' },
+        { k: 'reason', l: 'سبب التشجيع', t: 'area', rows: 4, ph: 'بعد أن أبانت عن مستواها المتميز في التأطير والتنسيق وقامت بمجهودات عالية ... وذلك بمشاركتها في ...' }
+      ]).concat([{ k: 'text', l: 'نص المراسلة (اختياري: يعوض النص الجاهز)', t: 'area', rows: 3, hint: 'اتركه فارغا لاستعمال النص الجاهز المبني على الاسم والسبب.' }]),
+    build: (s, f) => {
+      if (!window.Letter) return { page: 'a4', blocks: [] };
+      const dir = String(s.directorate || '').replace(/^(?:ال)?مديرية\s+(?:ال)?إ?ا?قليمية\s*(?:ل|ب)?\s*/, '');
+      const reason = t => String(t || '').trim().replace(/[.،]+$/, '');
+      const to = ['إلى السيد: المدير الإقليمي للأكاديمية الجهوية للتربية والتكوين' + (Letter.myReg ? ' ' + esc(Letter.myReg(s) || '') : ''), 'بالمديرية الإقليمية ' + esc(dir || '..........'), esc(f.service || 'مصلحة الشؤون القانونية والتواصل والشراكة')];
+      let subject, body, extra = '';
+      if (f.mode === 'group') {
+        const R1 = encRows(f.rows), R2 = encRows(f.rows2);
+        subject = 'طلب تشجيع الأطر التربوية بالمؤسسة';
+        body = f.text ? esc(f.text).replace(/\n/g, '<br>') : `وبعد، يشرفني أن أطلب منكم تشجيع الأطر التربوية الآتية أسماؤها؛ وذلك ${esc(reason(f.reason) || 'نظير مساهمتها الفعالة في إنجاح أنشطة المؤسسة')}:`;
+        extra = encTable(R1.length ? R1 : [['', ''], ['', '']]);
+        if (R2.length) extra += `<p class="lt-body">كما يشرفني أن أطلب منكم أيضا تشجيع ${R2.length > 1 ? 'الأطر المشار إليهم' : 'الإطار المشار إليه'} في الجدول أسفله، ${esc(reason(f.reason2) || 'نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة')}.</p>` + encTable(R2);
+      } else {
+        const n = String(f.emp || '').trim(), ppr = f.ppr || pprOf(n), E0 = K.E.byName(n) || {}, sx = E0.sex || (/ة$/.test(String(E0.firstAr || n.split(' ')[0] || '')) ? 'F' : '');
+        const ti = E0.id && !E0.sex ? (sx === 'F' ? titleOf(n).replace(/^(الأستاذ|السيد|المربي)$/, '$1ة').replace('السيدة', 'السيدة') : titleOf(n).replace(/^الأستاذ$/, 'الأستاذ(ة)').replace(/^السيد$/, 'السيد(ة)')) : titleOf(n), fem = sx === 'F', unk = !sx;
+        const who = `${ti} ${n || '....................'}${ppr ? ` (رقم التأجير ${ppr})` : ''}`;
+        subject = `طلب تشجيع ${who}`;
+        body = f.text ? esc(f.text).replace(/\n/g, '<br>') : `وبعد، يشرفني أن أطلب منكم تشجيع ${esc(who)} وتحفيز${fem ? 'ها' : unk ? 'ه(ا)' : 'ه'} على مزيد من العطاء ${esc(reason(f.reason) || (fem ? 'بعد أن أبانت عن مستواها المتميز وقامت بمجهودات عالية' : unk ? 'بعد أن أبان(ت) عن مستواه(ا) المتميز وقام(ت) بمجهودات عالية' : 'بعد أن أبان عن مستواه المتميز وقام بمجهودات عالية'))}.`;
+      }
+      const B = Letter.blocks({ s, f: { no: f.no, city: f.city, date: f.date }, noSup: true, subject, to, body, extra: extra || undefined, close: 'وتقبلوا فائق التقدير. والسلام', sign: 'خاتم وتوقيع مدير المؤسسة' });
+      return { page: 'a4', pages: Letter.pages(s, B) };
+    }
+  });
+
   /* ---------------- centre ---------------- */
   const DOCS = () => DOCS_;
   let C = null;
@@ -548,7 +596,7 @@
     if (C) return C;
     C = K.center({
       id: 'kudos', title: 'التهاني والتقديرات', icon: '🏅', route: 'kudosDoc', hubRoute: 'kudos', docLabel: 'الشهادة',
-      groups: [['t', 'شواهد تقدير الأساتذة والأطر', 'المشاركة والمساهمة والمجهودات المتميزة'], ['f', 'التهاني بالأعياد والمناسبات', 'الأعياد الدينية واليوم العالمي للمدرس'], ['p', 'شواهد التفوق للتلاميذ', 'الثلاثة الأوائل بكل قسم'], ['k', 'الشكر والتقدير للشركاء', 'جمعية الآباء، المجلس الجماعي، الجمعيات المدنية']],
+      groups: [['t', 'شواهد تقدير الأساتذة والأطر', 'المشاركة والمساهمة والمجهودات المتميزة'], ['f', 'التهاني بالأعياد والمناسبات', 'الأعياد الدينية واليوم العالمي للمدرس'], ['p', 'شواهد التفوق للتلاميذ', 'الثلاثة الأوائل بكل قسم'], ['k', 'الشكر والتقدير للشركاء', 'جمعية الآباء، المجلس الجماعي، الجمعيات المدنية'], ['r', 'طلبات التشجيع', 'مراسلة المديرية الإقليمية لتشجيع موظف(ة) أو مجموعة من الأطر']],
       docs: DOCS, store: sy => store(sy), years: () => Object.keys(KD().years),
       // 1.9.4: free designer for greetings, thanks and certificates
       hubButtons: () => `<button class="btn pri" data-go-flyers="congrats">🎨 المصمم الحر (تهاني وشواهد بتصميمك)</button>`,

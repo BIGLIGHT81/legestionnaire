@@ -11,7 +11,9 @@
   const R = () => { const m = (DB.preins = DB.preins && typeof DB.preins === 'object' ? DB.preins : {}); m.items = Array.isArray(m.items) ? m.items : []; return m; };
   const STATUS = { ok: ['مقبول', '#1e8449'], no: ['مرفوض', '#c0392b'], wait: ['في طور الدراسة', '#d68910'] };
   const stOf = t => (/مرفوض|rejet|refus/i.test(t) ? 'no' : /مقبول|accept|valid/i.test(t) ? 'ok' : 'wait');
-  const LEVELS = ['التعليم الأولي', 'الأول ابتدائي عام', 'الثاني ابتدائي عام', 'الثالث ابتدائي عام', 'الرابع ابتدائي عام', 'الخامس ابتدائي عام', 'السادس ابتدائي عام', 'الأولى ثانوي إعدادي', 'الجذع المشترك'];
+  const LEVELS_P = ['التعليم الأولي', 'الأول ابتدائي عام', 'الثاني ابتدائي عام', 'الثالث ابتدائي عام', 'الرابع ابتدائي عام', 'الخامس ابتدائي عام', 'السادس ابتدائي عام', 'الأولى ثانوي إعدادي', 'الجذع المشترك'];
+  // 1.9.4: the levels follow the cycle of the institution (no pre-school for the collège / lycée)
+  const LVL = () => { const c = (typeof S === 'function' && S().cycle) || ''; return /إعدادي/.test(c) ? ['الأولى إعدادي', 'الثانية إعدادي', 'الثالثة إعدادي'] : /تأهيلي/.test(c) ? ['الجذع المشترك', 'الأولى باكالوريا', 'الثانية باكالوريا'] : LEVELS_P; };
   const DOCS = ['صورة شخصية الطفل(ة)', 'عقد الازدياد الطفل(ة)', 'وثيقة معطيات عامة حول الطفل', 'وثيقة التلقيحات والتكملة الضرورية فيما يخص فيتامينات أ و د', 'شهادة المغادرة', 'شهادة الإقامة'];
   const ROLES = ['الأب', 'الأم', 'الولي الشرعي'];
   const fullAr = x => [x.lastAr, x.firstAr].filter(Boolean).join(' ');
@@ -70,7 +72,7 @@
 
   /* ---------- the form ---------- */
   function form(x0, done) {
-    const x = x0 ? JSON.parse(JSON.stringify(x0)) : { id: uid('pi'), sy: MK.curSy(), date: Dx.todayIso(), school: S().school || '', status: 'wait', g: 'M', nat: 'مغربية', level: LEVELS[1], docs: [], parents: [{ role: 'الأب', guardian: true }, { role: 'الأم' }], notes: '' };
+    const x = x0 ? JSON.parse(JSON.stringify(x0)) : { id: uid('pi'), sy: MK.curSy(), date: Dx.todayIso(), school: S().school || '', status: 'wait', g: 'M', nat: 'مغربية', level: (LVL()[1] || LVL()[0]), docs: [], parents: [{ role: 'الأب', guardian: true }, { role: 'الأم' }], notes: '' };
     x.parents = Array.isArray(x.parents) ? x.parents : [];
     const b = document.createElement('div');
     const fld = (k, l, o) => `<div class="fld"><label>${l}</label><input class="inp" data-f="${k}" ${o || ''} value="${esc(x[k] || '')}"></div>`;
@@ -90,7 +92,7 @@
           ${[['lastAr', 'النسب بالعربية'], ['firstAr', 'الإسم بالعربية'], ['lastFr', 'النسب بالفرنسية', 1], ['firstFr', 'الإسم بالفرنسية', 1], ['cin', 'ر.ب.و (CIN)', 1], ['job', 'المهنة'], ['phone', 'الهاتف', 1], ['email', 'البريد الإلكتروني', 1]].map(([k, l, ltr]) => `<div class="fld"><label>${l}</label><input class="inp" ${ltr ? 'dir="ltr"' : ''} data-p="${i}" data-k="${k}" value="${esc(p[k] || '')}"></div>`).join('')}</div>
           <div class="fld"><label>العنوان</label><input class="inp" data-p="${i}" data-k="addr" value="${esc(p.addr || '')}"></div><button class="btn sm danger" data-pd="${i}">${ic('trash')} حذف</button></div>`).join('')}
         <button class="btn sm" id="piPA">${ic('plus')} إضافة أحد الوالدين / الولي</button>
-        <div class="fld" style="margin-top:8px"><label>ملاحظات</label><textarea class="inp" rows="2" data-f="notes">${esc(x.notes || '')}</textarea></div>${K.dl('piLv', LEVELS)}${K.dl('piRo', ROLES)}`;
+        <div class="fld" style="margin-top:8px"><label>ملاحظات</label><textarea class="inp" rows="2" data-f="notes">${esc(x.notes || '')}</textarea></div>${K.dl('piLv', LVL())}${K.dl('piRo', ROLES)}`;
       $$('[data-f]', b).forEach(el => el.oninput = el.onchange = () => { x[el.dataset.f] = el.value; if (el.dataset.f === 'status') draw(); });
       $$('[data-d]', b).forEach(el => el.onchange = () => { const d = el.dataset.d; x.docs = x.docs.filter(y => y !== d); if (el.checked) x.docs.push(d); });
       $$('[data-p]', b).forEach(el => el.oninput = () => { x.parents[+el.dataset.p][el.dataset.k] = el.value; });

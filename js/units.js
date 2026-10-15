@@ -114,9 +114,10 @@
     isSec(s) { return Cyc.kind(s) !== 'pri'; },
     // 1.9.4: one independent institution = collège / lycée, or a primary school chosen as «مدرسة مستقلة» (settings → orgMode:'single').
     // Everything that speaks of school units (central school, branches, one GRESA code per unit) is hidden; a primary «مجموعة مدرسية» keeps them.
-    single(s) { s = s || (typeof S === 'function' ? S() : {}); return Cyc.kind(s) !== 'pri' || String(s.orgMode || '') === 'single'; },
+    single(s) { s = s || (typeof S === 'function' ? S() : {}); return Cyc.kind(s) !== 'pri' || ['single', 'community'].includes(String(s.orgMode || '')); },
+    community(s) { s = s || (typeof S === 'function' ? S() : {}); return Cyc.kind(s) === 'pri' && String(s.orgMode || '') === 'community'; },
     group(s) { return !Cyc.single(s); },
-    orgLabel(s) { s = s || (typeof S === 'function' ? S() : {}); return Cyc.kind(s) !== 'pri' ? 'مؤسسة مستقلة' : Cyc.single(s) ? 'مدرسة مستقلة (دون وحدات مدرسية)' : 'مجموعة مدرسية (مركزية وفرعيات)'; },
+    orgLabel(s) { s = s || (typeof S === 'function' ? S() : {}); return Cyc.kind(s) !== 'pri' ? 'مؤسسة مستقلة' : Cyc.community(s) ? 'مدرسة جماعاتية' : Cyc.single(s) ? 'مدرسة مستقلة (دون وحدات مدرسية)' : 'مجموعة مدرسية (مركزية وفرعيات)'; },
     label(k) { k = k || Cyc.kind(); return k === 'lyc' ? 'التعليم الثانوي التأهيلي' : k === 'col' ? 'التعليم الثانوي الإعدادي' : 'التعليم الابتدائي'; },
     // Massar level keys of the cycle
     levels(k) { k = k || Cyc.kind(); return k === 'lyc' ? ['TC', 'B1', 'B2'] : k === 'col' ? ['C1', 'C2', 'C3'] : ['DEPE', 'PS1', 'PS2', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6']; },

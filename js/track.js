@@ -163,7 +163,7 @@
         <div class="card hub-card" data-new="blank"><div class="hub-t">شبكة فارغة</div><div class="hub-d">ابدأ بالأساتذة فقط وأضف المهام التي تريد.</div><div class="hub-a">${ic('plus')} إنشاء</div></div></div>
       ${L.length ? `<div class="sec-t" style="margin:16px 0 8px">شبكات الموسم</div><div class="hub-grid">${L.map(g => `<div class="card hub-card" data-open="${g.id}"><div class="hub-t">${esc(g.title)} ${esc(g.period)}</div><div class="hub-d">${g.cols.length} مهمة — ${g.rows.length} أستاذ(ة) — الإنجاز ${progress(g)}%</div>
         <div class="hub-a"><button class="btn sm danger" data-del="${g.id}">حذف</button></div></div>`).join('')}</div>` : ''}`;
-    $('#tkBack').onclick = () => go('documents', { cat: 'follow' });
+    $('#tkBack').onclick = () => go('employees');
     v.querySelectorAll('[data-new]').forEach(c => c.onclick = () => { const g = newGrid(sy, c.dataset.new); go('trackDoc', { id: g.id }); });
     v.querySelectorAll('[data-open]').forEach(c => c.onclick = () => go('trackDoc', { id: c.dataset.open }));
     v.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => { e.stopPropagation(); if (!await confirmBox('حذف هذه الشبكة نهائيا؟', 'حذف')) return; const a = grids(sy); a.splice(a.findIndex(x => x.id === b.dataset.del), 1); persist(); list(v); });

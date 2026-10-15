@@ -257,7 +257,9 @@
   };
   const decInit = (s, sy) => {
     const d = DEC[sy];
-    if (d) return { date: `${MK.syStart(sy)}-09-01`, ref: d.ref, news: d.news, acts: d.acts.map(r => r.slice()), cc: d.cc.map(r => r.slice()), hol: d.hol.map(r => r.slice()) };
+    // 1.9.4: collège / lycée: the lines about the pre-school and the primary school are left out
+    const noPri = t => (isCol() ? String(t || '').replace('بالنسبة للتعليم الأولي وأسلاك التعليم الابتدائي والثانوي الإعدادي و', 'بالنسبة لسلكي التعليم الثانوي الإعدادي و').split('\n').filter(l => !/التعليم الأولي|السلك الابتدائي|مؤسسات الريادة بالسلك الابتدائي/.test(l) || /وزير/.test(l)).join('\n').replace(/^\((.*)\)$/gm, '$1') : t);
+    if (d) return { date: `${MK.syStart(sy)}-09-01`, ref: d.ref, news: noPri(d.news), acts: d.acts.map(r => r.map((x, i) => (i ? noPri(x) : x))).filter(r => r.slice(1).some(x => String(x || '').trim())), cc: d.cc.map(r => r.slice()), hol: d.hol.map(r => r.slice()) };
     const H = window.Holidays ? Holidays.forSy(sy) : [];
     return { date: `${MK.syStart(sy)}-09-01`, ref: `مقرر السيد وزير التربية الوطنية والتعليم الأولي والرياضة رقم .......... الصادر بتاريخ .......... بشأن تنظيم السنة الدراسية ${sy}`, news: '', acts: [['', '']], cc: [['', '']],
       hol: H.length ? H.map(h => [h.when || '', `${h.name || ''}${h.days ? ' (' + h.days + ')' : ''}.`]) : [['', '']] };

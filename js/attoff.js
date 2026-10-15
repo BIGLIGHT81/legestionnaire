@@ -36,7 +36,17 @@
   const evDays = e => (nm(e.days) !== '' ? num(e.days) : dayDiff(e.from, e.to));
   const evLabel = e => `${e.emp || '؟'} — ${e.from ? ldate(e.from) : ''} (${evDays(e)} ي) — ${e.kind === 'u' ? 'غير مبرر' : (e.type || 'مبرر')}`;
   const evs = () => AO().abs.slice().sort((a, b) => String(a.from || '').localeCompare(String(b.from || '')));
-  const evsOf = (name, mm, sy) => evs().filter(x => MK.hkey(x.emp) === MK.hkey(name) && String(x.from || '').slice(0, 7) === `${monthYear(sy, mm)}-${mm}`);
+  // 1.9.4: the monthly statements also take every absence registered in «سجل الغياب والرخص» (leave requests, medical
+  // certificates, inquiries, manual entries), not only the register of this page; an absence over two months is cut per month
+  const recEvs = () => { try { return (typeof absenceEntries === 'function' ? absenceEntries() : []).map(a => { const e = (DB.employees || []).find(x => x.id === a.rec.empId); const r = nm(a.reason);
+    const u = /غير مبرر|^غياب$|تغيب/.test(r) && !/رخص|إذن/.test(r); return { id: 'rec:' + a.rec.id, emp: e ? fullName(e) : ((a.rec.snap || {}).name || ''), from: a.from, to: a.to || a.from, kind: u ? 'u' : 'j', type: u ? '' : r.replace(/^رخصة\s*/, ''), reason: u ? r : '' }; }).filter(x => x.emp && x.from); } catch (_) { return []; } };
+  const allEvs = () => { const seen = new Set(), out = [];
+    evs().concat(recEvs()).forEach(x => { const k = MK.hkey(x.emp) + '|' + x.from; if (seen.has(k)) return; seen.add(k); out.push(x); });
+    return out.sort((a, b) => String(a.from || '').localeCompare(String(b.from || ''))); };
+  const inMonth = (sy, mm) => { const y = monthYear(sy, mm), last = new Date(Date.UTC(y, +mm, 0)).getUTCDate(), m1 = `${y}-${mm}-01`, m2 = `${y}-${mm}-${String(last).padStart(2, '0')}`;
+    return allEvs().map(x => { const f = String(x.from || ''), t = String(x.to || x.from || ''); if (!f || f > m2 || t < m1) return null;
+      if (f >= m1 && t <= m2) return x; const f2 = f > m1 ? f : m1, t2 = t < m2 ? t : m2; return Object.assign({}, x, { from: f2, to: t2, days: '' }); }).filter(Boolean); };
+  const evsOf = (name, mm, sy) => inMonth(sy, mm).filter(x => MK.hkey(x.emp) === MK.hkey(name));
   const evById = id => AO().abs.find(x => x.id === id) || null;
   const empOf = name => K.E.byName(name) || {};
   const dots = (v, n) => nm(v) || '.'.repeat(n || 18);
@@ -180,7 +190,7 @@
     defs: () => [{ k: 'mm', l: 'الشهر', t: 'select', opts: monthOpts, half: true }, { k: 'city', l: 'وحرر في', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true }],
     build: (s, f, sy) => {
       const mm = f.mm || defMonth(sy), key = `${monthYear(sy, mm)}-${mm}`;
-      const list = evs().filter(x => String(x.from || '').slice(0, 7) === key);
+      const list = inMonth(sy, mm);
       const rows = list.map((x, i) => { const e = empOf(x.emp); return tr([i + 1, e.ppr || '', { t: x.emp, c: 'r b' }, { t: e.cadre || '', c: 'sm' }, { t: x.from ? ldate(x.from) : '', c: 'sm' }, { t: x.to ? ldate(x.to) : '', c: 'sm' }, evDays(x) || '', { t: x.kind === 'u' ? (x.reason || 'غير مبرر') : [x.type ? 'رخصة ' + x.type : '', x.reason].filter(Boolean).join(' — '), c: 'sm' }]); });
       for (let i = rows.length; i < 12; i++) rows.push(tr([i + 1, '', '', '', '', '', '', { t: '', st: 'height:7mm' }]));
       const head = `<tr><th rowspan="2" class="d">ر.ت</th><th rowspan="2" class="d">رقم التأجير</th><th rowspan="2" class="d">الاسم الكامل</th><th rowspan="2" class="d">الإطار</th><th colspan="2" class="d">فترة الغياب</th><th rowspan="2" class="d">المدة بالأيام</th><th rowspan="2" class="d">سبب التغيب</th></tr><tr><th class="d">من</th><th class="d">إلى</th></tr>`;
@@ -205,7 +215,7 @@
   const YM = () => MONTHS().concat([['07', 'يوليوز']]);
   const monthSpan = (sy, mm) => { const y = monthYear(sy, mm); const last = new Date(Date.UTC(y, +mm, 0)).getUTCDate(); return [`${y}-${mm}-01`, `${y}-${mm}-${String(last).padStart(2, '0')}`]; };
   add({
-    k: 'ao_year', t: 'التتبع الشامل لغياب الموظفين (الموسم الدراسي)', grp: 'st', d: 'جدول شامل لكل الموظفين: أيام الغياب في كل شهر من شتنبر إلى يوليوز، مجموع المبرر وغير المبرر، عدد الحالات وأنواع الرخص، ونسبة الحضور.', auto: 'سجل غياب الموظفين + خانة «الغياب والرخص» + لائحة الموظفين', page: 'a4l',
+    k: 'ao_year', t: 'التتبع الشامل لغياب الموظفين (الموسم الدراسي)', grp: 'sy', d: 'جدول شامل لكل الموظفين: أيام الغياب في كل شهر من شتنبر إلى يوليوز، مجموع المبرر وغير المبرر، عدد الحالات وأنواع الرخص، ونسبة الحضور.', auto: 'سجل غياب الموظفين + خانة «الغياب والرخص» + لائحة الموظفين', page: 'a4l',
     init: (s, sy) => ({ who: 'all', only: '', city: s.city || '', date: '', work: '' }),
     defs: () => [{ k: 'who', l: 'الموظفون', t: 'select', opts: [['all', 'كل الموظفين'], ['abs', 'المتغيبون فقط'], ['teach', 'هيئة التدريس فقط'], ['other', 'الفئات الأخرى فقط']], half: true },
       { k: 'work', l: 'أيام العمل في الموسم (لنسبة الحضور)', t: 'num', half: true }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true },
@@ -241,7 +251,7 @@
   const dateLine = (s, f) => `${esc(f.city || s.city || '')} في: ${esc(f.date ? ldate(f.date) : '..........')}`;
 
   add({
-    k: 'ao_query', t: 'استفسار عن التغيب (مع إشعار بالاستلام)', grp: 'fm', d: 'استفسار للموظف المتغيب بدون إذن قبل الخصم من الأجر (المرسوم 2.99.1216) وإشعار بالاستلام.', auto: 'سجل غياب الموظفين', page: 'a4',
+    k: 'ao_query', t: 'استفسار عن التغيب (مع إشعار بالاستلام)', grp: 'fq', d: 'استفسار للموظف المتغيب بدون إذن قبل الخصم من الأجر (المرسوم 2.99.1216) وإشعار بالاستلام.', auto: 'سجل غياب الموظفين', page: 'a4',
     init: s => Object.assign(initC(s), { from: '', to: '', days: '' }),
     defs: () => common.concat([{ k: 'from', l: 'من (تاريخ بداية الغياب)', t: 'date', half: true }, { k: 'to', l: 'إلى', t: 'date', half: true }, { k: 'days', l: 'مدة التغيب بالأيام', t: 'num', half: true }]),
     build: (s, f) => {
@@ -297,7 +307,7 @@
 
   const RESUME = ['استئناف العمل بعد رخصة مرض قصيرة الأمد', 'استئناف العمل بعد رخصة مرض متوسطة الأمد', 'استئناف العمل بعد رخصة مرض طويلة الأمد', 'استئناف العمل بعد رخصة الولادة', 'استئناف العمل بعد رخصة الأبوة', 'استئناف العمل بعد رخصة استثنائية', 'استئناف العمل بعد الاستيداع', 'استئناف العمل بعد الإلحاق', 'استئناف العمل بعد انهاء تكليف بمهمة', 'استئناف العمل بعد تغيب أو انقطاع العمل'];
   add({
-    k: 'ao_resume', t: 'محضر استئناف العمل', grp: 'fm', d: 'شهادة استئناف الموظف عمله بعد رخصة أو تغيب أو إلحاق (10 حالات).', auto: 'لائحة الموظفين وسجل الغياب', page: 'a4',
+    k: 'ao_resume', t: 'محضر استئناف العمل', grp: 'fq', d: 'شهادة استئناف الموظف عمله بعد رخصة أو تغيب أو إلحاق (10 حالات).', auto: 'لائحة الموظفين وسجل الغياب', page: 'a4',
     init: s => Object.assign(initC(s), { cas: RESUME[0], resume: '', after: '', days: '', phone: '' }),
     defs: () => common.concat([{ k: 'cas', l: 'الحالة', t: 'select', opts: RESUME }, { k: 'resume', l: 'تاريخ استئناف العمل', t: 'date', half: true }, { k: 'days', l: 'مدة الغياب (أيام)', t: 'num', half: true }, { k: 'after', l: 'بعد (تفصيل)', half: true }, { k: 'phone', l: 'الهاتف', half: true, dir: 'ltr' }]),
     build: (s, f) => {
@@ -328,7 +338,8 @@
   /* =================== the register & the pages =================== */
   const C = K.center({
     id: 'attoffSt', title: 'النماذج الرسمية لغياب الموظفين', icon: '🗂️', route: 'attoffStDoc', hubRoute: 'attoffSt', years: () => Object.keys(AO().years),
-    groups: [['st', 'غياب الموظفين — البيانات الشهرية والتتبع الشامل', 'تُجمع من سجل الغياب'], ['fm', 'غياب الموظفين — النماذج الفردية']],
+    // 1.9.4: sub-headings (tabs) — the monthly statements, the follow-up of the year, the inquiry / resumption, the leaves and certificates
+    groups: [['st', 'غياب الموظفين — البيانات الشهرية', 'تُجمع من سجل غياب الموظفين ومن «سجل الغياب والرخص»'], ['sy', 'غياب الموظفين — التتبع الشامل للموسم'], ['fq', 'غياب الموظفين — الاستفسار واستئناف العمل'], ['fm', 'غياب الموظفين — الرخص والشواهد']], groupTabs: true,
     intro: 'سجّل غياب كل موظف مرة واحدة في «سجل غياب الموظفين» أدناه، ثم اختر الوثيقة المطلوبة: البيان الإحصائي الشهري، لائحة التتبع الشهري، التتبع الشامل للموسم، الاستفسار، طلب الرخصة، محضر الاستئناف... وستُملأ تلقائيا.',
     docs: () => DOCS.filter(d => d.grp !== 'pu'), store: sy => store(sy),
     hubButtons: () => `<button class="btn" id="aoBack">${ic('back')} الغياب والرخص</button>`,

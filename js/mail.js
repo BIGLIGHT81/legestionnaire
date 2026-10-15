@@ -204,7 +204,7 @@
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (+b.rno - +a.rno));
     const yy = all.filter(x => +x.year === +st.y), c = (t, d) => yy.filter(x => x.type === t && (d == null || !!x.done === d)).length;
     const tag = x => `<span class="ds-tag" style="--c:${DOS_T[x.type].c};--b:${DOS_T[x.type].bg}">${DOS_T[x.type].sh}</span>`;
-    v.innerHTML = `<div class="page-h"><h1>الملفات المدرسية (طلب وإرسال)</h1><span class="sub">مكتب الضبط — شؤون التلاميذ</span><span class="sp"></span>
+    v.innerHTML = `<div class="page-h"><h1>الملفات المدرسية (طلب وإرسال)</h1><span class="sub">الضبط — شؤون التلاميذ</span><span class="sp"></span>
         <button class="btn pri" id="dsReq">${ic('plus')} طلب ملف مدرسي</button><button class="btn pri" id="dsSend" style="background:#1f8a4c;border-color:#1f8a4c">${ic('plus')} إرسال ملف مدرسي</button>
         <button class="btn" id="dsReg">${ic('print')} سجل الملفات المدرسية</button></div>
       ${seg}
@@ -297,7 +297,7 @@
     const seg = `<div class="seg" id="mlDir" style="margin-bottom:10px"><button data-d="in">الواردات (${cnt('in')})</button><button data-d="out">الصادرات (${cnt('out')})</button><button data-d="arch">الأرشيف المصنف (${all.filter(x => x.cat).length})</button><button data-d="svc">حسب المصالح</button><button data-d="dos">الملفات المدرسية (${ML().dos.filter(x => +x.year === +st.y).length})</button></div>`;
     const bindSeg = () => $$('#mlDir button').forEach(b => { b.classList.toggle('on', b.dataset.d === st.dir); b.onclick = () => { st.kind = ''; if ((b.dataset.d === 'dos') !== (st.dir === 'dos')) return go('mail', { dir: b.dataset.d }); st.dir = b.dataset.d; page(v); }; });
     if (st.dir === 'dos') return dosPage(v, years, seg, bindSeg);
-    v.innerHTML = `<div class="page-h"><h1>الواردات والصادرات والأرشيف</h1><span class="sub">مكتب الضبط</span><span class="sp"></span>
+    v.innerHTML = `<div class="page-h"><h1>الواردات والصادرات والأرشيف</h1><span class="sub">الضبط</span><span class="sp"></span>
         ${st.dir !== 'arch' && st.dir !== 'svc' ? `<button class="btn pri" id="mlNew">${ic('plus')} ${st.dir === 'in' ? 'تسجيل وارد (مذكرة / مراسلة)' : 'تسجيل صادر'}</button>` : ''}
         <button class="btn" id="mlPrint">${ic('print')} ${st.dir === 'in' ? 'سجل الواردات' : st.dir === 'out' ? 'سجل الصادرات' : 'فهرس الأرشيف'}</button>
         <button class="btn" id="mlCov" title="واجهات ملفات الواردات والصادرات لكل مصلحة">${ic('file')} واجهات ملفات المصالح</button>

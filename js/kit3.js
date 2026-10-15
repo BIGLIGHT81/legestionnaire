@@ -68,9 +68,9 @@
       arg = arg || {}; cfg._arg = arg;
       if (arg.only) groups = groups.filter(([g]) => arg.only.some(p => g === p || g.indexOf(p) === 0));
       const gTabs = (cfg.groupTabs || arg.only) && groups.length > 1;
-      const gSel = gTabs && arg.g && groups.some(x => x[0] === arg.g) ? arg.g : '';
+      const gSel = !gTabs || arg.g === '*' ? '' : (arg.g && groups.some(x => x[0] === arg.g) ? arg.g : groups[0][0]);   // 1.9.4: first opening = the first group
       const shortG = l => String(l).replace(/^[^—]*—\s*/, '');
-      const gBar = gTabs ? `<div class="seg cf-gt" style="margin-bottom:12px;flex-wrap:wrap">${[['', 'الكل']].concat(groups.map(([g, l]) => [g, shortG(l)])).map(([g, l]) => `<button data-cg="${g}" class="${g === gSel ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` : '';
+      const gBar = gTabs ? `<div class="seg cf-gt" style="margin-bottom:12px;flex-wrap:wrap">${groups.map(([g, l]) => [g, shortG(l)]).concat([['*', 'الكل']]).map(([g, l]) => `<button data-cg="${g}" class="${g === (gSel || '*') ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>` : '';
       if (gSel) groups = groups.filter(x => x[0] === gSel);
       v.innerHTML = `<div class="page-h"><h1>${esc(arg.title || '') || cfg.title}</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}${cfg.sub ? ' — ' + cfg.sub : ''}</span><span class="sp"></span>${cfg.hubButtons ? cfg.hubButtons() : ''}</div>
         ${!arg.only && (typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro) ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">${typeof cfg.intro === 'function' ? cfg.intro() : cfg.intro}</div>` : ''}

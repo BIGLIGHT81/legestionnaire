@@ -504,11 +504,14 @@
     }
   });
 
+  const SUBG = { intro: 'a1', massar: 'a1', director: 'a1', supervision: 'a1', hours: 'a2', scoring: 'a2', staff: 'a2', assoc: 'a3', councilComp: 'a3', vigil: 'a3', coopOffices: 'a3' };
+  const subg = () => DOCS.forEach(d => { if (d.grp === 'a') d.grp = SUBG[d.k] || 'a1'; });   // also the documents added by other modules (decree, organisation)
   const C = K.center({
     id: 'board', title: 'السبورة المرجعية', icon: '📋', route: 'boardDoc', hubRoute: 'board',
-    groups: [['a', 'وثائق الإدارة والأطر', 'تُملأ تلقائيا من لوائح الموظفين والإعدادات'], ['b', 'إحصائيات التلاميذ', 'تُحسب من بطاقة التلاميذ'], ['c', 'وثائق مستوردة من أقسام البرنامج', 'الغياب والرخص، سجل غياب التلاميذ، العطل، الأنشطة، التتبع، الاشتراكات']],
+    // 1.9.4: sub-headings (tabs) of the reference board
+    groups: [['a1', 'التعريف بالمؤسسة والتنظيم التربوي', 'تُملأ تلقائيا من الإعدادات'], ['a2', 'الأطر والعاملون بالمؤسسة', 'تُملأ تلقائيا من لوائح الموظفين'], ['a3', 'الجمعيات والمجالس والخلايا'], ['b', 'إحصائيات التلاميذ', 'تُحسب من بطاقة التلاميذ'], ['c', 'وثائق مستوردة من أقسام البرنامج', 'الغياب والرخص، سجل غياب التلاميذ، العطل، الأنشطة، التتبع، الاشتراكات']],
     intro: 'وثائق السبورة المرجعية للمؤسسة بنفس التصميم والألوان، والترويسة ممتدة على عرض الصفحة من اليمين إلى اليسار. تُملأ البيانات تلقائيا من لائحة الموظفين ولوائح التلاميذ، ويمكنك تعديل أي خانة ثم الطباعة أو حفظ الملف PDF.',
-    docs: () => DOCS.filter(d => !(d.noSec && secNow())), store: sy => store(sy)
+    docs: () => (subg(), DOCS.filter(d => !(d.noSec && secNow()))), store: sy => store(sy), groupTabs: true
   });
   window.Board = { migrate, units, unitNames, members, defaultBureau, ASSOC, teachers, assigned, admins, preschool, director, levelDigits, jobOf, shortUnit, sameU, store, DOCS: () => DOCS,
     summary: () => ({ docs: DOCS.length }) };

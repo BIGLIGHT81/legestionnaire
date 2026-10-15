@@ -261,24 +261,24 @@ const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.c
 const NAV = [
   { id: 'home', c: '#0f6e5a', label: 'لوحة القيادة', icon: 'home', grps: [['لوحة القيادة والمؤشرات', ['home', 'dash']], ['الطبع الشامل', ['printAll']]],
     tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل لوثائق الخانات')] },
-  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
+  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['المتابعة اليومية للموظفين', ['track', 'guard']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
     tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'مربيات ومربو التعليم الأولي', null, { w: isPriCycle }),
-      tab('sagents', 'بطاقات الأعوان والشركات المشغلة', { v: 'list' }, { k: 'sagents' }), tab('sagents', 'تتبع القيام بالأعمال', { v: 'log' }, { k: 'sagents:log' }), tab('sagents', 'الحصيلة الشهرية وتقييم الخدمة', { v: 'sum' }, { k: 'sagents:sum' }), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
+      tab('sagents', 'بطاقات الأعوان والشركات المشغلة', { v: 'list' }, { k: 'sagents' }), tab('sagents', 'تتبع القيام بالأعمال', { v: 'log' }, { k: 'sagents:log' }), tab('sagents', 'الحصيلة الشهرية وتقييم الخدمة', { v: 'sum' }, { k: 'sagents:sum' }), tab('track', 'شبكة تتبع العمل التربوي'), tab('guard', 'جداول الحراسة'), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
       tab('documents', 'طلبات الرخص', { cat: 'leave' }), tab('documents', 'الاستئناف والانقطاع والاستفسار', { cat: 'work' }), tab('documents', 'الشهادات الإدارية وبطاقات التقديم', { cat: 'cert' }), tab('svcAcc', 'حوادث الشغل (المصلحة)')] },
+  { id: 'pupils', c: '#0b7a8a', label: 'شؤون التلاميذ', icon: 'pupil', grps: [['التمدرس والتسجيل', ['pupils', 'preins']], ['الملفات والشواهد المدرسية', ['mail:dos', 'documents:files', 'certsCur', 'certs']], ['المواظبة والانضباط', ['attend', 'absreg', 'vschool']], ['الصحة والسلامة المدرسية', ['incid']]],
+    tabs: () => [tab('pupils', 'بطاقة التلاميذ (مسار)'), tab('preins', 'طلبات التسجيل الجديدة'),
+      tab('mail', 'طلب وإرسال الملفات المدرسية', { dir: 'dos' }, { k: 'mail:dos' }), tab('documents', 'مراسلات الملفات والوثائق', { cat: 'files' }), tab('certsCur', 'الشواهد المدرسية (المتمدرسون)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'),
+      tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'), tab('vschool', 'الحراسة العامة', null, { w: isSecCycle, k: 'vschool' }), tab('vschool', 'حراسة التلاميذ', null, { w: isPriCycle, k: 'vschool' }),
+      tab('incid', 'الحوادث المدرسية')] },
   { id: 'eval', c: '#a4570b', label: 'التدبير التربوي', icon: 'chart', grps: [['التنظيم التربوي', ['board', 'teach', 'councils', 'plan']], ['التقويم والدعم', ['roaiz', 'cceval', 'roaizx', 'support']], ['الامتحانات الإشهادية', ['exams']], ['التأطير والتتبع التربوي', ['documents:peda']]],
     tabs: () => [tab('board', 'البنية التربوية (السبورة المرجعية)'), tab('teach', 'توزيع الأساتذة على الأقسام'), tab('councils', 'مجالس المؤسسة'), tab('plan', 'مشروع المؤسسة وبرنامج العمل'),
       tab('roaiz', 'الروائز التشخيصية (TaRL)', null, { w: isPriCycle }), tab('cceval', 'المراقبة المستمرة'), tab('roaizx', 'تقارير الروائز وشبكات التفريغ', null, { w: isPriCycle }), tab('support', 'الدعم التربوي الممتد'),
       tab('exams', 'الامتحانات الإشهادية'), tab('documents', 'التأطير والتتبع التربوي', { cat: 'peda' })] },
-  { id: 'pupils', c: '#0b7a8a', label: 'شؤون التلاميذ', icon: 'pupil', grps: [['التمدرس والتسجيل', ['pupils', 'preins']], ['الملفات والشواهد المدرسية', ['mail:dos', 'documents:files', 'certsCur', 'certs']], ['المواظبة والانضباط', ['attend', 'absreg', 'vschool']], ['الصحة والسلامة المدرسية', ['incid']]],
-    tabs: () => [tab('pupils', 'بطاقة التلاميذ (مسار)'), tab('preins', 'طلبات التسجيل الجديدة'),
-      tab('mail', 'طلب وإرسال الملفات المدرسية', { dir: 'dos' }, { k: 'mail:dos' }), tab('documents', 'مراسلات الملفات والوثائق', { cat: 'files' }), tab('certsCur', 'الشواهد المدرسية (المتمدرسون)'), tab('certs', 'الشواهد المدرسية (ملفات الأرشيف)'),
-      tab('attend', 'مواظبة التلاميذ'), tab('absreg', 'سجل غياب التلاميذ'), tab('vschool', 'الحراسة العامة', null, { w: isSecCycle }),
-      tab('incid', 'الحوادث المدرسية')] },
   { id: 'life', c: '#b0215e', label: 'الحياة المدرسية', icon: 'star', grps: [['الأندية والأنشطة التربوية', ['clubs', 'events', 'kudos']], ['خليتا اليقظة والإنصات والمصالحة', ['vigil', 'listen']], ['الانفتاح والشراكة', ['partners']], ['الإعلام والتواصل', ['flyers', 'mag']]],
     tabs: () => [tab('clubs', 'الأندية التربوية'), tab('events', 'الأنشطة والاحتفالات'), tab('kudos', 'التحفيز والتهاني'), tab('vigil', 'خلية اليقظة'), tab('listen', 'خلية الإنصات والمصالحة'),
       tab('partners', 'الشركاء وجمعية الآباء'), tab('flyers', 'الإعلانات والتصاميم'), tab('mag', 'مجلة المؤسسة')] },
-  { id: 'docs', c: '#1d5fa6', label: 'التدبير الإداري', icon: 'file', grps: [['مكتب الضبط', ['mail', 'records']], ['المراسلات والمذكرات', ['documents:mail', 'memos']], ['المتابعة اليومية', ['documents:follow']]],
-    tabs: () => [tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق المنجزة'), tab('documents', 'المراسلات الإدارية', { cat: 'mail' }), tab('memos', 'المذكرات الداخلية'), tab('documents', 'المتابعة اليومية والحراسة', { cat: 'follow' })]
+  { id: 'docs', c: '#1d5fa6', label: 'التدبير الإداري', icon: 'file', grps: [['الضبط', ['mail', 'records']], ['المراسلات والمذكرات', ['documents:mail', 'memos']], ['المتابعة اليومية', ['dayrep']]],
+    tabs: () => [tab('mail', 'الواردات والصادرات والأرشيف'), tab('records', 'سجل الوثائق المنجزة'), tab('documents', 'المراسلات الإدارية', { cat: 'mail' }), tab('memos', 'المذكرات الداخلية'), tab('dayrep', 'التقارير اليومية للأنشطة المنجزة')]
       .concat((Docs.CATS || []).filter(([c]) => !['leave', 'work', 'peda', 'cert', 'mail'].includes(c)).map(([c, n]) => tab('documents', n, { cat: c }))) },
   { id: 'fin', c: '#7a4a1e', label: 'التدبير المالي والمادي', icon: 'coin', grps: [['التدبير المالي', ['dues', 'budget']], ['الجمعيات المدرسية', ['budget:najah', 'budget:sport', 'budget:coop']], ['التدبير المادي', ['stock', 'conso']]],
     tabs: () => [tab('dues', 'الاشتراكات والتسجيل'), tab('budget', 'الميزانية (نظرة شاملة)'),
@@ -292,20 +292,20 @@ const NAV = [
 const NAV_PARENT = { level1: 'roaiz', stockDoc: 'stock', equipDoc: 'stock', certDoc: 'certs', attendDoc: 'attend', attoff: 'attend', attoffDoc: 'attend', attoffStDoc: 'attoffSt', incidDoc: 'incid', certsCurDoc: 'certsCur', svcAccDoc: 'svcAcc', mailDoc: 'mail', ccevalDoc: 'cceval', roaizxDoc: 'roaizx', partnerDoc: 'partners', holidaysDoc: 'settings', roaizDoc: 'roaiz',
   pupilDoc: 'pupils', boardDoc: 'board', councilDoc: 'councils', budgetDoc: 'budget', clubsDoc: 'clubs', eventsDoc: 'events', kudosDoc: 'kudos', memosDoc: 'memos', examsDoc: 'exams', supportDoc: 'support',
   teachDoc: 'teach', receiptDoc: 'license', duesDoc: 'dues', absregDoc: 'absreg', vigilDoc: 'vigil', listenDoc: 'listen', empCard: 'employees', empGallery: 'employees', filesDoc: 'documents:files',
-  consoDoc: 'conso', preinsDoc: 'preins', magDoc: 'mag', preschDoc: 'presch', visits: 'documents:peda', visitsDoc: 'documents:peda', track: 'documents:follow', trackDoc: 'documents:follow', guard: 'documents:follow', guardDoc: 'documents:follow', dayrep: 'documents:follow', dayrepDoc: 'documents:follow' };
+  consoDoc: 'conso', preinsDoc: 'preins', magDoc: 'mag', preschDoc: 'presch', visits: 'documents:peda', visitsDoc: 'documents:peda', trackDoc: 'track', guardDoc: 'guard', dayrepDoc: 'dayrep', vschoolDoc: 'vschool' };
 let current = 'home', currentArg = null;
 const lastTab = {};
 const visibleTabs = g => g.tabs().filter(t => !t.w || t.w());
 // key of the tab that holds the page being shown
 function curTabKey() {
   let r = current, a = currentArg || {};
-  if (r === 'vschool' || r === 'vschoolDoc') return isSecCycle() ? 'vschool' : 'documents:follow';
   if (r === 'editor') {
     const f = a.from;
     if (f && f !== 'documents') return f === 'records' ? 'records' : (NAV_PARENT[f] || f);
     const T = TYPES[a.type];
     return 'documents:' + ((T && T.cat) || ((Docs.CATS || [['all']])[0][0]));
   }
+  if (r === 'documents' && a.cat === 'follow') return 'dayrep';
   if (r === 'documents') return 'documents:' + (a.cat || ((Docs.CATS || [['all']])[0][0]));
   if (r === 'sagents') return a.v && a.v !== 'list' ? 'sagents:' + a.v : 'sagents';
   if (r === 'sagentsDoc') return a.kind === 'eval' ? 'sagents:sum' : a.kind === 'month' ? 'sagents:log' : 'sagents';
@@ -343,7 +343,7 @@ function renderNav() {
     ${g.id === 'staff' && todayCount ? bAbs : ''}${g.id === 'license' && !LIC.active ? `<span class="badge red" title="${licText()}">!</span>` : ''}</a>`).join('');
   $$('#nav [data-g]').forEach(a => a.onclick = () => {
     const g = NAV.find(x => x.id === a.dataset.g), vt = visibleTabs(g);
-    const t = cg.id !== g.id && lastTab[g.id] && vt.some(x => x.k === lastTab[g.id].k) ? lastTab[g.id] : vt[0];
+    const G0 = navGroups(g, vt), t = (G0[0] && G0[0].tabs[0]) || vt[0];   // 1.9.4: opening a section = its first sub-section
     go(t.r, t.a);
   });
   // the secondary bar (only when the section has several sub-sections)
@@ -358,7 +358,7 @@ function renderNav() {
         <div class="sn-l3" style="--gc:${cur.c}"><div class="sn-in"><span class="sn-t3">${cg.label} › ${cur.n}</span><div class="sn-tabs">${cur.tabs.map(tabA).join('')}</div></div></div>`;
     } else sn.innerHTML = `<div class="sn-in"><span class="sn-t">${ic(cg.icon)}${cg.label}</span><div class="sn-tabs">${vt.map(tabA).join('')}</div></div>`;
     $$('#subnav [data-k]').forEach(a => a.onclick = () => { const t = vt.find(x => x.k === a.dataset.k); go(t.r, t.a); });
-    $$('#subnav [data-gk]').forEach(a => a.onclick = () => { const x = G[+a.dataset.gk]; const t = (lastTab['g:' + cg.id + ':' + x.i] && x.tabs.find(y => y.k === lastTab['g:' + cg.id + ':' + x.i].k)) || x.tabs[0]; go(t.r, t.a); });
+    $$('#subnav [data-gk]').forEach(a => a.onclick = () => { const x = G[+a.dataset.gk]; const t = x.tabs[0]; go(t.r, t.a); });
     if (cur) lastTab['g:' + cg.id + ':' + cur.i] = ct;
   } else { sn.hidden = true; sn.innerHTML = ''; }
   document.documentElement.style.setProperty('--sn', sn.hidden ? '0px' : (sn.offsetHeight || 48) + 'px');
@@ -1132,7 +1132,7 @@ function pageDocuments(v, arg) {
     const showG = !q || (gt + ' ' + gd + ' حراسة').includes(q), showT = !q || (t + ' ' + d + ' تتبع شبكة').includes(q);
     const rt = 'التقارير اليومية للأنشطة المنجزة', rd = 'التقرير اليومي على النموذج المعتمد: حركة التلاميذ، غياب الأطر والتأخرات واستئناف العمل، الأنشطة، التأطير، الزيارات والحوادث — تعبئة تلقائية وحصيلة شهرية';
     const showR = !q || (rt + ' ' + rd + ' تقرير يومي').includes(q);
-    const vt = vsec ? 'الحراسة العامة' : 'مراسلات الغياب والحراسة', vd = 'مراسلات المتغيبين وغير الملتحقين والاستدعاءات، ورقة الدخول وزيارة الطبيب، إشعار المخالفة وتقرير الأستاذ(ة)، التزام ولي الأمر وطلب الإدماج' + (vsec ? '، نقطة المواظبة والسلوك، إحصاء الغياب' : '') + ' — تُولَّد من سجل غياب التلاميذ';
+    const vt = vsec ? 'الحراسة العامة' : 'حراسة التلاميذ', vd = 'مراسلات المتغيبين وغير الملتحقين والاستدعاءات، ورقة الدخول وزيارة الطبيب، إشعار المخالفة وتقرير الأستاذ(ة)، التزام ولي الأمر وطلب الإدماج' + (vsec ? '، نقطة المواظبة والسلوك، إحصاء الغياب' : '') + ' — تُولَّد من سجل غياب التلاميذ';
     const showV = !q || (vt + ' ' + vd + ' حراسة غياب استدعاء التزام').includes(q);
     return `${showT ? `<div class="card doc-card" data-trk="1"><div class="e">🙂</div><div><h3>${t}</h3><p>${d}${sm.n ? ` — ${sm.n} شبكة، الإنجاز ${sm.avg}%` : ''}</p></div></div>` : ''}${showG ? `<div class="card doc-card" data-grd="1"><div class="e">🛡️</div><div><h3>${gt}</h3><p>${gd}${gs.teachers ? ` — ${gs.teachers} أستاذ(ة) مكلف(ة)` : ''}</p></div></div>` : ''}${showR ? `<div class="card doc-card" data-drp="1"><div class="e">📋</div><div><h3>${rt}</h3><p>${rd}</p></div></div>` : ''}${showV ? `<div class="card doc-card" data-vsc="1"><div class="e">📨</div><div><h3>${vt}</h3><p>${vd}</p></div></div>` : ''}`;
   };
@@ -2083,17 +2083,19 @@ async function pageSettings(v) {
       }
       if (t === 'org') {
         if (Cyc.kind(i) !== 'pri') return '';          // collège / lycée are always one independent institution
-        const single = i[k] === 'single';
+        const single = i[k] === 'single', comm = i[k] === 'community';   // 1.9.4: «مدرسة جماعاتية» = one independent school (no units)
         return `<div class="fld org-fld"><label>${l} (التعليم الابتدائي)</label>
           <div class="org-opts">
             <label class="org-opt ${single ? 'on' : ''}"><input type="radio" name="orgMode" value="single" ${single ? 'checked' : ''}><span><b>مؤسسة / مدرسة مستقلة</b><small>دون وحدات مدرسية: مدرسة واحدة برمز GRESA واحد</small></span></label>
-            <label class="org-opt ${single ? '' : 'on'}"><input type="radio" name="orgMode" value="group" ${single ? '' : 'checked'}><span><b>مجموعة مدرسية</b><small>تتكون من عدة وحدات: المركزية والفرعيات، ولكل وحدة رمز GRESA الخاص بها</small></span></label>
+            <label class="org-opt ${comm ? 'on' : ''}"><input type="radio" name="orgMode" value="community" ${comm ? 'checked' : ''}><span><b>مدرسة جماعاتية</b><small>مؤسسة واحدة برمز GRESA واحد تستقبل تلاميذ عدة دواوير (الداخلية والنقل المدرسي)</small></span></label>
+            <label class="org-opt ${single || comm ? '' : 'on'}"><input type="radio" name="orgMode" value="group" ${single || comm ? '' : 'checked'}><span><b>مجموعة مدرسية</b><small>تتكون من عدة وحدات: المركزية والفرعيات، ولكل وحدة رمز GRESA الخاص بها</small></span></label>
           </div></div>`;
       }
       if (t === 'tifr') { const auto = (() => { const r = Docs.regionOf(i.academy); return r ? 'ⵜⴰⵎⵏⴰⴹⵜ ' + Docs.tifName(r) : ''; })();
         return `<div class="fld"><label>${l}</label><input class="inp tif" data-k="${k}" value="${esc(i[k] || '')}" dir="ltr" placeholder="${esc(auto || 'ⵜⴰⵎⵏⴰⴹⵜ ...')}"></div>`; }
-      if (k === 'school' && Cyc.kind(i) === 'pri' && i.orgMode !== 'single') l = 'اسم المجموعة المدرسية';
-      if (k === 'gresa') l = Cyc.kind(i) === 'pri' && i.orgMode !== 'single' ? 'رمز المجموعة المدرسية (GRESA) — لكل وحدة رمزها في بطاقة «الوحدات المدرسية»' : (Cyc.kind(i) === 'pri' ? 'رمز المدرسة (GRESA)' : 'رمز المؤسسة (GRESA)');
+      if (k === 'school' && Cyc.kind(i) === 'pri' && Cyc.group(i)) l = 'اسم المجموعة المدرسية';
+      if (k === 'school' && Cyc.kind(i) === 'pri' && i.orgMode === 'community') l = 'اسم المدرسة الجماعاتية';
+      if (k === 'gresa') l = Cyc.kind(i) === 'pri' && Cyc.group(i) ? 'رمز المجموعة المدرسية (GRESA) — لكل وحدة رمزها في بطاقة «الوحدات المدرسية»' : (Cyc.kind(i) === 'pri' ? 'رمز المدرسة (GRESA)' : 'رمز المؤسسة (GRESA)');
       const val = t === 'tif' && (i[k] == null || String(i[k]).trim() === '') ? (TIF_DEF[k] || '') : (i[k] || '');
       return `<div class="fld"><label>${l}</label><input class="inp${t === 'tif' ? ' tif' : ''}" data-k="${k}" value="${esc(val)}" ${['email', 'schoolFr', 'cityFr', 'directorateFr', 'phone'].includes(k) ? 'dir="ltr"' : ''}${t === 'tif' ? ' dir="ltr" placeholder="ⵜⵉⴼⵉⵏⴰⵖ"' : ''}></div>`;
     }).join('');
@@ -2102,16 +2104,18 @@ async function pageSettings(v) {
     $$('#instFields [name=orgMode]').forEach(r => r.onchange = async () => {
       if (!r.checked) return;
       const i = inst(), want = r.value, B = (DB.board = DB.board || {}), nUnits = (B.units || []).filter(u => u && u.name).length;
-      if (want === 'single' && i.orgMode !== 'single') {
+      const one = m => m === 'single' || m === 'community';
+      if (one(want) && one(i.orgMode)) { i.orgMode = want; applyOrg(); return toast(want === 'community' ? 'اعتمدت مدرسة جماعاتية' : 'اعتمدت المدرسة مستقلة: لا وحدات مدرسية'); }
+      if (one(want) && !one(i.orgMode)) {
         if (nUnits > 1 && !await confirmBox(`اعتماد <b>${esc(i.school || 'المؤسسة')}</b> مدرسة مستقلة: تُدمج الوحدات المسجلة (${nUnits}) في وحدة واحدة باسم المدرسة، وتُحذف الوحدات والفلاتر الخاصة بها من كل الخانات (الموظفون، التلاميذ، المواظبة، الشواهد...). يمكن الرجوع إلى «مجموعة مدرسية» وسيُستعاد سجل الوحدات. متابعة؟`, 'اعتماد')) { drawFields(); return; }
         if (nUnits > 1) B.unitsGroup = JSON.parse(JSON.stringify(B.units));          // kept to restore the group
-        i.orgMode = 'single';
-      } else if (want === 'group' && i.orgMode === 'single') {
+        i.orgMode = want;
+      } else if (want === 'group' && one(i.orgMode)) {
         i.orgMode = 'group';
         if (B.unitsGroup && B.unitsGroup.length && (B.units || []).length <= 1) { B.units = B.unitsGroup; }
       }
       applyOrg();
-      toast(want === 'single' ? 'اعتمدت المدرسة مستقلة: لا وحدات مدرسية' : 'اعتمدت مجموعة مدرسية: أضف الوحدات ورموز GRESA في بطاقة «الوحدات المدرسية»');
+      toast(want === 'community' ? 'اعتمدت مدرسة جماعاتية: مؤسسة واحدة دون وحدات مدرسية' : want === 'single' ? 'اعتمدت المدرسة مستقلة: لا وحدات مدرسية' : 'اعتمدت مجموعة مدرسية: أضف الوحدات ورموز GRESA في بطاقة «الوحدات المدرسية»');
     });
     $$('#instFields [data-k]').forEach(el => el.oninput = () => {
       inst()[el.dataset.k] = el.value; persist(); drawHdr();
