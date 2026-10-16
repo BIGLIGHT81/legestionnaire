@@ -2,7 +2,7 @@
 /* 1.9.2 — توزيع الأساتذة (خانة جديدة) + وثيقتان في السبورة المرجعية:
    - الابتدائي: توزيع الأساتذة على الوحدات المدرسية والأقسام، مع المادة المدرسة خلال فترة الدعم (TaRL) وخلال إرساء الموارد (التعليم الصريح)
    - الثانوي الإعدادي: لا وحدات مدرسية؛ لكل أستاذ(ة) مادة التخصص والأقسام المسندة وعدد الساعات
-   - «التنظيم التربوي للسنة الدراسية» (نموذج المديرية: هيئة الإدارة، هيئة التأطير، هيئة التدريس، المكلفون، مربو التعليم الأولي، أنصاف أيام العمل)
+   - «التنظيم التربوي للسنة الدراسية» (نموذج المديرية: هيئة الإدارة التربوية والتدبير، هيئة التفتيش والتأطير والمراقبة والتقييم، هيئة التربية والتعليم، المكلفون، مربو التعليم الأولي، أنصاف أيام العمل)
    - «قراءة في المقرر الوزاري المنظم للسنة الدراسية» (المستجدات، الأنشطة والعمليات، المراقبة المستمرة والامتحانات، العطل) */
 (function () {
   const Dx = window.Docs;
@@ -30,9 +30,23 @@
   // the detailed choice (matrix) is used while the rest text of the row is the one it generated; a text typed afterwards takes over
   const workOf = (sy, name, rest) => { const h = (Y(sy).assign.half || {})[name]; return h && Array.isArray(h.w) && nm(h.t) === nm(rest) ? new Set(h.w) : workFromRest(rest); };
   const restIdx = sy => (modeOf(sy) === 'col' ? 5 : 6);
+  const SUBJ_TARL = [['', '—'], ['عر', 'عر — اللغة العربية'], ['فر', 'فر — اللغة الفرنسية'], ['ر', 'ر — الرياضيات'], ['عر + ر', 'عر + ر — العربية والرياضيات'], ['فر + ر', 'فر + ر — الفرنسية والرياضيات'],
+    ['عر + فر', 'عر + فر — العربية والفرنسية'], ['عر + فر + ر', 'عر + فر + ر — الثلاث'], ['امازيغية', 'الأمازيغية'], ['إنجليزية', 'الإنجليزية']];
+  const SUBJ_EXPL = SUBJ_TARL.concat([['عر + ن.ع + إس + اج', 'عر + النشاط العلمي + الإسلامية + الاجتماعيات'], ['فر + ن.ع', 'فر + النشاط العلمي'], ['ر + ن.ع', 'ر + النشاط العلمي'], ['ن.ع', 'النشاط العلمي'], ['إس', 'التربية الإسلامية'], ['اج', 'الاجتماعيات'],
+    ['ت.ب', 'التربية البدنية'], ['ت.ف', 'التربية الفنية'], ['جميع المواد', 'جميع المواد (قسم واحد)']]);
+  // the rest half-day: one half-day (morning or afternoon) of a day, or a whole day; the Saturday afternoon is a rest for everyone
+  const REST_OPTS = [['', '— بدون —']].concat(...['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(d => [[d + ' ص', `${d} صباحا`], [d + ' م', `${d} مساء`], [d, `${d} (اليوم كاملا)`]]));
   const PRI_COLS = ['الأستاذ(ة)', 'الوحدة المدرسية', 'المستويات / الأقسام', 'المادة: فترة الدعم TaRL', 'المادة: إرساء الموارد (التعليم الصريح)', 'عدد التلاميذ', 'أنصاف أيام الراحة'];
   const COL_COLS = ['الأستاذ(ة)', 'مادة التخصص', 'الأقسام المسندة', 'عدد الساعات الأسبوعية', 'عدد التلاميذ', 'أنصاف أيام الراحة'];
-  const rows = sy => (Y(sy).assign.rows || []).filter(r => nm(r[0]));
+  // 1.9.4: in the primary school the teachers follow the hierarchy of the school: school unit (in the order of the settings), then the levels taught
+  // inside each unit (from the 1st to the 6th year, combined classes by their lowest level), then the name
+  const unitRank = u => { const L = window.Units ? Units.list().map(x => x.name) : []; const i = L.findIndex(n => K.U.same(n, u)); return i < 0 ? (nm(u) ? 900 : 999) : i; };
+  const lvlRank = t => { t = String(t || ''); if (/أولي|روض/.test(t)) return 0; const W = { 'الأول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4, 'الخامس': 5, 'السادس': 6 }; const d = (t.match(/[1-6]/g) || []).map(Number).concat(Object.keys(W).filter(k => t.includes(k)).map(k => W[k])); return d.length ? Math.min(...d) : 9; };
+  const rows = sy => { const L = (Y(sy).assign.rows || []).filter(r => nm(r[0])); if (modeOf(sy) === 'col') return L;
+    return sortPri(L); };
+  const sortPri = L => L.map((r, i) => [r, i]).sort((a, b) => unitRank(a[0][1]) - unitRank(b[0][1]) || String(a[0][1] || '').localeCompare(String(b[0][1] || ''), 'ar') || lvlRank(a[0][2]) - lvlRank(b[0][2]) || nm(a[0][0]).localeCompare(nm(b[0][0]), 'ar') || a[1] - b[1]).map(x => x[0]);
+  // the cell of the school unit spans the rows of its teachers
+  const unitCell = (R, i, cls) => { if (i && K.U.same(R[i - 1][1], R[i][1]) && nm(R[i - 1][1]) === nm(R[i][1])) return null; let n = 1; while (i + n < R.length && nm(R[i + n][1]) === nm(R[i][1])) n++; return { t: R[i][1] || '', c: cls || 'k', r: n }; };
   const subjOf = e => nm(e.subject) || (/فرنسية|فرنسي/.test(e.teachLang || '') ? 'فر' : /عربية/.test(e.teachLang || '') ? 'عر + ر' : /أمازيغية/.test(e.teachLang || '') ? 'امازيغية' : '');
   const pupilsOfLevels = (sy, unit, lv) => {
     if (!window.Pupils) return '';
@@ -81,7 +95,9 @@
         { t: 'html', html: '<button type="button" class="btn sm pri" data-act="all">ملء الجدول من لائحة الأساتذة</button>' },
         { note: col ? 'الأقسام هكذا: 1APIC-1، 2APIC-3 ... أو 1/1، 2/3. أنصاف أيام الراحة مثلا: «الأربعاء م، السبت م» (أو حدّدها بالتفصيل لكل أيام الأسبوع من وثيقة «التنظيم التربوي»).' : 'المادة: عر، فر، ر، عر + ر، فر + ر، امازيغية... المستويات مثلا: (1+2) (3+4). أنصاف أيام الراحة مثلا: «الأربعاء م، السبت م».' },
         { k: 'rows', l: 'الإسناد', t: 'grid', cols: col ? COL_COLS : PRI_COLS, widths: col ? ['1.3fr', '1fr', '1.4fr', '.6fr', '.6fr', '1fr'] : ['1.2fr', '.9fr', '1fr', '.8fr', '.8fr', '.5fr', '.9fr'],
-          list: col ? ['k2Emps', 'teSubj', null, null, null, null] : ['k2Emps', 'k2Units', null, 'teS', 'teS', null, null], dls: { teSubj: ['اللغة العربية', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'الرياضيات', 'علوم الحياة والأرض', 'الفيزياء والكيمياء', 'الاجتماعيات', 'التربية الإسلامية', 'التربية البدنية', 'المعلوميات', 'التربية التشكيلية', 'التربية الموسيقية', 'التربية الأسرية', 'التكنولوجيا'], teS: ['عر', 'فر', 'ر', 'عر + ر', 'فر + ر', 'امازيغية', 'إنجليزية'] },
+          list: col ? ['k2Emps', 'teSubj', null, null, null, null] : ['k2Emps', 'k2Units', null, null, null, null, null],
+          // 1.9.4: the subject of each period and the rest half-day are chosen in lists (TaRL: the languages and mathematics; explicit teaching: every subject)
+          types: col ? null : ['text', 'text', 'text', 'sel', 'sel', 'text', 'sel'], sel: col ? null : [null, null, null, SUBJ_TARL, SUBJ_EXPL, null, REST_OPTS], dls: { teSubj: ['اللغة العربية', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'الرياضيات', 'علوم الحياة والأرض', 'الفيزياء والكيمياء', 'الاجتماعيات', 'التربية الإسلامية', 'التربية البدنية', 'المعلوميات', 'التربية التشكيلية', 'التربية الموسيقية', 'التربية الأسرية', 'التكنولوجيا'], teS: ['عر', 'فر', 'ر', 'عر + ر', 'فر + ر', 'امازيغية', 'إنجليزية'] },
           link: { src: 'emp', n: 0, cols: {}, post: (row, r) => { const e = r.rec || {}; if (col) { row[1] = row[1] || e.subject || ''; row[2] = row[2] || e.levels || ''; } else { row[1] = row[1] || e.unit || ''; row[2] = row[2] || e.levels || ''; row[3] = row[3] || subjOf(e); row[4] = row[4] || subjOf(e); } } } }];
     },
     act: { all: (f, sy, c) => {
@@ -91,6 +107,7 @@
       const old = f.rows || [];
       f.rows = L.map(e => { const n = fullName(e), o = old.find(r => nm(r[0]) === n); if (o) return o;
         return col ? [n, e.subject || '', e.levels || '', '', '', ''] : [n, unitOfEmp(e), e.levels || '', subjOf(e), subjOf(e), pupilsOfLevels(sy, unitOfEmp(e), e.levels), '']; });
+      if (!col) f.rows = sortPri(f.rows);   // the grid in the same order as the documents: unit, then levels, then name
       c.save('rows');
     } },
     onSave: k => { if (k === 'mode') setTimeout(() => { const b = document.querySelector('#cfDoc'); if (b) b.dispatchEvent(new Event('change')); }, 50); },
@@ -99,7 +116,7 @@
       if (col) return { title: 'توزيع الأساتذة حسب مواد التخصص والأقسام', sub: `${cycTxt()} — الموسم الدراسي ${MK.syDash(sy)}`, page: 'a4l', sign: SB.sign(s, { left: 'توقيع وخاتم مدير(ة) المؤسسة' }),
         blocks: [tbl(thr(['ر.ت', 'الأستاذ(ة)', 'رقم التأجير', 'مادة التخصص', 'الأقسام المسندة', 'الساعات', 'التلاميذ', 'أنصاف أيام الراحة']), R.map((r, i) => tr([i + 1, { t: r[0], c: 'r b' }, (emp(r[0]) || {}).ppr || '', { t: r[1], c: 'b' }, { t: r[2], c: 'ltr' }, r[3], r[4], { t: r[5], c: 'sm' }])), 'big')] };
       return { title: grp() ? 'توزيع الأساتذة على الوحدات المدرسية والأقسام' : 'توزيع الأساتذة على الأقسام', sub: `الموسم الدراسي ${MK.syDash(sy)}`, page: 'a4l', sign: SB.sign(s, { left: 'توقيع وخاتم مدير(ة) المؤسسة' }),
-        blocks: [tbl(thr(['ر.ت', 'الوحدة المدرسية', 'الأستاذ(ة)', 'رقم التأجير', 'المستويات / الأقسام', 'المادة (TaRL)', 'المادة (إرساء الموارد)', 'التلاميذ', 'أنصاف أيام الراحة']), R.map((r, i) => tr([i + 1, { t: r[1], c: 'k' }, { t: r[0], c: 'r b' }, (emp(r[0]) || {}).ppr || '', r[2], r[3], r[4], r[5], { t: r[6], c: 'sm' }])), 'big')] };
+        blocks: [tbl(thr(['ر.ت', 'الوحدة المدرسية', 'الأستاذ(ة)', 'رقم التأجير', 'المستويات / الأقسام', 'المادة (TaRL)', 'المادة (إرساء الموارد)', 'التلاميذ', 'أنصاف أيام الراحة']), R.map((r, i) => tr([i + 1, unitCell(R, i), { t: r[0], c: 'r b' }, (emp(r[0]) || {}).ppr || '', r[2], r[3], r[4], r[5], { t: r[6], c: 'sm' }].filter(x => x !== null))), 'big')] };
     }
   });
   add({
@@ -157,7 +174,7 @@
 
   /* ---------- «التنظيم التربوي» (also in السبورة المرجعية) ---------- */
   const halfCells = (W, nd) => D7.slice(0, nd).map((d, i) => ['ص', 'م'].map(h => (W.has(i + h) ? { t: '×', c: 'sm wk' } : { t: '', c: 'sm rs' }))).reduce((a, b) => a.concat(b), []);
-  const orgDefs = () => [{ sec: 'هيئة التأطير التربوي (المفتشون)' }, { k: 'insp', l: 'المفتشون', t: 'grid', cols: ['الاسم الكامل', 'اللغة / المادة', 'المقاطعة'], widths: ['1.2fr', '1fr', '1fr'] },
+  const orgDefs = () => [{ sec: 'هيئة التفتيش والتأطير والمراقبة والتقييم (المفتشون)' }, { k: 'insp', l: 'المفتشون', t: 'grid', cols: ['الاسم الكامل', 'اللغة / المادة', 'المقاطعة'], widths: ['1.2fr', '1fr', '1fr'] },
     { sec: 'أنصاف أيام العمل الأسبوعية' },
     { t: 'html', html: '<button type="button" class="btn sm pri" data-act="halfs">تحديد أنصاف أيام العمل (صباحا / مساء) لكل أيام الأسبوع</button>' },
     { k: 'days', l: 'الأيام المعروضة في الجدول', t: 'select', opts: [['auto', 'الاثنين–السبت (ويظهر الأحد إذا اشتغل به أحد)'], ['6', 'الاثنين–السبت'], ['7', 'الأسبوع كاملا (مع الأحد)']] },
@@ -206,7 +223,7 @@
     const head2 = `<tr><th rowspan="3" class="d">ر.ت</th>${col ? '' : '<th rowspan="3" class="d">الوحدة المدرسية</th>'}<th rowspan="3" class="d">اسم الأستاذ(ة)</th><th rowspan="3" class="d">رقم التأجير</th>${col ? '<th rowspan="3" class="d">مادة التخصص</th>' : '<th colspan="2" class="d">المادة المدرسة خلال</th>'}<th rowspan="3" class="d">تاريخ التوظيف</th><th rowspan="3" class="d">تاريخ الالتحاق بالمؤسسة</th><th rowspan="3" class="d">الدرجة</th><th rowspan="3" class="d">الرتبة</th><th rowspan="3" class="d">تاريخها</th><th rowspan="3" class="d">نقطة التفتيش</th><th rowspan="3" class="d">تاريخها</th><th rowspan="3" class="d">${col ? 'الأقسام' : 'المستوى'}</th><th rowspan="3" class="d">التلاميذ</th><th colspan="${nd * 2}" class="d">أنصاف أيام العمل الأسبوعية</th><th rowspan="3" class="d">المجموع</th></tr>
       <tr>${col ? '' : '<th rowspan="2" class="d">فترة الدعم TaRL</th><th rowspan="2" class="d">إرساء الموارد</th>'}${D7.slice(0, nd).map(x => `<th colspan="2" class="d">${x}</th>`).join('')}</tr><tr>${D7.slice(0, nd).map(() => '<th class="d">ص</th><th class="d">م</th>').join('')}</tr>`;
     const main = R.map((r, i) => { const e = emp(r[0]) || {}, W = Ws[i], cnt = Array.from(W).filter(k => +k[0] < nd).length;
-      return tr([i + 1].concat(col ? [] : [{ t: r[1], c: 'k sm' }]).concat([{ t: r[0], c: 'r b' }, e.ppr || ''], col ? [{ t: r[1], c: 'sm' }] : [{ t: r[3], c: 'sm' }, { t: r[4], c: 'sm' }],
+      return tr([i + 1].concat(col ? [] : [unitCell(R, i, 'k sm')].filter(x => x !== null)).concat([{ t: r[0], c: 'r b' }, e.ppr || ''], col ? [{ t: r[1], c: 'sm' }] : [{ t: r[3], c: 'sm' }, { t: r[4], c: 'sm' }],
         [{ t: d(e.hire), c: 'xs' }, { t: d(e.affDate), c: 'xs' }, e.grade || '', e.echelon || '', { t: d(e.echelonDate), c: 'xs' }, e.inspScore || '', { t: d(e.inspDate), c: 'xs' }, { t: r[2], c: 'xs' }, col ? r[4] : r[5]], halfCells(W, nd), [{ t: cnt, c: 'b' }])); });
     // number of teachers working in every half-day
     const per = []; for (let i = 0; i < nd; i++) ['ص', 'م'].forEach(h => per.push(Ws.filter(w => w.has(i + h)).length));
@@ -217,15 +234,15 @@
         tr([{ t: 'المجموع: عدد أنصاف أيام العمل الأسبوعية للأستاذ(ة). الصف الأخير: عدد الأساتذة الذين يشتغلون في كل نصف يوم. الأيام والفترات غير المحددة تُعتمد فيها القاعدة العامة: الاثنين–الجمعة صباحا ومساء، السبت صباحا، والأحد راحة أسبوعية.', c: 'sm r', s: 8 }])] } };
     return { title: `التنظيم التربوي للسنة الدراسية ${MK.syDash(sy).replace('-', '/')}`, sub: col ? cycTxt() : 'فترة الدعم (TaRL) وفترة إرساء الموارد (التعليم الصريح)', page: 'a4l', sign: SB.sign(s, { three: ['مدير(ة) المؤسسة', 'السيد(ة) المفتش(ة)', 'السيد المدير الإقليمي'] }),
       blocks: [
-        { before: SB.cap('هيئة الإدارة', 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', 'تاريخ التوظيف', 'الإطار والدرجة', 'تاريخها', 'الرتبة', 'تاريخها', 'تاريخ الالتحاق بالمؤسسة'].map(t => ({ t, c: 'd' }))), rows: adm.length ? adm : [tr(new Array(9).fill(''))] } },
-        insp.length ? { before: SB.cap('هيئة التأطير التربوي', 'r'), table: { cls: 'sb-t cmp', head: thr(['الاسم الكامل', 'اللغة / المادة', 'المقاطعة'].map(t => ({ t, c: 'd' }))), rows: insp.map(r => tr([{ t: r[0], c: 'b' }, r[1], r[2]])) } } : '',
-        { before: SB.cap('هيئة التدريس', 'r'), table: { cls: 'sb-t cmp te-org', head: head2, rows: main.length ? main : [tr(new Array(base + nd * 2 + 1).fill(''))] } },
+        { before: SB.cap('هيئة الإدارة التربوية والتدبير', 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', 'تاريخ التوظيف', 'الإطار والدرجة', 'تاريخها', 'الرتبة', 'تاريخها', 'تاريخ الالتحاق بالمؤسسة'].map(t => ({ t, c: 'd' }))), rows: adm.length ? adm : [tr(new Array(9).fill(''))] } },
+        insp.length ? { before: SB.cap('هيئة التفتيش والتأطير والمراقبة والتقييم', 'r'), table: { cls: 'sb-t cmp', head: thr(['الاسم الكامل', 'اللغة / المادة', 'المقاطعة'].map(t => ({ t, c: 'd' }))), rows: insp.map(r => tr([{ t: r[0], c: 'b' }, r[1], r[2]])) } } : '',
+        { before: SB.cap('هيئة التربية والتعليم', 'r'), table: { cls: 'sb-t cmp te-org', head: head2, rows: main.length ? main : [tr(new Array(base + nd * 2 + 1).fill(''))] } },
         key,
         { before: SB.cap('الأساتذة المكلفون خارج المؤسسة', 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', 'الدرجة', 'الرتبة', 'مؤسسة التكليف', 'تاريخ التكليف', 'أسباب التكليف'].map(t => ({ t, c: 'd' }))), rows: out.length ? out.map((e, i) => tr([i + 1, { t: fullName(e), c: 'b' }, e.ppr || '', e.grade || '', e.echelon || '', e.assigned || '', d(e.assignDate), { t: e.assignReason || '', c: 'sm' }])) : [tr([{ t: 'لا أحد', s: 8 }])] } },
         col ? '' : { before: SB.cap('مربيات ومربو التعليم الأولي', 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'ب.ت.و', 'تاريخ الالتحاق بالمؤسسة', 'آخر شهادة دراسية', 'الوحدة المدرسية'].map(t => ({ t, c: 'd' }))), rows: pre.length ? pre.map((e, i) => tr([i + 1, { t: fullName(e), c: 'b' }, e.cin || '', d(e.affDate), e.diploma || '', e.unit || ''])) : [tr([{ t: 'لا أحد', s: 6 }])] } },
         f.note ? { html: `<div class="sb-note">${esc(f.note)}</div>` } : ''] };
   };
-  add({ k: 'org', get t() { return isCol() ? 'التنظيم التربوي للسنة الدراسية' : 'التنظيم التربوي للسنة الدراسية (TaRL والتعليم الصريح)'; }, grp: 'o', get d() { return isCol() ? 'نموذج المديرية: هيئة الإدارة، هيئة التأطير، هيئة التدريس مع مادة التخصص والأقسام، الأساتذة المكلفون.' : 'نموذج المديرية: هيئة الإدارة، هيئة التأطير، هيئة التدريس مع المادة المدرسة خلال فترة الدعم TaRL وفترة إرساء الموارد، المكلفون، مربو الأولي، أنصاف أيام العمل.'; }, auto: 'إسناد الأقسام ولائحة الموظفين', page: 'a4l',
+  add({ k: 'org', get t() { return isCol() ? 'التنظيم التربوي للسنة الدراسية' : 'التنظيم التربوي للسنة الدراسية (TaRL والتعليم الصريح)'; }, grp: 'o', get d() { return isCol() ? 'نموذج المديرية: هيئة الإدارة التربوية والتدبير، هيئة التفتيش والتأطير والمراقبة والتقييم، هيئة التربية والتعليم مع مادة التخصص والأقسام، الأساتذة المكلفون.' : 'نموذج المديرية: هيئة الإدارة التربوية والتدبير، هيئة التفتيش والتأطير والمراقبة والتقييم، هيئة التربية والتعليم مع المادة المدرسة خلال فترة الدعم TaRL وفترة إرساء الموارد، المكلفون، مربو الأولي، أنصاف أيام العمل.'; }, auto: 'إسناد الأقسام ولائحة الموظفين', page: 'a4l',
     init: () => ({ insp: [['', 'اللغة العربية', ''], ['', 'اللغة الفرنسية', '']], phone: '', note: '', days: 'auto' }), defs: orgDefs, build: orgBuild, act: { halfs: (f, sy, c) => halfDialog(sy, f, c) } });
 
   /* ---------- «قراءة في المقرر الوزاري» ---------- */
@@ -286,7 +303,7 @@
     const at = B.findIndex(d => d.k === 'massar');
     const pos = at < 0 ? B.length : at;
     B.splice(pos, 0, { k: 'decree', t: 'قراءة في المقرر الوزاري المنظم للسنة الدراسية', grp: 'a', d: 'المستجدات والبرامج، الأنشطة والعمليات، المراقبة المستمرة والامتحانات والمجالس، والعطل المدرسية (2026/2027 جاهزة، وقابلة للتعديل).', auto: 'المقرر الوزاري 017.26 ولائحة العطل', page: 'a4', init: decInit, defs: decDefs, build: decBuild });
-    B.splice(pos + 2, 0, { k: 'pedaOrg', get t() { return isCol() ? 'التنظيم التربوي للسنة الدراسية' : 'التنظيم التربوي: فترة الدعم TaRL وفترة التعليم الصريح'; }, grp: 'a', get d() { return isCol() ? 'هيئة الإدارة والتأطير والتدريس مع مادة التخصص والأقسام والأساتذة المكلفون.' : 'هيئة الإدارة والتأطير والتدريس مع المادة المدرسة خلال فترة الدعم (TaRL) وإرساء الموارد، المكلفون، مربو الأولي وأنصاف أيام العمل.'; }, auto: 'خانة «توزيع الأساتذة» ولائحة الموظفين', page: 'a4l',
+    B.splice(pos + 2, 0, { k: 'pedaOrg', get t() { return isCol() ? 'التنظيم التربوي للسنة الدراسية' : 'التنظيم التربوي: فترة الدعم TaRL وفترة التعليم الصريح'; }, grp: 'a', get d() { return isCol() ? 'هيئات الإدارة التربوية والتدبير، والتفتيش والتأطير والمراقبة والتقييم، والتربية والتعليم مع مادة التخصص والأقسام والأساتذة المكلفون.' : 'هيئات الإدارة التربوية والتدبير، والتفتيش والتأطير والمراقبة والتقييم، والتربية والتعليم مع المادة المدرسة خلال فترة الدعم (TaRL) وإرساء الموارد، المكلفون، مربو الأولي وأنصاف أيام العمل.'; }, auto: 'خانة «توزيع الأساتذة» ولائحة الموظفين', page: 'a4l',
       init: () => ({ insp: [['', 'اللغة العربية', ''], ['', 'اللغة الفرنسية', '']], phone: '', note: '', days: 'auto' }), defs: orgDefs, build: orgBuild, act: { halfs: (f, sy, c) => halfDialog(sy, f, c) } });
   }
 

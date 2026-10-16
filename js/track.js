@@ -126,7 +126,7 @@
           // 1.9.4: any employee of the list (teachers, administration, assigned staff…) can be added to the grid
           box.querySelector('#tkPick').onclick = () => {
             const inG = e => g.rows.some(x => (x.eid && x.eid === e.id) || nm(x.name) === nm(fullName(e)));
-            const L = (DB.employees || []).filter(e => nm(fullName(e)) && !inG(e)).sort((a, b) => unitRank(a.unit) - unitRank(b.unit) || nm(fullName(a)).localeCompare(nm(fullName(b)), 'ar'));
+            const L = (typeof sortedEmps === 'function' ? sortedEmps() : DB.employees || []).filter(e => nm(fullName(e)) && !inG(e)).sort((a, b) => unitRank(a.unit) - unitRank(b.unit) || nm(fullName(a)).localeCompare(nm(fullName(b)), 'ar'));
             if (!L.length) return toast('كل الموظفين مدرجون في الشبكة');
             const body = document.createElement('div');
             body.innerHTML = `<div class="btn-row" style="margin-bottom:8px"><input class="inp" id="tpQ" placeholder="بحث بالاسم..." style="flex:1"><button type="button" class="btn sm" id="tpAll">تحديد الكل</button><button type="button" class="btn sm" id="tpNone">إلغاء التحديد</button></div>

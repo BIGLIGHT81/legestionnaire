@@ -319,6 +319,22 @@
     const gone = new Set(Y(sy).moves.filter(m => OUT.includes(m.cat) && m.code).map(m => m.code));
     return Y(sy).pupils.filter(p => !gone.has(p.code));
   }
+  // 1.9.4: the repeaters of a school year: the Massar list of repeaters (ElevesRedoublants / category «المكررون»), the pupils marked
+  // «مكرر(ة)» (pupil card or status column), and — automatically — every pupil found at the same level in the lists of the previous year
+  function repSet(sy) {
+    const out = new Set(movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
+    const cur = current(sy);
+    cur.forEach(p => { if (p.code && (p.rep === true || p.rep === '1' || /مكرر|redoubl/i.test(String(p.status || '')))) out.add(p.code); });
+    try {
+      const y1 = MK.syStart(sy), prev = `${y1 - 1}/${y1}`, py = DB.pupils && DB.pupils.years && DB.pupils.years[prev];
+      if (py && Array.isArray(py.pupils) && py.pupils.length) {
+        const was = new Map(py.pupils.filter(p => p.code && p.lvl).map(p => [p.code, p.lvl]));
+        cur.forEach(p => { if (p.code && p.rep !== false && p.rep !== '0' && was.get(p.code) === p.lvl) out.add(p.code); });
+      }
+    } catch (e) { /* no previous year */ }
+    cur.forEach(p => { if (p.rep === false || p.rep === '0') out.delete(p.code); });
+    return out;
+  }
   const levelsOf = (sy, arr) => LV.sort(Array.from(new Set((arr || Y(sy).pupils).map(p => p.lvl).filter(Boolean))));
   const cnt = (arr, f) => { let m = 0, w = 0; arr.forEach(p => { if (f && !f(p)) return; if (p.g === 'F') w++; else m++; }); return { m, f: w, t: m + w }; };
   const ageOf = (p, sy) => LV.age(p.birth, sy);
@@ -392,7 +408,7 @@
     const cpos = new Map(); all.forEach(p => { if (!cpos.has(p.cls)) cpos.set(p.cls, cpos.size); });
     return arr.slice().sort((a, b) => ((cpos.get(a.cls) ?? 1e6) - (cpos.get(b.cls) ?? 1e6)) || ((a.ord || 1e6) - (b.ord || 1e6)) || ((pos.get(a) ?? 1e9) - (pos.get(b) ?? 1e9)));
   }
-  window.Pupils = { normLv, locate, massarOrder, refineLevels, exactLevels, migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
+  window.Pupils = { repSet, normLv, locate, massarOrder, refineLevels, exactLevels, migrate, summary, people, toCerts, renameUnit, gresaOf: gresaOfUnit, regUnit: regOf, unitNames: () => { migrate(DB); return unitsOf(curSy()); }, current, unitsOf, levelsOf, cnt, movesOf, CATS, Y: sy => Y(sy) };
 
 
   /* ---------- 1.9.2: same family name (siblings) ---------- */
@@ -956,7 +972,7 @@
   const firstLv = () => (window.Cyc && Cyc.isSec() ? Cyc.levels()[0] : 'P1');
   const firstTitle = () => { const k = window.Cyc ? Cyc.kind() : 'pri'; return k === 'lyc' ? 'بالجذع المشترك' : k === 'col' ? 'بالسنة الأولى من التعليم الثانوي الإعدادي' : 'بالسنة الأولى من التعليم الابتدائي'; };
   function docNew1(s, sy) {
-    const fl = firstLv(), rep = new Set(movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
+    const fl = firstLv(), rep = repSet(sy);
     const arr = current(sy).filter(p => p.lvl === fl && !rep.has(p.code));
     const units = SEC() ? clsList(arr) : unitsOf(sy), same = (p, u) => (SEC() ? p.cls === u : K.U.same(p.unit, u));
     const y0 = MK.syStart(sy) - ((LV.byK(fl) || { off: 6 }).off - 1); // early entry, normal, late
@@ -1003,17 +1019,29 @@
       .sort((a, b) => units.indexOf(a.unit) - units.indexOf(b.unit) || String(a.cls).localeCompare(String(b.cls)) || LV.idx(a.lvl) - LV.idx(b.lvl) || fullN(a).localeCompare(fullN(b), 'ar'));
     const groups = [];
     L.forEach(p => { const k = p.unit + '|' + p.cls; let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, unit: p.unit, cls: p.cls, list: [] }); g.list.push(p); });
-    const blocks = [];
+    // 1.9.4: every class on its own page (an isolated list for each class), the rows made denser for a big class so that it holds on one page
+    const title = !SECL() && f.stage === 'pre' ? 'لائحة أطفال التعليم الأولي' : 'لائحة التلاميذ';
+    const own = [];
     groups.forEach((g, gi) => {
-      const c = cnt(g.list);
+      const c = cnt(g.list), n = g.list.length, dense = n > 52 ? ' pl-d4' : n > 44 ? ' pl-d3' : n > 36 ? ' pl-d2' : n > 29 ? ' pl-d1' : '';
       const lv = LV.sort(Array.from(new Set(g.list.map(p => p.lvl))));
-      blocks.push({ html: `<div class="sb-cap r" style="${gi ? 'margin-top:4mm' : ''}">${SEC() ? '' : `الوحدة المدرسية: ${esc(g.unit)} — `}القسم: <span dir="ltr">${esc(g.cls)}</span> — المستوى: ${esc(lv.map(LV.sh).join(' + '))} — العدد: ${c.t} (ذ ${c.m} / إ ${c.f})</div>`, keepNext: true });
-      blocks.push({ table: { cls: 'sb-t', head: `<tr><th style="width:5%">ر.ت</th><th style="width:14%">رمز مسار</th><th>النسب</th><th>الاسم</th><th style="width:7%">النوع</th><th style="width:12%">تاريخ الازدياد</th><th style="width:18%">مكان الازدياد</th>${lv.length > 1 ? '<th style="width:9%">المستوى</th>' : ''}</tr>`,
+      const blocks = [];
+      blocks.push({ html: `<div class="sb-cap r">${SEC() ? '' : `الوحدة المدرسية: ${esc(g.unit)} — `}القسم: <span dir="ltr">${esc(g.cls)}</span> — المستوى: ${esc(lv.map(LV.sh).join(' + '))} — العدد: ${c.t} (ذ ${c.m} / إ ${c.f})</div>`, keepNext: true });
+      blocks.push({ table: { cls: 'sb-t' + dense, head: `<tr><th style="width:5%">ر.ت</th><th style="width:14%">رمز مسار</th><th>النسب</th><th>الاسم</th><th style="width:7%">النوع</th><th style="width:12%">تاريخ الازدياد</th><th style="width:18%">مكان الازدياد</th>${lv.length > 1 ? '<th style="width:9%">المستوى</th>' : ''}</tr>`,
         rows: g.list.map((p, i) => `<tr><td>${i + 1}</td><td class="ltr">${esc(p.code)}</td><td class="r">${esc(p.last)}</td><td class="r">${esc(p.first)}</td><td>${gAr(p.g)}</td><td>${esc(fmtDate(p.birth))}</td><td class="sm">${esc(p.place || '')}</td>${lv.length > 1 ? `<td class="sm">${esc(LV.sh(p.lvl))}</td>` : ''}</tr>`) } });
+      blocks.push(SB.sign(s));
+      const P = MK.flowPages({ page: 'a4', cls: 'sb' + (dense ? ' pl-dense' : ''), head: SB.head(s, `${title} — القسم ${esc(g.cls)}`, `الموسم الدراسي ${esc(sy)}${SEC() ? '' : ' — ' + esc(g.unit)}`), blocks });
+      P.forEach((p, j) => own.push(own.length && !j ? `<div class="docx-pb"></div>${p}` : p));
     });
-    if (!blocks.length) blocks.push('<div class="c">لا توجد معطيات</div>');
-    return { title: !SECL() && f.stage === 'pre' ? 'لائحة أطفال التعليم الأولي' : 'لائحة التلاميذ', sub: `الموسم الدراسي ${esc(sy)}${!SEC() && f.unit ? ' — ' + esc(f.unit) : ''}${!SECL() && f.stage === 'pri' ? ' — التعليم الابتدائي' : ''}`, page: 'a4', blocks };
+    if (!own.length) own.push(MK.flowPages({ page: 'a4', cls: 'sb', head: SB.head(s, title, `الموسم الدراسي ${esc(sy)}`), blocks: ['<div class="c">لا توجد معطيات</div>'] })[0]);
+    return { title, sub: `الموسم الدراسي ${esc(sy)}`, page: 'a4', own };
   }
+  Dx.modCss += `
+  table.sb-t.pl-d1 td{padding-top:0!important;padding-bottom:0!important;height:5.1mm!important;line-height:1.15!important}
+  table.sb-t.pl-d2 td{padding-top:0!important;padding-bottom:0!important;height:4.3mm!important;font-size:9.2pt!important;line-height:1.1!important}
+  table.sb-t.pl-d3 td{padding-top:0!important;padding-bottom:0!important;height:3.75mm!important;font-size:8.6pt!important;line-height:1.05!important}
+  table.sb-t.pl-d4 td{padding-top:0!important;padding-bottom:0!important;height:3.2mm!important;font-size:7.8pt!important;line-height:1!important}
+  .pl-dense .mk-hdr{zoom:.85}`;
   // بطاقات التلاميذ: 10 per A4 portrait page
   Dx.modCss += `
   .pc-grid{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:52mm;gap:3mm 4mm;margin:-2mm -3mm 0}
@@ -1117,12 +1145,13 @@
         const s = S();
         if (st.kind === 'cards') return { page: 'a4', pages: docCards(s, st.sy, st.ids, st.out === 'word') };
         const d = DOCS[st.kind].f(s, st.sy, st);
+        if (d.own) return { page: d.page || 'a4', pages: d.own };
         return { page: d.page || 'a4l', pages: SB.pages(s, d) };
       },
       fname: st => `${DOCS[st.kind].t}${st.stage && !['cards', 'new1'].includes(st.kind) ? '_' + ST[st.stage].t.replace(/\s+/g, '_') : ''}_${MK.syDash(st.sy)}`
     });
   };
   // 1.9.3: internals shared with pupils2.js (categories, transfers, dashboards)
-  window.Pupils.X = { Y, PD, current, CATS, CAT, OUT, cnt, levelsOf, unitsOf, movesOf, fullN, gAr, gOf, stageOf, inStage, ageOf, isoD, moveForm, nh, flt, ST, readSheet, unitNamesFor, importMassar, catOfSheetName, curSy,
+  window.Pupils.X = { repSet, Y, PD, current, CATS, CAT, OUT, cnt, levelsOf, unitsOf, movesOf, fullN, gAr, gOf, stageOf, inStage, ageOf, isoD, moveForm, nh, flt, ST, readSheet, unitNamesFor, importMassar, catOfSheetName, curSy,
     get stage() { return stage; }, exportXlsx };
 })();

@@ -207,6 +207,9 @@
     v.innerHTML = `<div class="page-h"><h1>الملفات المدرسية (طلب وإرسال)</h1><span class="sub">الضبط — شؤون التلاميذ</span><span class="sp"></span>
         <button class="btn pri" id="dsReq">${ic('plus')} طلب ملف مدرسي</button><button class="btn pri" id="dsSend" style="background:#1f8a4c;border-color:#1f8a4c">${ic('plus')} إرسال ملف مدرسي</button>
         <button class="btn" id="dsReg">${ic('print')} سجل الملفات المدرسية</button></div>
+      <div class="card" style="margin-bottom:10px"><div class="card-b btn-row" style="flex-wrap:wrap;align-items:center;gap:8px"><b>مراسلات الملفات والوثائق:</b>
+        <button class="btn sm" id="dsL1">${ic('file')} طلب ملف ووثائق تلميذ(ة)</button><button class="btn sm" id="dsL2">${ic('file')} بعث ملف ووثائق تلميذ(ة)</button>
+        <span class="muted" style="font-size:12px">مراسلة مستقلة لكل تلميذ(ة)، أو تلاميذ نفس المؤسسة في مراسلة واحدة.</span></div></div>
       ${seg}
       <div class="ds-kpi">
         <div style="--c:${DOS_T.req.c};--b:${DOS_T.req.bg}"><b>${c('req')}</b><span>طلبات الملفات (الوافدون)</span><i>${c('req', false)} في الانتظار — ${c('req', true)} توصلنا بها</i></div>
@@ -234,6 +237,8 @@
     $('#dsReq').onclick = () => dosEdit(null, 'req', f => { re(); if (f) go('mailDoc', { kind: 'dos', id: f.id }); });
     $('#dsSend').onclick = () => dosEdit(null, 'send', f => { re(); if (f) go('mailDoc', { kind: 'dos', id: f.id }); });
     $('#dsReg').onclick = () => go('mailDoc', { kind: 'dosreg', y: st.y });
+    $('#dsL1').onclick = () => go('filesDoc', { kind: 'fl_preq' });
+    $('#dsL2').onclick = () => go('filesDoc', { kind: 'fl_psend' });
     $$('[data-de]', v).forEach(b => b.onclick = () => dosEdit(all.find(x => x.id === b.dataset.de), null, re));
     $$('[data-dd]', v).forEach(b => b.onclick = () => dosDone(all.find(x => x.id === b.dataset.dd), re));
     $$('[data-dp]', v).forEach(b => b.onclick = () => go('mailDoc', { kind: 'dos', id: b.dataset.dp }));

@@ -34,7 +34,7 @@
   const teachers = () => byUnit(emps().filter(e => catOf(e) === 'teacher'));
   const assigned = () => byUnit(emps().filter(e => catOf(e) === 'assigned'));
   const admins = () => emps().filter(e => catOf(e) === 'admin');
-  const preschool = () => byUnit(emps().filter(e => catOf(e) === 'preschool'));
+  const preschool = () => byUnit((typeof allEmpsSorted === 'function' ? allEmpsSorted() : emps()).filter(e => catOf(e) === 'preschool'));   // 1.9.4: the educators are not in the staff lists, only in their own tables
   const secNow = () => !!(window.Cyc && Cyc.single());      // 1.9.4: one independent institution (collège / lycée / independent primary school): no school units
   const secLvl = () => typeof S === 'function' && /إعدادي|تأهيلي/.test((S().cycle || ''));   // secondary cycle (levels, 8 sessions a day, no pre-school)
   const director = () => emps().find(e => /مدير/.test(e.cadre || e.task || '')) || admins()[0] || null;
@@ -149,7 +149,7 @@
 
   /* 3 — أوقات العمل */
   add({
-    k: 'hours', t: 'أوقات عمل الأطر التربوية', grp: 'a', get d() { return secNow() ? 'التوقيت الأسبوعي لكل أستاذ(ة).' : 'التوقيت الأسبوعي لكل أستاذ(ة) بكل وحدة مدرسية.'; }, get auto() { return secNow() ? 'لائحة هيئة التدريس' : 'لائحة هيئة التدريس مرتبة حسب الوحدة المدرسية'; },
+    k: 'hours', t: 'أوقات عمل الأطر التربوية', grp: 'a', get d() { return secNow() ? 'التوقيت الأسبوعي لكل أستاذ(ة).' : 'التوقيت الأسبوعي لكل أستاذ(ة) بكل وحدة مدرسية.'; }, get auto() { return secNow() ? 'لائحة هيئة التربية والتعليم' : 'لائحة هيئة التربية والتعليم مرتبة حسب الوحدة المدرسية'; },
     init: (s, sy) => {
       const dh = 'من 8:30 إلى 14:30';
       return { defH: dh, rows: byUnit(teachers().concat(assigned())).map(e => [e.unit || '', fullName(e)].concat(DAYS6.map((d, i) => (i < 5 ? dh : '')))) };
@@ -215,10 +215,10 @@
 
   /* 5 — اللائحة الاسمية مع التنقيط */
   add({
-    k: 'scoring', t: 'اللائحة الاسمية لهيئة التدريس مقرونة بمعايير التنقيط', grp: 'a', d: 'ترتيب الأساتذة حسب الأقدمية في الوظيفة والمديرية والمؤسسة.', auto: 'تواريخ التوظيف والالتحاق بالمديرية وبالمؤسسة من لائحة الموظفين',
+    k: 'scoring', t: 'اللائحة الاسمية لهيئة التربية والتعليم مقرونة بمعايير التنقيط', grp: 'a', d: 'ترتيب الأساتذة حسب الأقدمية في الوظيفة والمديرية والمؤسسة.', auto: 'تواريخ التوظيف والالتحاق بالمديرية وبالمؤسسة من لائحة الموظفين',
     init: (s, sy) => ({ ref: String(MK.syStart(sy) + 1), kp: '1', kd: '1', ks: '2', assignedToo: '' }),
     defs: () => [{ k: 'ref', l: 'سنة الاحتساب (تُطرح منها سنة كل تاريخ)', half: true, t: 'num' }, { k: 'kp', l: 'نقط كل سنة بالوظيفة', half: true, t: 'num' }, { k: 'kd', l: 'نقط كل سنة بالمديرية', half: true, t: 'num' }, { k: 'ks', l: 'نقط كل سنة بالمؤسسة', half: true, t: 'num' },
-      { note: 'الأساتذة المدرجون هم من فئة «هيئة التدريس». تحتسب النقط = (سنة الاحتساب − سنة التاريخ) × المعامل، ويرتب الأساتذة تنازليا حسب مجموع النقط.' }],
+      { note: 'الأساتذة المدرجون هم من فئة «هيئة التربية والتعليم». تحتسب النقط = (سنة الاحتساب − سنة التاريخ) × المعامل، ويرتب الأساتذة تنازليا حسب مجموع النقط.' }],
     build: (s, f, sy) => {
       const ref = +f.ref || MK.syStart(sy) + 1, kp = +f.kp, kd = +f.kd, ks = +f.ks;
       const yrs = d => { const y = K.yearOf(d); return y ? Math.max(0, ref - y) : null; };
@@ -230,29 +230,29 @@
       const v = x => (x == null ? '' : x);
       const head = thr(['ر.ت', 'لغة التكوين', 'الاسم والنسب', 'تاريخ الازدياد', 'رقم التأجير', 'تاريخ التوظيف', 'السنة', 'النقط', 'تاريخ الالتحاق بالمديرية', 'السنة', 'النقط', 'تاريخ الالتحاق بالمؤسسة', 'السنة', 'النقط', 'مجموع النقط', 'الترتيب'].map((t, i) => ({ t, c: i === 14 || i === 15 ? 'g' : 'd' })));
       const rows = L.map((x, i) => tr([i + 1, x.e.formation || '', { t: fullName(x.e), c: 'b r nw' }, fd(x.e.birth), x.e.ppr || '', fd(x.e.hire), K.yearOf(x.e.hire) || '', v(x.pa), fd(x.e.dirDate), K.yearOf(x.e.dirDate) || '', v(x.pb), fd(x.e.affDate), K.yearOf(x.e.affDate) || '', v(x.pc), { t: x.tot, c: 'y' }, { t: i + 1, c: 'y' }]));
-      return { title: 'اللائحة الاسمية لهيئة التدريس بالمؤسسة مقرونة بمعايير التنقيط', sign: SIGN(s), blocks: [tbl(head, rows, 'cmp')] };
+      return { title: 'اللائحة الاسمية لهيئة التربية والتعليم بالمؤسسة مقرونة بمعايير التنقيط', sign: SIGN(s), blocks: [tbl(head, rows, 'cmp')] };
     }
   });
 
   /* 6 — لائحة العاملين */
   add({
-    k: 'staff', t: 'لائحة العاملين بالمؤسسة', grp: 'a', get d() { return secNow() ? 'الإدارة، هيئة التدريس مع الأقسام وعدد التلاميذ، الأساتذة المكلفون.' : 'الإدارة، هيئة التدريس مع المستويات وعدد التلاميذ، المكلفون، مربو التعليم الأولي.'; }, auto: 'لائحة الموظفين ولوائح التلاميذ',
+    k: 'staff', t: 'لائحة العاملين بالمؤسسة', grp: 'a', get d() { return secNow() ? 'الإدارة، هيئة التربية والتعليم مع الأقسام وعدد التلاميذ، الأساتذة المكلفون.' : 'الإدارة، هيئة التربية والتعليم مع المستويات وعدد التلاميذ، المكلفون، مربو التعليم الأولي.'; }, auto: 'لائحة الموظفين ولوائح التلاميذ',
     init: () => ({ show: ['1', '1', '1', '1'] }),
-    defs: () => [{ k: 'show', l: 'الأجزاء المعروضة', t: 'checks', opts: ['هيئة الإدارة', 'هيئة التدريس', 'الأساتذة المكلفون بالمؤسسة'].concat(secLvl() ? [] : ['مربو ومربيات التعليم الأولي']) }],
+    defs: () => [{ k: 'show', l: 'الأجزاء المعروضة', t: 'checks', opts: ['هيئة الإدارة التربوية والتدبير', 'هيئة التربية والتعليم', 'الأساتذة المكلفون بالمؤسسة'].concat(secLvl() ? [] : ['مربو ومربيات التعليم الأولي']) }],
     build: (s, f, sy) => {
       const on = i => (f.show || [])[i] !== false && (f.show || [])[i] !== '' ;
       const blocks = [];
       const sch = S();
       blocks.push(`<div class="sb-g2" style="font-weight:700;font-size:10pt;margin-bottom:1mm"><div>المؤسسة: ${esc(sch.school || '')}</div><div style="text-align:left">${sch.phone ? 'الهاتف: ' + esc(sch.phone) : ''}</div></div>`);
       if (on(0)) {
-        blocks.push(tbl(thr(['هيئة الإدارة', 'الاسم الكامل', 'رقم التأجير', 'تاريخ التوظيف', 'الإطار والدرجة', 'تاريخها', 'الرتبة', 'تاريخها', 'تاريخ الالتحاق بالمؤسسة'].map(t => ({ t, c: 'd' }))),
+        blocks.push(tbl(thr(['هيئة الإدارة التربوية والتدبير', 'الاسم الكامل', 'رقم التأجير', 'تاريخ التوظيف', 'الإطار والدرجة', 'تاريخها', 'الرتبة', 'تاريخها', 'تاريخ الالتحاق بالمؤسسة'].map(t => ({ t, c: 'd' }))),
           admins().map((e, i) => tr([i + 1, { t: fullName(e), c: 'b r' }, e.ppr || '', fd(e.hire), `${e.cadre || ''} ${e.grade || ''}`.trim(), fd(e.gradeDate), e.echelon || '', fd(e.echelonDate), fd(e.affDate)]))));
       }
       if (on(1)) {
         const L = teachers();
         const head = `<tr><th rowspan="2" class="d">ر.ت</th>${secNow() ? '' : '<th rowspan="2" class="d">الوحدة المدرسية</th>'}<th rowspan="2" class="d">اسم الأستاذ(ة)</th><th rowspan="2" class="d">رقم التأجير</th><th colspan="2" class="d">اللغة</th><th rowspan="2" class="d">تاريخ التوظيف</th><th rowspan="2" class="d">تاريخ الالتحاق بالمؤسسة</th><th rowspan="2" class="d">الدرجة</th><th rowspan="2" class="d">الرتبة</th><th rowspan="2" class="d">تاريخها</th><th rowspan="2" class="d">التفتيش</th><th rowspan="2" class="d">تاريخها</th><th rowspan="2" class="d">المستوى</th><th rowspan="2" class="d">التلاميذ</th></tr><tr><th>التكوين</th><th>التدريس</th></tr>`;
         const g = secNow() ? L.map(e => ({ it: e, first: false, span: 1 })) : rowspanGroups(L, e => nh(e.unit));
-        blocks.push({ before: SB.cap('هيئة التدريس'), table: { cls: 'sb-t cmp', head, rows: g.map(({ it: e, first, span }, i) => tr([{ t: i + 1, c: 'gr' }].concat(first ? [{ t: shortUnit(e.unit), c: 'k', r: span }] : []).concat([{ t: fullName(e), c: 'b r nw' }, e.ppr || '', e.formation || '', e.teachLang || '', fd(e.hire), fd(e.affDate), e.grade || '', e.echelon || '', fd(e.echelonDate), e.inspScore || '', fd(e.inspDate), { t: String(e.levels || '').replace(/\s+/g, ''), c: 'sm' }, pupCount(e, sy)]))) }, keepNext: true });
+        blocks.push({ before: SB.cap('هيئة التربية والتعليم'), table: { cls: 'sb-t cmp', head, rows: g.map(({ it: e, first, span }, i) => tr([{ t: i + 1, c: 'gr' }].concat(first ? [{ t: shortUnit(e.unit), c: 'k', r: span }] : []).concat([{ t: fullName(e), c: 'b r nw' }, e.ppr || '', e.formation || '', e.teachLang || '', fd(e.hire), fd(e.affDate), e.grade || '', e.echelon || '', fd(e.echelonDate), e.inspScore || '', fd(e.inspDate), { t: String(e.levels || '').replace(/\s+/g, ''), c: 'sm' }, pupCount(e, sy)]))) }, keepNext: true });
       }
       if (on(2) && assigned().length) {
         blocks.push({ before: SB.cap('الأساتذة المكلفون بالمؤسسة'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الوحدة المدرسية', 'الاسم الكامل', 'رقم التأجير', 'تاريخ التوظيف', 'لغة التدريس', 'الأقسام المسندة', 'عدد التلاميذ', 'المؤسسة الأصلية', 'تاريخ التكليف', 'أسباب التكليف'].filter(t => !(secNow() && t === 'الوحدة المدرسية')).map(t => ({ t, c: 'd' }))),

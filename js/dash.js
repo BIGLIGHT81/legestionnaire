@@ -126,7 +126,7 @@
       const docs = (DB.records || []).filter(r => r.type !== 'absence' && (r.created || '').slice(0, 10) >= c.bd.from && (r.created || '').slice(0, 10) <= c.bd.to).length;
       const D = window.Teach && Teach.distribution ? safe(() => Teach.distribution(c.sy), null) : null;
       return [head('المؤشرات العامة للمؤسسة'), blk(kpis([
-        { v: c.E.length, l: 'عدد الموظفين' }, { v: T, l: 'هيئة التدريس' }, { v: PU.n || '—', l: 'عدد التلاميذ' }, { v: PU.n ? PU.classes : '—', l: 'عدد الأقسام' },
+        { v: c.E.length, l: 'عدد الموظفين' }, { v: T, l: 'هيئة التربية والتعليم' }, { v: PU.n || '—', l: 'عدد التلاميذ' }, { v: PU.n ? PU.classes : '—', l: 'عدد الأقسام' },
         { v: PU.n && T ? f1(PU.n / T) : '—', l: 'تلميذ(ة) لكل أستاذ(ة)' },
         ...(c.single ? [] : [{ v: D ? D.units.filter(u => u.mine.length || u.c.t).length || '—' : '—', l: 'الوحدات المدرسية' }]),
         { v: safe(() => absentToday().length, 0), l: 'غائبون اليوم', c: safe(() => absentToday().length, 0) ? 'red' : '' },
@@ -153,11 +153,11 @@
       const comp = FL.map(([k, l]) => ({ label: l, v: E.length ? E.filter(e => nm(e[k])).length / E.length * 100 : 0, c: PAL[0] }));
       const lang = count(E.filter(e => nm(e.teachLang)), e => e.teachLang), st = count(E.filter(e => nm(e.status)), e => e.status);
       return [head('الموظفون والأطر'),
-        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التدريس' }, { v: B.a, l: 'هيئة الإدارة' }, { v: B.as, l: 'أساتذة مكلفون' }, 
+        blk(kpis([{ v: E.length, l: 'مجموع الموظفين' }, { v: B.t, l: 'هيئة التربية والتعليم' }, { v: B.a, l: 'هيئة الإدارة التربوية والتدبير' }, { v: B.as, l: 'أساتذة مكلفون' }, 
           { v: other, l: 'أطر وأعوان آخرون' }, { v: E.length ? pc(F, M + F) : '—', l: 'نسبة الإناث' }, { v: ages.length ? f1(+avg(ages).toFixed(1)) : '—', l: 'متوسط العمر (سنة)' },
           { v: sen.length ? f1(+avg(sen).toFixed(1)) : '—', l: 'متوسط الأقدمية (سنة)' }, { v: ages.filter(a => a >= 55).length, l: 'بلغوا 55 سنة فأكثر', c: ages.filter(a => a >= 55).length ? 'red' : '' }], 5)),
         blk(charts([{ t: 'التوزيع حسب الجنس', h: donut([{ label: 'ذكور', v: M, c: C.m }, { label: 'إناث', v: F, c: C.f }, { label: 'غير محدد', v: E.length - M - F, c: C.t }], { unit: 'موظف(ة)' }) },
-          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
+          { t: 'التوزيع حسب الفئة', h: donut([{ label: 'هيئة التربية والتعليم', v: B.t }, { label: 'هيئة الإدارة التربوية والتدبير', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: other }], { unit: 'موظف(ة)' }) }])),
         blk(charts([{ t: 'الفئات العمرية حسب الجنس', h: vbars(el, [{ name: 'ذكور', color: C.m, vals: ageBy('M') }, { name: 'إناث', color: C.f, vals: ageBy('F') }]) },
           { t: 'الأقدمية في الوظيفة (سنوات)', h: vbars(sl, [{ name: 'عدد الموظفين', color: C.g, vals: band(sen, sb, sl) }]) }])),
         blk(charts([{ t: 'الإطار (الأكثر تمثيلا)', h: hbar(top(count(E.filter(e => nm(e.cadre)), e => e.cadre), 8), { labW: 150, cut: 30 }) },
@@ -369,7 +369,7 @@
     try {
       if (c.E.length) {
         const B = window.Board ? { t: Board.teachers().length, a: Board.admins().length, as: Board.assigned().length, p: Board.preschool().length } : { t: 0, a: 0, as: 0, p: 0 };
-        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التدريس', v: B.t }, { label: 'هيئة الإدارة', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as) }], { unit: 'موظف(ة)', w: 330 }) });
+        out.push({ t: 'الموظفون حسب الفئة', h: donut([{ label: 'هيئة التربية والتعليم', v: B.t }, { label: 'هيئة الإدارة التربوية والتدبير', v: B.a }, { label: 'مكلفون', v: B.as }, { label: 'آخرون', v: Math.max(0, c.E.length - B.t - B.a - B.as) }], { unit: 'موظف(ة)', w: 330 }) });
       }
     } catch (e) { /* ignore */ }
     try {

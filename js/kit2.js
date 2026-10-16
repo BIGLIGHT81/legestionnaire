@@ -230,7 +230,8 @@
       }
       if ((m = /^(?:الجذع المشترك|جذع مشترك)(.*)$/.exec(s))) return { k: 'TC', level: LV.ar('TC'), branch: cut(m[1]) };
       if ((m = /^(الأولى|الاولى|الأول|الثانية|الثاني)\s*(?:من\s+)?(?:سلك\s+)?(?:باكالوريا|بكالوريا|باك)(.*)$/.exec(s))) return { k: /ثان/.test(m[1]) ? 'B2' : 'B1', level: LV.ar(/ثان/.test(m[1]) ? 'B2' : 'B1'), branch: cut(m[2]) };
-      if ((m = /^(الأولى|الاولى|الثانية|الثالثة)\s*(?:اعدادي|إعدادي)(.*)$/.exec(s))) { const k = /ثالث/.test(m[1]) ? 'C3' : /ثان/.test(m[1]) ? 'C2' : 'C1'; return { k, level: LV.ar(k), branch: cut(m[2]) }; }
+      // (archives of a lycée: the collège years of its former pupils keep their real name)
+      if ((m = /^(الأولى|الاولى|الثانية|الثالثة)\s*(?:اعدادي|إعدادي)(.*)$/.exec(s))) { const k = /ثالث/.test(m[1]) ? 'C3' : /ثان/.test(m[1]) ? 'C2' : 'C1'; return { k, level: LVK[k].ar, branch: cut(m[2]) }; }
       return null;
     },
     birthYear: (k, sy) => (LVK[k] ? MK.syStart(sy) - LVK[k].off : null),
@@ -305,7 +306,7 @@
       return isTeacher(e) ? (e.assigned ? 'assigned' : 'teacher') : 'other';
     }
   };
-  const CATS = [['admin', 'هيئة الإدارة'], ['teacher', 'هيئة التدريس'], ['assigned', 'أستاذ(ة) مكلف(ة) بالمؤسسة'], ['preschool', 'مربي(ة) التعليم الأولي'], ['other', 'أطر وأعوان آخرون']];
+  const CATS = [['admin', 'هيئة الإدارة التربوية والتدبير'], ['teacher', 'هيئة التربية والتعليم'], ['assigned', 'أستاذ(ة) مكلف(ة) بالمؤسسة'], ['preschool', 'مربي(ة) التعليم الأولي'], ['other', 'أطر وأعوان آخرون']];
   const dl = (id, vals) => `<datalist id="${id}">${Array.from(new Set(vals.filter(Boolean))).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
 
   /* ================= people pickers: pupils (Massar) + employees, shared by every form ================= */
@@ -468,7 +469,11 @@
         const tpl = `grid-template-columns:${(d.widths || d.cols.map(() => '1fr')).filter((w, j) => !hid(j)).join(' ')} 28px`;
         return `<div class="${cls}">${lab}<div class="k2-grid">
           <div class="k2-gh" style="${tpl}">${d.cols.map((c, j) => (hid(j) ? '' : `<span>${c}</span>`)).join('')}<span></span></div>
-          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; if (hid(j)) return `<input type="hidden" data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : r[j])}">`; if (d.list && d.list[j] === 'k2Units') return unitSelect(`data-g="${d.k}" data-r="${i}" data-c="${j}"`, r[j], { empty: '' }); return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
+          ${rows.map((r, i) => `<div class="k2-gr" style="${tpl}">${d.cols.map((c, j) => { const ty = (d.types || [])[j] || 'text'; if (hid(j)) return `<input type="hidden" data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : r[j])}">`; if (d.list && d.list[j] === 'k2Units') return unitSelect(`data-g="${d.k}" data-r="${i}" data-c="${j}"`, r[j], { empty: '' });
+            // 1.9.4: a column with a fixed list of choices (type «sel»): a real drop-down list, an older value outside the list is kept as its own choice
+            if (ty === 'sel') { const O = ((d.sel || [])[j] || []).map(o => (Array.isArray(o) ? o : [o, o])), v = r[j] == null ? '' : String(r[j]); if (v && !O.some(o => String(o[0]) === v)) O.unshift([v, v]);
+              return `<select class="inp" data-g="${d.k}" data-r="${i}" data-c="${j}">${O.map(([k, l]) => `<option value="${esc(k)}" ${String(k) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`; }
+            return `<input class="inp" ${ty === 'num' ? 'type="number" step="any"' : ty === 'date' ? 'type="date"' : ty === 'ro' ? 'readonly tabindex="-1" style="background:#f3f5f9"' : ''} data-g="${d.k}" data-r="${i}" data-c="${j}" value="${esc(r[j] == null ? '' : (ty === 'ro' && d.rofmt ? d.rofmt(r[j]) : r[j]))}" ${d.list && d.list[j] ? `list="${d.list[j]}"` : ''} ${(d.dirs || [])[j] ? `dir="${d.dirs[j]}"` : ''}>`; }).join('')}
             ${d.fixed ? '<span></span>' : `<button type="button" class="btn sm danger icon" data-gdel="${d.k}" data-r="${i}" title="حذف السطر">✕</button>`}</div>`).join('')}
           </div>${d.fixed ? '' : `<div class="btn-row" style="margin-top:6px"><button type="button" class="btn sm" data-gadd="${d.k}">${ic('plus')} إضافة سطر</button>${d.extraBtn || ''}</div>`}${hint}</div>`;
       }

@@ -111,41 +111,56 @@
 
   const DOCS = [];
   const add = d => DOCS.push(d);
-  const PUP_COLS = ['الاسم الكامل', 'الرقم الوطني (مسار)', 'تاريخ المغادرة', 'المستوى الدراسي', 'رقم شهادة المغادرة', 'تاريخها'];
-  const pupGrid = () => ({ k: 'rows', l: 'التلاميذ (اكتب الاسم أو رقم مسار فتُملأ باقي الخانات)', t: 'grid', cols: PUP_COLS, widths: ['1.5fr', '1fr', '.8fr', '1fr', '.8fr', '.8fr'], list: ['k2Pupils', 'k2Codes', null, null, null, null], dirs: [null, 'ltr', null, null, 'ltr', null],
+  const PUP_COLS = ['الاسم الكامل', 'الرقم الوطني (مسار)', 'تاريخ المغادرة', 'المستوى الدراسي', 'رقم شهادة المغادرة', 'تاريخها', 'المؤسسة المعنية', 'مديريتها'];
+  const pupGrid = () => ({ k: 'rows', l: 'التلاميذ (اكتب الاسم أو رقم مسار فتُملأ باقي الخانات) — «المؤسسة المعنية»: المؤسسة الأصلية للوافد أو المستقبلة للمغادر', t: 'grid', cols: PUP_COLS, widths: ['1.4fr', '1fr', '.75fr', '.9fr', '.7fr', '.7fr', '1.2fr', '.8fr'], list: ['k2Pupils', 'k2Codes', null, null, null, null, null, 'flDirs'], dirs: [null, 'ltr', null, null, 'ltr', null, null, null],
     link: { src: 'pupil', n: 0, cols: { code: 1, lvl: 3 }, post: (row, r) => { if (r.rec && r.rec.lvl) row[3] = K.LV.ar(r.rec.lvl); } } });
   const pupTable = (rows, sy) => ({
     head: thr(['ر.ت', 'الاسم الكامل', 'الرقم الوطني', 'تاريخ المغادرة', `المستوى الدراسي ${MK.syDash(sy).replace('-', '/')}`]),
     rows: rows.map((r, i) => tr([i + 1, { t: r[0], c: 'b' }, { t: r[1], st: 'direction:ltr' }, MK.showDate(r[2]), r[3]]))
   });
-  const fromMoves = (cat, sy) => (window.Pupils ? Pupils.movesOf(sy, cat) : []).map(m => [`${m.last || ''} ${m.first || ''}`.trim(), m.code || '', MK.showDate(m.date || ''), K.LV.ar(m.lvl), '', '']);
+  const fromMoves = (cat, sy) => (window.Pupils ? Pupils.movesOf(sy, cat) : []).map(m => [`${m.last || ''} ${m.first || ''}`.trim(), m.code || '', MK.showDate(m.date || ''), K.LV.ar(m.lvl), '', '', nm(cat === 'joined' ? m.orig : m.recv), nm(m.odir)]);
   const pupRows = f => (f.rows || []).filter(r => nm(r[0]) || nm(r[1]));
+  // 1.9.4: one letter for each pupil (addressed to his own school), or the pupils of the same school gathered in one letter, or one letter as typed;
+  // «only» prints the letter of one pupil
+  const SPLIT = [['pupil', 'مراسلة مستقلة لكل تلميذ(ة) (موجهة إلى مؤسسته)'], ['school', 'تلاميذ نفس المؤسسة في مراسلة واحدة'], ['one', 'مراسلة واحدة لكل التلاميذ (المؤسسة المكتوبة أعلاه)']];
+  const splitDefs = f => [{ sec: 'المراسلات' }, { k: 'split', l: 'طريقة الإنجاز', t: 'select', opts: SPLIT, half: true },
+    { k: 'only', l: 'الطبع', t: 'select', opts: [['', 'كل المراسلات']].concat(pupRows(f || {}).map(r => [nm(r[1]) || nm(r[0]), `${nm(r[0])}${nm(r[6]) ? ' — ' + nm(r[6]) : ''}`])), half: true }];
+  function lettersOf(f) {
+    const rows = pupRows(f), mode = f.split || 'pupil';
+    let G;
+    if (mode === 'one') G = [{ rows, dest: '', ddir: '' }];
+    else if (mode === 'school') { G = []; rows.forEach(r => { const k = nm(r[6]) || nm(f.dest); let g = G.find(x => x.k === k); if (!g) G.push(g = { k, rows: [], dest: nm(r[6]), ddir: nm(r[7]) }); g.rows.push(r); }); }
+    else G = rows.map(r => ({ rows: [r], dest: nm(r[6]), ddir: nm(r[7]) }));
+    if (nm(f.only)) G = G.filter(g => g.rows.some(r => (nm(r[1]) || nm(r[0])) === nm(f.only))).map(g => (mode === 'pupil' ? g : Object.assign({}, g, { rows: g.rows })));
+    return (G.length ? G : [{ rows: [], dest: '', ddir: '' }]).map(g => ({ rows: g.rows, f: Object.assign({}, f, g.dest ? { dest: g.dest } : {}, g.ddir ? { ddir: g.ddir, dreg: '' } : {}) }));
+  }
+  const manyPages = (s, L, one) => { const out = []; L.forEach((x, i) => one(x).forEach((p, j) => out.push(i && !j ? `<div class="docx-pb"></div>${p}` : p))); return out; };
 
   add({
     k: 'fl_preq', t: 'طلب ملف ووثائق تلميذ(ة)', grp: 'p', d: 'مراسلة المؤسسة الأصلية لطلب الملف المدرسي لتلميذ(ة) أو أكثر التحقوا بالمؤسسة (شهادة المغادرة).', auto: 'بطاقة التلاميذ (الوافدون) ومعطيات المؤسسة', page: 'a4',
-    init: s => Object.assign(letterInit(s), { rows: [['', '', '', '', '', '']] }),
-    defs: () => letterDefs('المؤسسة الأصلية للتلميذ(ة)').concat([{ sec: 'التلاميذ' }, { t: 'html', html: '<button type="button" class="btn sm" data-act="mv">إضافة الوافدين المسجلين في بطاقة التلاميذ</button>' }, pupGrid()]),
+    init: s => Object.assign(letterInit(s), { split: 'pupil', only: '', rows: [['', '', '', '', '', '', '', '']] }),
+    defs: f => letterDefs('المؤسسة الأصلية للتلميذ(ة) (عند المراسلة الواحدة، أو إذا لم تُكتب في الجدول)').concat(splitDefs(f), [{ sec: 'التلاميذ' }, { t: 'html', html: '<button type="button" class="btn sm" data-act="mv">إضافة الوافدين المسجلين في بطاقة التلاميذ</button>' }, pupGrid()]),
     act: { mv: (f, sy, c) => { const r = fromMoves('joined', sy); if (!r.length) return c.toast('لا يوجد وافدون مسجلون في بطاقة التلاميذ لهذا الموسم', true); f.rows = r; c.save('rows'); } },
-    build: (s, f, sy) => {
-      const rows = pupRows(f), w = pupilsWord(rows);
+    build: (s, f0, sy) => ({ page: 'a4', pages: manyPages(s, lettersOf(f0), ({ rows, f }) => {
+      const w = pupilsWord(rows);
       const refs = rows.filter(r => nm(r[4])).map(r => `شهادة المغادرة رقم ${nm(r[4])}${nm(r[5]) ? ' بتاريخ ' + MK.showDate(r[5]) : ''}${rows.length > 1 ? ' (' + nm(r[0]) + ')' : ''}`);
-      return { page: 'a4', pages: letterPages(s, letterBlocks({ s, f, subject: `طلب ملف ووثائق ${w.one && rows[0] ? (w.w === 'تلميذة' ? 'التلميذة' : w.w === 'تلميذ' ? 'التلميذ' : 'التلميذ(ة)') + ' ' + nm(rows[0][0]) : w.w}`, refs,
+      return letterPages(s, letterBlocks({ s, f, subject: `طلب ملف ووثائق ${w.one && rows[0] ? (w.w === 'تلميذة' ? 'التلميذة' : w.w === 'تلميذ' ? 'التلميذ' : 'التلميذ(ة)') + ' ' + nm(rows[0][0]) : w.w}`, refs,
         body: `وبعد، يشرفني أن ألتمس من سيادتكم موافاتي بملف ووثائق ${w.the} المسجل${w.one ? (w.the === 'التلميذة' ? 'ة' : w.the === 'التلميذ' ? '' : '(ة)') : 'ين'} بمؤسستكم سابقا والملتحق${w.one ? (w.the === 'التلميذة' ? 'ة' : w.the === 'التلميذ' ? '' : '(ة)') : 'ين'} بمؤسستنا:`,
-        table: pupTable(rows, sy) })) };
-    }
+        table: pupTable(rows, sy) }));
+    }) })
   });
   add({
     k: 'fl_psend', t: 'بعث ملف ووثائق تلميذ(ة)', grp: 'p', d: 'إرسال الملف المدرسي لتلميذ(ة) أو أكثر غادروا المؤسسة إلى المؤسسة المستقبلة، جوابا على طلبها.', auto: 'بطاقة التلاميذ (المغادرون) ومعطيات المؤسسة', page: 'a4',
-    init: s => Object.assign(letterInit(s), { reqDate: '', reqNo: '', rows: [['', '', '', '', '', '']] }),
-    defs: () => letterDefs('المؤسسة المستقبلة للتلميذ(ة)').concat([{ sec: 'طلبهم في الموضوع (اختياري)' }, { k: 'reqDate', l: 'بتاريخ', t: 'date', half: true }, { k: 'reqNo', l: 'تحت رقم', half: true, dir: 'ltr' },
+    init: s => Object.assign(letterInit(s), { reqDate: '', reqNo: '', split: 'pupil', only: '', rows: [['', '', '', '', '', '', '', '']] }),
+    defs: f => letterDefs('المؤسسة المستقبلة للتلميذ(ة) (عند المراسلة الواحدة، أو إذا لم تُكتب في الجدول)').concat([{ sec: 'طلبهم في الموضوع (اختياري)' }, { k: 'reqDate', l: 'بتاريخ', t: 'date', half: true }, { k: 'reqNo', l: 'تحت رقم', half: true, dir: 'ltr' }], splitDefs(f), [
       { sec: 'التلاميذ' }, { t: 'html', html: '<button type="button" class="btn sm" data-act="mv">إضافة المغادرين المسجلين في بطاقة التلاميذ</button>' }, pupGrid()]),
     act: { mv: (f, sy, c) => { const r = fromMoves('left', sy); if (!r.length) return c.toast('لا يوجد مغادرون مسجلون في بطاقة التلاميذ لهذا الموسم', true); f.rows = r; c.save('rows'); } },
-    build: (s, f, sy) => {
-      const rows = pupRows(f), w = pupilsWord(rows);
+    build: (s, f0, sy) => ({ page: 'a4', pages: manyPages(s, lettersOf(f0), ({ rows, f }) => {
+      const w = pupilsWord(rows);
       const refs = [f.reqDate || nm(f.reqNo) ? `طلبكم في الموضوع${f.reqDate ? ' بتاريخ ' + K.ldate(f.reqDate) : ''}${nm(f.reqNo) ? ' تحت رقم ' + nm(f.reqNo) : ''}` : ''];
-      return { page: 'a4', pages: letterPages(s, letterBlocks({ s, f, subject: `بعث ملف ووثائق ${w.one && rows[0] ? (w.the === 'التلميذ(ة)' ? 'التلميذ(ة)' : w.the) + ' ' + nm(rows[0][0]) : w.w}`, refs,
-        body: `وبعد، يشرفني أن أوافيكم بملف ووثائق ${w.the} المشار إلي${w.one ? (w.the === 'التلميذة' ? 'ها' : w.the === 'التلميذ' ? 'ه' : 'ه(ا)') : 'هم'} في الجدول أسفله:`, table: pupTable(rows, sy) })) };
-    }
+      return letterPages(s, letterBlocks({ s, f, subject: `بعث ملف ووثائق ${w.one && rows[0] ? (w.the === 'التلميذ(ة)' ? 'التلميذ(ة)' : w.the) + ' ' + nm(rows[0][0]) : w.w}`, refs,
+        body: `وبعد، يشرفني أن أوافيكم بملف ووثائق ${w.the} المشار إلي${w.one ? (w.the === 'التلميذة' ? 'ها' : w.the === 'التلميذ' ? 'ه' : 'ه(ا)') : 'هم'} في الجدول أسفله:`, table: pupTable(rows, sy) }));
+    }) })
   });
 
   /* ---------- teachers ---------- */
@@ -157,7 +172,7 @@
     return { head: thr(['الاسم الكامل', 'رقم التأجير', 'الإطار'].concat(hasN ? ['ملاحظات'] : [])), rows: rows.map(r => tr([{ t: r[0], c: 'b' }, { t: r[1] }, { t: r[2] }].concat(hasN ? [{ t: r[3] || '', c: 'sm' }] : []))) };
   };
   const tInit = s => Object.assign(letterInit(s), { ref: '', rows: [['', '', '', '']] });
-  const refDef = ph => ({ k: 'ref', l: 'المرجع (اختياري)', ph: ph || 'مثال: نتيجة الحركة الانتقالية الوطنية لأطر هيئة التدريس لسنة 2026' });
+  const refDef = ph => ({ k: 'ref', l: 'المرجع (اختياري)', ph: ph || 'مثال: نتيجة الحركة الانتقالية الوطنية لأطر هيئة التربية والتعليم لسنة 2026' });
   const kinds = [
     { k: 'fl_treq', t: 'طلب الملف الإداري والتربوي للأستاذ(ة)', d: 'طلب ملف الأستاذ(ة) الملتحق(ة) بالمؤسسة من مؤسسته(ا) السابقة (الحركة الانتقالية، إعادة الانتشار...).',
       subj: w => `طلب الملف الإداري والتربوي ${w.of}`, body: w => `وبعد، يشرفني أن ألتمس من سيادتكم موافاتي بالملف الإداري والتربوي ${w.of}:` },

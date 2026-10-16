@@ -41,7 +41,7 @@
     r.years = r.years && typeof r.years === 'object' ? r.years : {};
     Object.keys(r.years).forEach(y => (r.years[y] || []).forEach(g => { if (!g.phase || !PH_BY[g.phase]) g.phase = 'pre'; }));
   }
-  window.Roaiz = { groups: sy => (DB.roaiz && DB.roaiz.years && DB.roaiz.years[sy]) || [], importFiles: () => importFiles(), migrate, summary, dashModel: (sy, f, phase, by) => dashModel(sy, f || {}, phase, by || 'subj') };
+  window.Roaiz = { groups: sy => (DB.roaiz && DB.roaiz.years && DB.roaiz.years[sy]) || [], importFiles: kind => importFiles(kind), chooseImport: () => chooseImport(), migrate, summary, dashModel: (sy, f, phase, by) => dashModel(sy, f || {}, phase, by || 'subj') };
   const RD = () => DB.roaiz;
   const syDash = sy => String(sy || '').replace('/', '-');
   const curSy = () => window.MK ? MK.curSy() : '';
@@ -101,14 +101,15 @@
       pupils.push({ id, name, g: '', ar: val('ar'), fr: val('fr'), math: val('math'), abs: absc ? /^x$/i.test(txt(row[absc[0]])) : false, teacher: tc ? txt(row[tc[0]]) : '', cls: head['القسم'] != null ? txt(row[head['القسم']]) : '' });
     }
     const t = rows.slice(0, hi + 1).map(r => (r || []).join(' ')).join(' ');
-    return { top: t + ' ' + meta('نوع الاختبار'), unit: meta('المؤسسة'), sy: meta('السنة الدراسية'), level: meta('مجموعة الاختبار'), parcours: { ar: '', fr: '', math: '' }, pupils };
+    return { kind: 'res', top: t + ' ' + meta('نوع الاختبار'), unit: meta('المؤسسة'), sy: meta('السنة الدراسية'), level: meta('مجموعة الاختبار'), parcours: { ar: '', fr: '', math: '' }, pupils };
   }
   // 1.9.4: «ExportNiveauxApprentissage» (sheets TARL-1APG-2APG…): for every subject two columns «رائز الموضعة القبلي» and «رائز الموضعة البعدي»
   // with the category of each pupil, and the level expected for the group («TaRL المستوى المتوقع»): one sheet gives the before AND the after groups
   function parseDual(rows, hi, idc, nmc) {
     const txt = c => String(c == null ? '' : c).trim(), top = rows[hi - 1] || [], H = rows[hi] || [];
     const KEYS = [['ar', /^اللغة العربية$/], ['fr', /^اللغة الفرنسية$/], ['math', /^الرياضيات$/]];
-    const starts = []; top.forEach((c, j) => { if (txt(c)) starts.push([j, txt(c)]); });
+    // 1.9.4: the subject is written above each of its two columns («اللغة العربية» «اللغة العربية» …): one span per subject
+    const starts = []; top.forEach((c, j) => { const t = txt(c); if (t && !(starts.length && starts[starts.length - 1][1] === t)) starts.push([j, t]); });
     const col = { pre: {}, post: {} };
     KEYS.forEach(([k, rx]) => { const i = starts.findIndex(x => rx.test(x[1])); if (i < 0) return; const a = starts[i][0], b = i + 1 < starts.length ? starts[i + 1][0] : a + 3;
       for (let j = a; j < b; j++) { const t = txt(H[j]); if (/القبلي/.test(t)) col.pre[k] = j; else if (/البعدي/.test(t)) col.post[k] = j; } });
@@ -127,18 +128,33 @@
     const P = window.Pupils && Pupils.people ? Pupils.people(curSy()) : [], by = new Map(P.map(p => [String(p.code).toUpperCase(), p]));
     groups.forEach(g => g.pupils.forEach(p => { if (!p.g) { const q = by.get(String(p.id).toUpperCase()); if (q) p.g = q.g === 'F' ? 'أنثى' : q.g === 'M' ? 'ذكر' : ''; } }));
   }
-  async function importFiles() {
+  // 1.9.4: the kind of Massar file to import is chosen first (or recognised automatically)
+  const KINDS = [['exp', 'نتائج رائز الموضعة القبلي والبعدي', 'ExportNiveauxApprentissage_….xlsx — مسار: الدعم التربوي TaRL ← مستويات التعلم ← تصدير (ورقة لكل مجموعة مستويات، القبلي والبعدي معا)'],
+    ['res', 'نتائج الاختبار الخاص بتلاميذ المؤسسة', 'Resultats de Soutien des élèves_….xlsx — مسار: الدعم التربوي TaRL ← نتائج الدعم (ملف لكل مجموعة اختبار ونوع رائز)'],
+    ['pre', 'رائز المستوى الأول (تقييم التعليم الأولي)', 'EvaluationPrescolaire….xlsx — مسار: تقييم التعليم الأولي (ملف لكل قسم من المستوى الأول)'],
+    ['', 'تعرف تلقائي (كل الأنواع معا)', 'يمكن اختيار ملفات من أنواع مختلفة دفعة واحدة، ويتعرف البرنامج على نوع كل ملف']];
+  function chooseImport() {
+    const body = document.createElement('div');
+    body.innerHTML = `<p style="margin:0 0 10px;line-height:1.8">اختر نوع ملف مسار الذي تريد استيراده (يمكن اختيار عدة ملفات من نفس النوع دفعة واحدة):</p>
+      <div class="roz-kinds">${KINDS.map(([k, t, d]) => `<button type="button" class="roz-kind" data-k="${k}"><b>${esc(t)}</b><small>${esc(d)}</small></button>`).join('')}</div>`;
+    const m = modal({ title: 'استيراد نتائج الروائز من مسار', size: 'lg', body, actions: [{ label: 'إلغاء' }] });
+    body.querySelectorAll('.roz-kind').forEach(b => { b.onclick = () => { try { (m && m.close ? m.close() : document.querySelector('.modal-f .btn') && document.querySelector('.modal-f .btn').click()); } catch (e) {} importFiles(b.dataset.k); }; });
+  }
+  const kindOfGroup = p => (p.dual ? 'exp' : p.kind === 'res' ? 'res' : 'grp');
+  async function importFiles(kind) {
+    if (typeof kind !== 'string') kind = '';
     if (!window.api.openTables) return toast('الاستيراد المتعدد غير متوفر في هذه النسخة', true);
     const res = await window.api.openTables();
     if (!res || !res.files) return;
-    const groups = [];
+    const groups = [], other = new Set();
     let syFound = '';
     const l1 = [];   // 1.9.4: sheets of the first level test, imported in the same operation
     res.files.forEach(f => {
       (f.sheets || []).forEach(sh => {
         const rows = (sh.rows || []).map(r => (r || []).map(x => x == null ? '' : x));
         const p = parseSheet(rows);
-        if (!p || !p.pupils.length) { const q = window.RoaizX && RoaizX.parseL1 ? RoaizX.parseL1(rows, sh.name, f.name, f.b64) : null; if (q) l1.push(q); return; }
+        if (!p || !p.pupils.length) { const q = window.RoaizX && RoaizX.parseL1 ? RoaizX.parseL1(rows, sh.name, f.name, f.b64) : null; if (q) { if (!kind || kind === 'pre') l1.push(q); else other.add('pre'); } return; }
+        { const kg = kindOfGroup(p); if (kind === 'pre' || (kind === 'exp' && kg !== 'exp') || (kind === 'res' && kg === 'exp')) { other.add(kg === 'grp' ? 'res' : kg); return; } }
         if (!syFound && /^\d{4}\s*\/\s*\d{4}$/.test(p.sy)) syFound = p.sy.replace(/\s/g, '');
         if (p.dual) { ['pre', 'post'].forEach(ph => { if (p[ph].length) groups.push({ id: uid('rg'), file: f.name, sheet: sh.name, phase: ph, unit: p.unit || f.name.replace(/\.xlsx?$/i, ''), level: levelFromSheet(sh.name), parcours: p.parcours, pupils: p[ph] }); }); if (!syFound && /^\d{4}\s*\/\s*\d{4}$/.test(p.sy)) syFound = p.sy.replace(/\s/g, ''); return; }
         groups.push({ id: uid('rg'), file: f.name, sheet: sh.name, phase: detectPhase(f.name, sh.name, p.top), unit: p.unit || f.name.replace(/\.xlsx?$/i, ''), level: levelFromSheet(p.level || sh.name), parcours: p.parcours, pupils: p.pupils });
@@ -154,6 +170,7 @@
       const n = RoaizX.applyL1(curSy(), l1); persist(); state.tab = 'l1'; go('roaiz', { tab: 'l1' });
       return toast(`تم استيراد نتائج رائز المستوى الأول: ${l1.filter(q => q.phase !== 'post').length} ملف للتقييم القبلي و${l1.filter(q => q.phase === 'post').length} ملف للتقييم البعدي (تمييز تلقائي من الخانة D4 لملف مسار)`);
     }
+    if (!groups.length && other.size && kind) return toast(`الملفات المختارة ليست من نوع «${(KINDS.find(x => x[0] === kind) || [])[1]}»، بل من نوع: ${Array.from(other).map(k => '«' + (KINDS.find(x => x[0] === k) || [])[1] + '»').join(' و')}. اختر النوع المناسب أو «تعرف تلقائي».`, true);
     if (!groups.length) return toast(`لم يتم العثور على معطيات الروائز في ${res.files.length} ملف. تأكد من ملفات «Export Groupe de Soutien» أو ملفات مسار: الدعم التربوي TARL ← 6- نتائج رائز الموضعة القبلي والبعدي ← تصدير.${res.errors && res.errors.length ? ' (تعذرت قراءة ' + res.errors.length + ' ملف)' : ''}`, true);
     const sy = syFound || curSy();
     const nP = groups.reduce((s, g) => s + g.pupils.length, 0);
@@ -248,7 +265,7 @@
       ${all.length || state.tab === 'l1' || window.RoaizX ? `<div class="mk-tabs"><div class="seg" id="rTabs">${T.filter(([k]) => all.length || k === 'l1').map(([k, l]) => `<button data-t="${k}" class="${state.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>` : ''}
       <div id="rBody"></div></div>`;
     $('#rSy').onchange = e => { state.sy = e.target.value; MK.setSy(state.sy); state.unit = ''; state.level = ''; go('roaiz'); };
-    $('#rImp').onclick = importFiles;
+    $('#rImp').onclick = chooseImport;
     $('#rSup').onclick = () => go('support');
     if ($('#rPrn')) $('#rPrn').onclick = () => go('roaizDoc', { sy: state.sy, unit: state.tab === 'dash' ? dstate.unit : state.unit, level: state.tab === 'dash' ? dstate.level : state.level, phase: state.phase, kind: state.tab === 'cmp' ? 'cmp' : state.tab === 'evo' ? 'evo' : ['cats', 'rep6'].includes(state.tab) ? 'rep6' : state.tab === 'dash' ? 'dash' : 'stat', stages: CC ? selStages() : null, dash: Object.assign({}, dstate) });
     if ($('#rClr')) $('#rClr').onclick = async () => { if (await confirmBox(`مسح معطيات «${esc(ph.n)}» لموسم <b>${esc(syDash(state.sy))}</b> (باقي الفئات لا تُمس)؟`, 'مسح')) { RD().years[state.sy] = groupsAll(state.sy).filter(g => g.phase !== state.phase); persist(); go('roaiz'); } };
@@ -260,7 +277,7 @@
     if (state.tab === 'cats' && all.length) return tabEvo($('#rBody'), 'cc');
     if (state.tab === 'rep6' && all.length) return tabRep6($('#rBody'));
     if (state.tab === 'dash' && gs.length) { tabDash($('#rBody')); if (!CC) { const h = mergedCard(state.sy, {}); if (h) $('#rBody').insertAdjacentHTML('beforeend', h); } return; }
-    if (!gs.length) { $('#rBody').innerHTML = emptyState(); $('#rImpBig') && ($('#rImpBig').onclick = importFiles); return; }
+    if (!gs.length) { $('#rBody').innerHTML = emptyState(); $('#rImpBig') && ($('#rImpBig').onclick = chooseImport); return; }
     ({ stats: tabStats, lists: tabLists, units: tabUnits, cmp: tabStats, dash: tabStats })[state.tab]($('#rBody'));
   };
   // the stages chosen for the comparisons and the report (default: the stages with data up to the chosen stage)
@@ -309,7 +326,9 @@
     .rz-wrap .att-kpis b{color:var(--stc)}
     .rz-reps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}.rz-rep{border:2px solid var(--c);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}.rz-rep .t{font-weight:800;color:var(--c);font-size:14px}.rz-rep .d{font-size:12px;color:#555;flex:1;line-height:1.7}.rz-rep .btn{align-self:flex-start}
     .rz-pick .card-b{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.rz-pk{display:inline-flex;align-items:center;gap:4px;border:2px solid var(--c);color:var(--c);border-radius:16px;padding:3px 10px;font-weight:700;font-size:13px;cursor:pointer}.rz-pk.on{background:var(--c);color:#fff}.rz-pk.off{opacity:.45;cursor:default}.rz-pk input{accent-color:#fff}
-    @media(max-width:900px){.rz-phs{grid-template-columns:1fr}.rz-row.six{grid-template-columns:repeat(3,1fr)}}`; document.head.appendChild(c); }
+    @media(max-width:900px){.rz-phs{grid-template-columns:1fr}.rz-row.six{grid-template-columns:repeat(3,1fr)}}
+    .roz-kinds{display:grid;grid-template-columns:1fr 1fr;gap:10px}.roz-kind{display:flex;flex-direction:column;gap:4px;text-align:right;padding:12px 14px;border:1.5px solid var(--line,#d6dde5);border-radius:10px;background:var(--card,#fff);cursor:pointer;font:inherit;color:inherit}
+    .roz-kind b{font-size:14.5px;color:var(--sec,#0f6e5a)}.roz-kind small{font-size:12px;color:#667;line-height:1.6}.roz-kind:hover{border-color:var(--sec,#0f6e5a);background:var(--secl,#eef6f3)}`; document.head.appendChild(c); }
   const MASSAR_STEPS_ = () => {
     const st = a => a.map(x => `<span class="st">${x}</span>`).join(' ← ');
     const cc = /^c\d/.test(state.phase || '');

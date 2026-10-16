@@ -111,7 +111,7 @@
     $$('[data-pre]', v).forEach(td => td.onclick = () => { const f = L1.info[td.dataset.pre] = L1.info[td.dataset.pre] || {}; const i = PRE_OPTS.indexOf(f.pre); f.pre = PRE_OPTS[(i + 1) % PRE_OPTS.length]; persist(); again(); });
     $$('.l1h', v).forEach(th => th.onclick = () => { list.forEach(p => { if (!info(p.code).abs) (L1.marks[p.code] = L1.marks[p.code] || {})[th.dataset.col] = 3; }); persist(); again(); });
     $('#l1Doc').onclick = () => go('roaizxDoc', { kind: 'l1_res', which: st1.which });
-    $('#l1Imp').onclick = () => (window.Roaiz && Roaiz.importFiles ? Roaiz.importFiles() : null);
+    $('#l1Imp').onclick = () => (window.Roaiz && Roaiz.importFiles ? Roaiz.importFiles('pre') : null);
     if ($('#l1Exp')) $('#l1Exp').onclick = () => exportMassar(sy);
     $('#l1Add').onclick = () => {
       const f = { name: '', code: '', g: 'M', cls: st1.cls || '' }; const box = document.createElement('div');

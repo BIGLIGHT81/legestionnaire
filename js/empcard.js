@@ -256,7 +256,7 @@
         const units = () => { const u = window.Units ? Units.names() : []; return [['', 'كل الوحدات']].concat(u.map(n => [n, n])); };
         const defs = () => [{ sec: 'الموظفون المعنيون' },
           { k: 'q', l: 'بحث (الاسم، رقم التأجير، الإطار...)', t: 'text', ph: 'اتركه فارغا لكل الموظفين' },
-          { k: 'cat', l: 'الفئة', t: 'select', half: true, opts: [['', 'كل الفئات'], ['teacher', 'هيئة التدريس'], ['admin', 'هيئة الإدارة'], ['assigned', 'أساتذة مكلفون']].concat(window.Cyc && Cyc.isSec() ? [] : [['preschool', 'مربو التعليم الأولي']], [['other', 'أطر وأعوان آخرون']]) },
+          { k: 'cat', l: 'الفئة', t: 'select', half: true, opts: [['', 'كل الفئات'], ['teacher', 'هيئة التربية والتعليم'], ['admin', 'هيئة الإدارة التربوية والتدبير'], ['assigned', 'أساتذة مكلفون']].concat(window.Cyc && Cyc.isSec() ? [] : [['preschool', 'مربو التعليم الأولي']], [['other', 'أطر وأعوان آخرون']]) },
           (window.Cyc && Cyc.single()) ? null : { k: 'unit', l: 'الوحدة المدرسية', t: 'select', half: true, opts: units },
           { k: 'onlyPhoto', l: '', t: 'checks', opts: ['الموظفون الذين لهم صورة فقط'], map: true },
           { sec: 'التصميم' },

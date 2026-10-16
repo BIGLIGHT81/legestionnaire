@@ -41,7 +41,7 @@
     });
     asg.forEach(r => { if (!teachers.some(t => nm(t.name) === nm(r[0]))) teachers.push({ e: null, name: nm(r[0]), unit: nm(r[1]), units: [nm(r[1])].filter(Boolean), codes: [], clsT: [nm(r[2])].filter(Boolean), cls: nm(r[2]), src: 'asg' }); });
     const inUnit = (t, n, u) => t.units.some(x => K.U.same(x, n)) || (!!(u && u.gresa) && t.codes.includes(u.gresa));
-    const eds = window.Presch ? Presch.eds() : [];
+    const eds = window.Presch && !(window.Cyc && Cyc.isSec()) ? Presch.eds() : [];   // no pre-school in a collège / lycée
     const ORDW = [[/الأول|الاول|الأولى|الاولى/g, '1'], [/الثاني|الثانية/g, '2'], [/الثالث|الثالثة/g, '3'], [/الرابع/g, '4'], [/الخامس/g, '5'], [/السادس/g, '6']];
     const matchCls = (txt0, c, lvls) => {
       let t = String(txt0 || ''); if (!t) return false;
@@ -120,7 +120,7 @@
           <td>${k.staff.length ? k.staff.map(sx => `${esc(sx.name)}${sx.kind === 'ed' && sx.org ? ` <small class="muted">(${esc(sx.org.replace('المؤسسة المغربية للنهوض بالتعليم الأولي', 'FMPS'))})</small>` : ''}`).join('، ') : `<span class="ps3-miss">${k.pre ? 'لا مرب(ية)' : 'غير مسند'}</span>`}</td>
           <td><button class="btn sm" data-u="${esc(u.name)}" data-ucls="${esc(k.cls)}" title="لائحة تلاميذ القسم">👁</button></td></tr>`).join('')}
         <tr class="att-tot"><td colspan="${SECC() ? 2 : 3}">المجموع</td><td class="num">${c.m}</td><td class="num">${c.f}</td><td class="num">${c.t}</td><td colspan="2"></td></tr></tbody></table></div>` : '<div class="muted" style="padding:8px 14px">لا توجد أقسام لهذه الوحدة في هذا الاختيار.</div>'}
-      ${staffT.length || staffE.length ? `<div class="ps3-staff">${staffT.length ? `<div><b>هيئة التدريس:</b> ${staffT.map(t => `<span class="ps3-chip">${esc(t.name)}${t.cls ? ` <small>${esc(t.cls)}</small>` : ''}</span>`).join('')}</div>` : ''}${staffE.length ? `<div><b>مربو التعليم الأولي:</b> ${staffE.map(e => `<span class="ps3-chip pre">${esc(e.name)}${e.levels ? ` <small>${esc(e.levels)}</small>` : ''}</span>`).join('')}</div>` : ''}</div>` : ''}</div>`;
+      ${staffT.length || staffE.length ? `<div class="ps3-staff">${staffT.length ? `<div><b>هيئة التربية والتعليم:</b> ${staffT.map(t => `<span class="ps3-chip">${esc(t.name)}${t.cls ? ` <small>${esc(t.cls)}</small>` : ''}</span>`).join('')}</div>` : ''}${staffE.length ? `<div><b>مربو التعليم الأولي:</b> ${staffE.map(e => `<span class="ps3-chip pre">${esc(e.name)}${e.levels ? ` <small>${esc(e.levels)}</small>` : ''}</span>`).join('')}</div>` : ''}</div>` : ''}</div>`;
   }
   function levelsCard(M) {
     const U = M.units.filter(u => u.classes.length);

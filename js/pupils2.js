@@ -44,12 +44,15 @@
   function schoolData(sy, unit, st) {
     st = curStage(st);
     const x = X(), y = x.Y(sy), cur = x.current(sy).filter(p => (!unit || K.U.same(p.unit, unit)) && inSt(p.lvl, st));
-    const rep = new Set(x.movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
+    const rep = x.repSet ? x.repSet(sy) : new Set(x.movesOf(sy, 'repeat').map(m => m.code).filter(Boolean));
+    // 1.9.4: a level without any known repeater takes the repeaters of the Massar board (لوحة إحصاء التمدرس) when it was imported
+    const bd = !unit && y.board && Array.isArray(y.board.rows) ? y.board : null;
     const mv = c => x.movesOf(sy, c).filter(m => (!unit || K.U.same(m.unit, unit)) && inSt(m.lvl, st));
     const lv = LV.sort(uniq(cur.map(p => p.lvl).concat(mv('notjoined').map(m => m.lvl), mv('transit').map(m => m.lvl)).filter(Boolean)));
     const nc = l => y.lists.filter(c => (!unit || c.unit === unit) && (c.levels || []).includes(l)).reduce((a, c) => a + 1 / ((c.levels || []).length || 1), 0);
     const rows = lv.map(l => {
-      const T = x.cnt(cur, p => p.lvl === l), R = x.cnt(cur, p => p.lvl === l && rep.has(p.code));
+      const T = x.cnt(cur, p => p.lvl === l); let R = x.cnt(cur, p => p.lvl === l && rep.has(p.code));
+      if (!R.t && bd) { const b = bd.rows.find(r => r.lvl === l); if (b && +b.repT > 0) R = { t: Math.min(+b.repT, T.t), f: Math.min(+b.repF || 0, T.f), m: 0 }; }
       const NJ = x.cnt(mv('notjoined'), m => m.lvl === l), TRN = x.cnt(mv('transit'), m => m.lvl === l), c = nc(l);
       return { lvl: l, label: LV.ar(l), newT: T.t - R.t, newF: T.f - R.f, repT: R.t, repF: R.f, totT: T.t, totF: T.f, classes: c, avg: c ? Math.round(T.t / c * 10) / 10 : 0, njT: NJ.t, njF: NJ.f, trT: TRN.t, trF: TRN.f };
     });

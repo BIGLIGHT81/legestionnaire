@@ -1,6 +1,6 @@
 'use strict';
 /* نماذج المواظبة الرسمية وغياب الموظفين (من ملفات الإدارة):
-   - «المواظبة الشهرية للمتعلمين» (النموذج الرسمي: هيئة التدريس، المستويات، الحجرات، نسبة المواظبة، الأوضاع الأخرى، الأمازيغية، الخصاص، الإحصاءات)
+   - «المواظبة الشهرية للمتعلمين» (النموذج الرسمي: هيئة التربية والتعليم، المستويات، الحجرات، نسبة المواظبة، الأوضاع الأخرى، الأمازيغية، الخصاص، الإحصاءات)
    - سجل غياب الموظفين ← بيان إحصائي لتغيبات الموظفين، لائحة التتبع الشهري للغياب
    - استفسار + إشعار بالاستلام، طلب رخصة، طلب شهادة إدارية (عربية/فرنسية)، محضر استئناف العمل، وصل استلام شهادة طبية */
 (function () {
@@ -87,7 +87,7 @@
   }
   const thresholds = { 1: 45, 2: 38, 3: 15 };
   add({
-    k: 'ao_form', t: 'المواظبة الشهرية للمتعلمين (النموذج الرسمي)', grp: 'pu', d: 'النموذج الرسمي الشهري: هيئة التدريس، أعداد التلاميذ حسب المستوى، الحجرات، نسبة المواظبة، الأوضاع الأخرى، الأمازيغية، الخصاص والإحصاءات.', auto: 'لوائح الموظفين والتلاميذ وإحصاء المواظبة', page: 'a4l',
+    k: 'ao_form', t: 'المواظبة الشهرية للمتعلمين (النموذج الرسمي)', grp: 'pu', d: 'النموذج الرسمي الشهري: هيئة التربية والتعليم، أعداد التلاميذ حسب المستوى، الحجرات، نسبة المواظبة، الأوضاع الأخرى، الأمازيغية، الخصاص والإحصاءات.', auto: 'لوائح الموظفين والتلاميذ وإحصاء المواظبة', page: 'a4l',
     init: (s, sy) => ({ mm: defMonth(sy), phone: s.phone || '', deficit: [], rooms: [], mode: [], extra: [['', '', '', '', '', '']], outside: [['', '', '', '', '', '']], amz: [['', '', '', '', '', '']], lack: [['', '', '', '', '']] }),
     defs: (f, sy) => [{ k: 'mm', l: 'شهر المواظبة', t: 'select', opts: monthOpts, half: true }, { k: 'phone', l: 'الهاتف', half: true, dir: 'ltr' },
       { note: 'الأعداد تُحسب من لوائح التلاميذ (توزع بالتساوي إذا اشترك أستاذان في المستوى والوحدة)، ونسب المواظبة من خانة «المواظبة الشهرية». لتغيير الفائض/الخصاص أو الحجرات أو صيغة العمل لكل أستاذ أضف سطرا بنفس الاسم أدناه.' },
@@ -143,7 +143,7 @@
       const a = stat(teachersIn()), b = stat(teachersOut());
       const sr = (label, c) => tr([{ t: label, c: 'k b r' }, c.ar.m, c.ar.f, c.ar.m + c.ar.f, c.mix.m, c.mix.f, c.mix.m + c.mix.f, c.ar.m + c.mix.m, c.ar.f + c.mix.f, c.ar.m + c.ar.f + c.mix.m + c.mix.f]);
       const sa = { ar: { m: a.ar.m + b.ar.m, f: a.ar.f + b.ar.f }, mix: { m: a.mix.m + b.mix.m, f: a.mix.f + b.mix.f } };
-      const st1 = tbl(`<tr><th rowspan="2" class="d">فئات هيئة التدريس حسب لغة التدريس</th><th colspan="3" class="d">المعربون</th><th colspan="3" class="d">المزدوجون</th><th colspan="3" class="d">المجموع العام</th></tr><tr>${'<th class="d">ذكور</th><th class="d">إناث</th><th class="d">المجموع</th>'.repeat(3)}</tr>`,
+      const st1 = tbl(`<tr><th rowspan="2" class="d">فئات هيئة التربية والتعليم حسب لغة التدريس</th><th colspan="3" class="d">المعربون</th><th colspan="3" class="d">المزدوجون</th><th colspan="3" class="d">المجموع العام</th></tr><tr>${'<th class="d">ذكور</th><th class="d">إناث</th><th class="d">المجموع</th>'.repeat(3)}</tr>`,
         [sr('العاملون بالأقسام من المدرسين القارين بالمؤسسة', a), sr('المكلفون خارج المؤسسة من المدرسين القارين', b), sr('المجموع', sa)], 'cmp');
       const byN = k => rows.filter(r => r.n === k), few = (k, th) => [byN(k).filter(r => r.t < th).length, byN(k).filter(r => r.t >= th).length];
       const cl = [1, 2, 3, 4, 5, 6].map(k => (thresholds[k] ? few(k, thresholds[k]) : [byN(k).length]));
@@ -154,7 +154,7 @@
         main, { html: '<div style="font-size:8pt;margin:1mm 0">(1) الفائض أو الخصاص بناء على البنية التربوية — (2) المؤسسة الأصلية للأستاذ(ة) المكلف(ة).</div>' },
         { before: SB.cap('المكلفون بمهام الإدارة والخدمات والمدرسون الموجودون في وضعيات أخرى (3)', 'r'), table: s1.table }, { before: SB.cap('المكلفون خارج المؤسسة', 'r'), table: s2.table },
         { before: SB.cap('أساتذة اللغة الأمازيغية', 'r'), table: s3.table }, { before: SB.cap('الخصاص', 'r'), table: s4.table },
-        { before: SB.cap('إحصاء هيئة التدريس', 'r'), table: st1.table }, { before: SB.cap('إحصاء الأقسام', 'r'), table: st2.table }];
+        { before: SB.cap('إحصاء هيئة التربية والتعليم', 'r'), table: st1.table }, { before: SB.cap('إحصاء الأقسام', 'r'), table: st2.table }];
       return { title: 'المواظبة الشهرية للمتعلمين', sub: `${mName(mm)} ${monthYear(sy, mm)} — الموسم الدراسي ${syText(sy)}`, page: 'a4l', blocks, sign: SB.sign(s, { right: '', left: 'توقيع مدير المؤسسة' }).replace('class="sb-sign"', 'class="sb-sign" style="min-height:10mm;margin-top:.5mm"') };
     }
   });
@@ -181,7 +181,7 @@
         g.ud || '', { t: g.U[0] && g.U[0].from ? ldate(g.U[0].from) : '', c: 'sm' }, { t: g.U[0] && g.U[0].to ? ldate(g.U[0].to) : '', c: 'sm' }, { t: g.jd + g.ud || '0', c: 'b' }, { t: rateTxt(g.wd, W), c: g.wd ? 'b' : 'sm' }, { t: g.note, c: 'sm' }]);
       const totRow = (label, list) => tr([{ t: label, s: 5, c: 'd b' }, { t: list.reduce((a, g) => a + g.jd, 0) || 0, c: 'd b' }, { t: '', s: 3, c: 'd' }, { t: list.reduce((a, g) => a + g.ud, 0) || 0, c: 'd b' }, { t: '', s: 2, c: 'd' }, { t: list.reduce((a, g) => a + g.jd + g.ud, 0) || 0, c: 'd b' }, { t: gRate(list), c: 'd b' }, { t: '', c: 'd' }]);
       const sec = t => tr([{ t, s: 15, c: 'k b' }]);
-      const rows = [sec('هيئة التدريس')].concat(teach.map(rowOf), [totRow('المجموع', teach), sec('الفئات الأخرى')], others.map(rowOf), [totRow('المجموع', others), totRow('المجموع العام', teach.concat(others))]);
+      const rows = [sec('هيئة التربية والتعليم')].concat(teach.map(rowOf), [totRow('المجموع', teach), sec('الفئات الأخرى')], others.map(rowOf), [totRow('المجموع', others), totRow('المجموع العام', teach.concat(others))]);
       const head = `<tr><th rowspan="2" class="d">ر.ت</th><th rowspan="2" class="d">أسماء العاملين بالمؤسسة</th><th rowspan="2" class="d">رقم التأجير</th><th rowspan="2" class="d">الإطار</th><th rowspan="2" class="d">المهمة</th><th colspan="4" class="d">الغيابات المبررة</th><th colspan="3" class="d">الغيابات غير المبررة (2)</th><th rowspan="2" class="d">مجموع أيام الغياب (3)=(1)+(2)</th><th rowspan="2" class="d">نسبة الحضور (4)</th><th rowspan="2" class="d">ملاحظات</th></tr><tr><th class="d">عدد الأيام (1)</th><th class="d">المبرر (نوع الرخصة)</th><th class="d">من</th><th class="d">إلى</th><th class="d">عدد الأيام</th><th class="d">من</th><th class="d">إلى</th></tr>`;
       return { title: `بيان إحصائي لتغيبات الموظفين خلال شهر: ${mName(mm)} ${monthYear(sy, mm)}`, sub: '', page: 'a4l', blocks: [tbl(head, rows, 'cmp'), { html: `<div style="font-size:8.5pt;margin-top:1mm">(4) نسبة الحضور = 100% − (أيام العمل التي تغيب فيها الموظف ÷ أيام العمل في الشهر: <b>${W}</b> يوما، دون الآحاد والعطل). — * يرسل إلى المديرية الإقليمية في اليوم الرابع من الشهر الموالي.</div>` }],
         sign: SB.sign(s, { right: `التاريخ: ${esc(f.date ? ldate(f.date) : '..........')}`, left: 'التوقيع (مدير المؤسسة): ' }) };
@@ -225,7 +225,7 @@
   add({
     k: 'ao_year', t: 'التتبع الشامل لغياب الموظفين (الموسم الدراسي)', grp: 'sy', d: 'جدول شامل لكل الموظفين: أيام الغياب في كل شهر من شتنبر إلى يوليوز، مجموع المبرر وغير المبرر، عدد الحالات وأنواع الرخص، ونسبة الحضور.', auto: 'سجل غياب الموظفين + خانة «الغياب والرخص» + لائحة الموظفين', page: 'a4l',
     init: (s, sy) => ({ who: 'all', only: '', city: s.city || '', date: '', work: '' }),
-    defs: () => [{ k: 'who', l: 'الموظفون', t: 'select', opts: [['all', 'كل الموظفين'], ['abs', 'المتغيبون فقط'], ['teach', 'هيئة التدريس فقط'], ['other', 'الفئات الأخرى فقط']], half: true },
+    defs: () => [{ k: 'who', l: 'الموظفون', t: 'select', opts: [['all', 'كل الموظفين'], ['abs', 'المتغيبون فقط'], ['teach', 'هيئة التربية والتعليم فقط'], ['other', 'الفئات الأخرى فقط']], half: true },
       { k: 'work', l: 'أيام العمل في الموسم (فارغ = تُحسب تلقائيا دون الآحاد والعطل)', t: 'num', half: true }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true },
       { note: 'يجمع هذا الجدول كل التغيبات المسجلة في البرنامج (سجل غياب الموظفين بهذه الخانة، وطلبات الرخص والشواهد الطبية والاستفسارات والغيابات المسجلة في «الغياب والرخص»)، موزعة على أشهر الموسم الدراسي.' }],
     build: (s, f, sy) => {
@@ -249,7 +249,7 @@
       const sum = k => rowsD.reduce((t, r) => t + r[k], 0);
       rows.push(tr([{ t: 'المجموع', s: 4, c: 'd b' }].concat(M.map((_, i) => ({ t: rowsD.reduce((t, r) => t + r.per[i], 0) || '0', c: 'd b' })), [{ t: sum('jd') || '0', c: 'd b' }, { t: sum('ud') || '0', c: 'd b' }, { t: sum('jd') + sum('ud') || '0', c: 'd b' }, { t: sum('n') || '0', c: 'd b' }, { t: '', c: 'd' }, { t: rowsD.length && W ? rateTxt(sum('wd'), W * rowsD.length) : '', c: 'd b' }])));
       const head = `<tr><th rowspan="2" class="d">ر.ت</th><th rowspan="2" class="d">الاسم الكامل</th><th rowspan="2" class="d">رقم التأجير</th><th rowspan="2" class="d">الإطار</th><th colspan="${M.length}" class="d">أيام الغياب حسب الشهر</th><th rowspan="2" class="d">المبرر</th><th rowspan="2" class="d">غير المبرر</th><th rowspan="2" class="d">المجموع</th><th rowspan="2" class="d">عدد الحالات</th><th rowspan="2" class="d">أنواع الرخص والأسباب</th><th rowspan="2" class="d">نسبة الحضور</th></tr><tr>${M.map(([, l]) => `<th class="d">${l}</th>`).join('')}</tr>`;
-      const who = { abs: ' (المتغيبون)', teach: ' (هيئة التدريس)', other: ' (الفئات الأخرى)' }[f.who] || '';
+      const who = { abs: ' (المتغيبون)', teach: ' (هيئة التربية والتعليم)', other: ' (الفئات الأخرى)' }[f.who] || '';
       return { title: `التتبع الشامل لغياب الموظفين${who} — الموسم الدراسي ${syText(sy)}`, sub: '', page: 'a4l', blocks: [tbl(head, rows, 'cmp'), { html: `<div style="font-size:8.5pt;margin-top:1mm">نسبة الحضور = 100% − (أيام العمل التي تغيب فيها الموظف ÷ أيام العمل في الموسم إلى غاية ${esc(ldate(ye))}: <b>${W}</b> يوما، دون الآحاد والعطل المدرسية).</div>` }],
         sign: SB.sign(s, { right: `حرر ب: ${esc(f.city || s.city || '')} ${esc(f.date ? ldate(f.date) : '..........')}`, left: 'توقيع وطابع السيد مدير المؤسسة' }) };
     }

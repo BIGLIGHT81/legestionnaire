@@ -15,7 +15,8 @@
   const cycleKeys = kind => (window.Cyc ? Cyc.levels(kind) : ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   const levelsFor = kind => {
     if (!/^(pri|col|lyc)$/.test(kind || '')) kind = /تأهيل/.test(kind || '') ? 'lyc' : /إعداد/.test(kind || '') ? 'col' : 'pri';
-    return cycleKeys(kind).concat(kind === 'lyc' ? cycleKeys('col') : []).map(k => LV().name(k));
+    // a lycée also delivers certificates for the collège years of its former pupils (their own names, not mapped to the cycle)
+    return Array.from(new Set(cycleKeys(kind).map(k => LV().name(k)).concat(kind === 'lyc' ? cycleKeys('col').map(k => ((window.K && K.LV.byK(k)) || {}).ar || LV().name(k)) : [])));
   };
   // key of a level text typed / imported («الثانية باكالوريا», «الأول ابتدائي»...), '' when free text
   const lvKey = t => { try { const s = LV().splitLabel(t); if (s) return s.k; return LV().fromLabel(t); } catch (e) { return ''; } };
