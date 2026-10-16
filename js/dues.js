@@ -1,370 +1,60 @@
-'use strict';
-/* 1.9.2 — الاشتراكات والتسجيل: التأمين المدرسي (مبلغ حسب كل سلك، ويشمل الأولي اختياريا)، الانخراط في التعاونية المدرسية (التعليم الابتدائي فقط)، الانخراط في الجمعية الرياضية المدرسية (الابتدائي والإعدادي والتأهيلي).
-   «واجب التسجيل» حُذف من الواجهة؛ ما سُجّل سابقا في المعطيات (pay.reg / rates.reg) يبقى محفوظا دون عرض.
-   Per pupil payments are kept by year; printable lists of members / non-members per class, level or unit, and a summary by class. */
-(function () {
-  const Dx = window.Docs;
-  const { esc, fmtDate } = Dx;
-  const { SB, tr, thr } = window.K;
-
-  const STAGES = [['pre', 'التعليم الأولي'], ['pri', 'التعليم الابتدائي'], ['col', 'التعليم الثانوي الإعدادي'], ['lyc', 'التعليم الثانوي التأهيلي']];
-  // 1.9.4: the contributions of Massar «تهيئة مبالغ المساهمات» (in its order): the school cooperatives, the school sports association, the school insurance, the registration
-  const BASE_ITEMS = [['coop', 'الانخراط في التعاونية المدرسية'], ['sport', 'الانخراط في الجمعية الرياضية المدرسية'], ['ins', 'التأمين المدرسي'], ['reg', 'التسجيل']];
-  // the share of each institution in what is collected (Massar «مسك التحويلات»)
-  const DEF_ALLOC = { ins: [['شركة التأمين', 100]], sport: [['الجمعية الرياضية المدرسية للمؤسسة', 65], ['الفرع الإقليمي بالمديرية الإقليمية', 10], ['الفرع الجهوي بالأكاديمية', 5], ['الجامعة الملكية المغربية للرياضة المدرسية', 20]],
-    coop: [['جمعية تنمية التعاون المدرسي (التعاونية المدرسية)', 100]], reg: [['المؤسسة', 100]] };
-  // 1.9.4: other contributions can be added (as in Massar «تهيئة مبالغ المساهمات»), each for the cycles chosen
-  const custom = () => { try { migrate(DB); return DB.dues.custom; } catch (e) { return []; } };
-  const ITEMS_ = () => BASE_ITEMS.concat(custom().map(c => [c.k, c.n]));
-  const STG_OF = lvl => { const k = String(lvl || ''); return /^(DEPE|PS)/.test(k) ? 'pre' : /^P\d/.test(k) ? 'pri' : /^C\d/.test(k) ? 'col' : k ? 'lyc' : 'pri'; };
-  const hasItem = (stage, it) => { const c = custom().find(x => x.k === it); if (c) return !c.stages || !c.stages.length || c.stages.includes(stage); return it === 'coop' ? stage === 'pri' : it === 'sport' ? stage !== 'pre' : it === 'reg' ? stage !== 'pre' : true; };
-  const cycleStage = () => { const c = (S().cycle || ''); return /إعدادي/.test(c) ? 'col' : /تأهيلي/.test(c) ? 'lyc' : 'pri'; };
-
-  function migrate(db) {
-    const d = db.dues = db.dues || {};
-    d.years = d.years && typeof d.years === 'object' ? d.years : {};
-    d.custom = Array.isArray(d.custom) ? d.custom : [];
-  }
-  const Y = sy => { migrate(DB); const y = DB.dues.years[sy] || (DB.dues.years[sy] = {}); y.rates = y.rates || {}; y.pay = y.pay || {}; y.lrates = y.lrates || {}; y.vir = Array.isArray(y.vir) ? y.vir : []; y.benef = y.benef || {}; y.alloc = y.alloc || {}; return y; };
-  // the beneficiaries of a contribution: [{ who, pct, rib, d (date of the transfer), a (amount transferred), ref }]
-  const allocOf = (sy, it) => { const y = Y(sy); if (!Array.isArray(y.alloc[it]) || !y.alloc[it].length) y.alloc[it] = (DEF_ALLOC[it] || [[(y.benef[it] || {}).who || 'الجهة المستفيدة', 100]]).map(([who, pct]) => ({ who, pct: String(pct), rib: '', d: '', a: '', ref: '' })); return y.alloc[it]; };
-  const sentOf = (sy, it) => allocOf(sy, it).reduce((t, l) => t + (+l.a || 0), 0) + Y(sy).vir.filter(x => x.it === it).reduce((t, x) => t + (+x.a || 0), 0);
-  const rate = (sy, stage, it) => { const r = (Y(sy).rates[stage] || {})[it]; return r === undefined || r === '' ? 0 : (+r || 0); };
-  // the amount of a level (Massar: one amount per level and contribution), else the amount of its cycle
-  const rateL = (sy, lvl, it) => { const r = (Y(sy).lrates[lvl] || {})[it]; return r === undefined || r === '' ? rate(sy, STG_OF(lvl), it) : (+r || 0); };
-  const pkey = p => p.code || p.mid || `${p.last || ''}|${p.first || ''}|${p.birth || ''}`;
-  const paid = (sy, p, it) => (Y(sy).pay[pkey(p)] || {})[it] || null;   // { a: amount, d: date } | null
-
-  const pupils = sy => (window.Pupils ? Pupils.current(sy) : []).slice().sort((a, b) => String(a.cls || '').localeCompare(String(b.cls || ''), 'fr', { numeric: true }) || `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar'));
-  const nameOf = p => `${p.last || ''} ${p.first || ''}`.trim();
-  const money = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('en-US').replace(/,/g, '\u00A0');
-
-  function setPaid(sy, p, it, on, amount, no) {
-    const o = Y(sy).pay, k = pkey(p), rec = o[k] || (o[k] = {});
-    if (on) {
-      const old = rec[it] || {};
-      rec[it] = { a: amount != null ? amount : (old.a != null ? old.a : rateL(sy, p.lvl, it)), d: old.d || todayIso() };
-      const n = no != null ? no : old.n; if (n) rec[it].n = String(n);   // receipt number (رقم وصل التأمين)
-    } else delete rec[it];
-    if (!Object.keys(rec).length) delete o[k];
-  }
-
-  /* ---------- totals ---------- */
-  function stats(sy, arr) {
-    const out = {};
-    ITEMS_().forEach(([it]) => {
-      let n = 0, sum = 0, tot = 0;
-      arr.forEach(p => { if (!hasItem(STG_OF(p.lvl), it)) return; tot++; const r = paid(sy, p, it); if (r) { n++; sum += +r.a || 0; } });
-      out[it] = { n, sum, tot };
-    });
-    return out;
-  }
-
-  /* ---------- the page ---------- */
-  const st = { sy: '', unit: '', cls: '', q: '', only: '' };
-  // 1.9.4: the four steps of Massar «رسوم التسجيل / المساهمات»: setting of the amounts, entry of the contributions, entry of the transfers, outputs
-  const TABS = [['param', 'تهيئة مبالغ المساهمات'], ['pay', 'مسك المساهمات'], ['vir', 'مسك التحويلات'], ['out', 'المخرجات']];
-  window.pageDues = function (v, arg) {
-    migrate(DB);
-    if (arg && arg.tab) st.tab = arg.tab;
-    const tab = st.tab || (st.tab = 'pay');
-    const sy = st.sy || (st.sy = MK.curSy());
-    const years = Array.from(new Set([MK.curSy()].concat(Object.keys((DB.pupils || {}).years || {}), Object.keys(DB.dues.years)))).sort().reverse();
-    v.innerHTML = `<div class="page-h"><div><h2>الاشتراكات والتسجيل (المساهمات)</h2><div class="muted">${esc(ITEMS_().map(x => x[1]).join('، '))}</div></div>
-      <div class="btn-row"><select class="inp" id="dsY" style="width:auto">${years.map(y => `<option value="${y}" ${y === sy ? 'selected' : ''}>${esc(MK.syDash(y).replace('-', '/'))}</option>`).join('')}</select>
-      <button class="btn pri" id="dsPrint">${ic('print')} المخرجات للطباعة</button></div></div>
-      <div class="mk-tabs"><div class="seg" id="dsTabs">${TABS.map(([k, l], i) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}"><b class="ds-n">${i + 1}</b> ${l}</button>`).join('')}</div></div>
-      <div id="dsBody"></div>`;
-    $('#dsY', v).onchange = e => { st.sy = e.target.value; st.unit = st.cls = ''; window.pageDues(v); };
-    $('#dsPrint', v).onclick = () => go('duesDoc');
-    $$('#dsTabs button', v).forEach(b => b.onclick = () => { st.tab = b.dataset.t; go('dues', { tab: b.dataset.t }); });
-    const b = $('#dsBody', v);
-    ({ param: paramTab, pay: payTab, vir: virTab, out: outTab })[tab](v, b, sy, years);
-  };
-  const LVS = sy => { const P = pupils(sy); const L = K.LV.sort(Array.from(new Set(P.map(p => p.lvl).filter(Boolean)))); return L.length ? L : (window.Cyc ? Cyc.levels() : []); };
-  const itemName = it => (ITEMS_().find(x => x[0] === it) || [])[1] || it;
-  /* ---------- 1. setting of the amounts ---------- */
-  function paramTab(v, b, sy) {
-    const all = pupils(sy), stages = STAGES.filter(([k]) => all.some(p => STG_OF(p.lvl) === k) || k === cycleStage()), y = Y(sy), L = LVS(sy);
-    const a0 = 'التعليم الأولي: التأمين المدرسي فقط (اختياري)؛ الانخراط في التعاونية يخص التعليم الابتدائي فقط؛ التأمين والانخراط في الجمعية الرياضية يخصان الابتدائي والإعدادي والتأهيلي.';
-    b.innerHTML = `<div class="card"><div class="card-h"><h3>المبالغ حسب السلك (بالدرهم)</h3></div><div class="card-b">
-        <p class="muted" style="margin-top:0;font-size:12.8px">حدد مبلغ كل مساهمة لكل سلك؛ يمكن تحديد مبلغ خاص بكل مستوى في الجدول الموالي (كما في منظومة مسار). ${window.Cyc && Cyc.isSec() ? '' : a0}</p>
-        <table class="tbl"><thead><tr><th>السلك</th>${ITEMS_().map(([, n]) => `<th>${esc(n)}</th>`).join('')}</tr></thead><tbody>
-        ${stages.map(([k, n]) => `<tr><td class="b">${n}</td>${ITEMS_().map(([it]) => hasItem(k, it) ? `<td><input class="inp ds-rate" type="number" min="0" step="0.5" data-s="${k}" data-i="${it}" value="${esc((y.rates[k] || {})[it] ?? '')}" style="width:100px" placeholder="0"></td>` : '<td class="muted">—</td>').join('')}</tr>`).join('')}
+"use strict";(function(){const tt=window.Docs,{esc:m,fmtDate:Z}=tt,{SB:P,tr:I,thr:R}=window.K,F=[["pre","التعليم الأولي"],["pri","التعليم الابتدائي"],["col","التعليم الثانوي الإعدادي"],["lyc","التعليم الثانوي التأهيلي"]],et=[["coop","الانخراط في التعاونية المدرسية"],["sport","الانخراط في الجمعية الرياضية المدرسية"],["ins","التأمين المدرسي"],["reg","التسجيل"]],nt={ins:[["شركة التأمين",100]],sport:[["الجمعية الرياضية المدرسية للمؤسسة",65],["الفرع الإقليمي بالمديرية الإقليمية",10],["الفرع الجهوي بالأكاديمية",5],["الجامعة الملكية المغربية للرياضة المدرسية",20]],coop:[["جمعية تنمية التعاون المدرسي (التعاونية المدرسية)",100]],reg:[["المؤسسة",100]]},_=()=>{try{return Y(DB),DB.dues.custom}catch{return[]}},k=()=>et.concat(_().map(e=>[e.k,e.n])),T=e=>{const t=String(e||"");return/^(DEPE|PS)/.test(t)?"pre":/^P\d/.test(t)?"pri":/^C\d/.test(t)?"col":t?"lyc":"pri"},O=(e,t)=>{const s=_().find(o=>o.k===t);return s?!s.stages||!s.stages.length||s.stages.includes(e):t==="coop"?e==="pri":t==="sport"||t==="reg"?e!=="pre":!0},st=()=>{const e=S().cycle||"";return/إعدادي/.test(e)?"col":/تأهيلي/.test(e)?"lyc":"pri"};function Y(e){const t=e.dues=e.dues||{};t.years=t.years&&typeof t.years=="object"?t.years:{},t.custom=Array.isArray(t.custom)?t.custom:[]}const z=e=>{Y(DB);const t=DB.dues.years[e]||(DB.dues.years[e]={});return t.rates=t.rates||{},t.pay=t.pay||{},t.lrates=t.lrates||{},t.vir=Array.isArray(t.vir)?t.vir:[],t.benef=t.benef||{},t.alloc=t.alloc||{},t},Q=(e,t)=>{const s=z(e);return(!Array.isArray(s.alloc[t])||!s.alloc[t].length)&&(s.alloc[t]=(nt[t]||[[(s.benef[t]||{}).who||"الجهة المستفيدة",100]]).map(([o,d])=>({who:o,pct:String(d),rib:"",d:"",a:"",ref:""}))),s.alloc[t]},G=(e,t)=>Q(e,t).reduce((s,o)=>s+(+o.a||0),0)+z(e).vir.filter(s=>s.it===t).reduce((s,o)=>s+(+o.a||0),0),J=(e,t,s)=>{const o=(z(e).rates[t]||{})[s];return o===void 0||o===""?0:+o||0},W=(e,t,s)=>{const o=(z(e).lrates[t]||{})[s];return o===void 0||o===""?J(e,T(t),s):+o||0},q=e=>e.code||e.mid||`${e.last||""}|${e.first||""}|${e.birth||""}`,M=(e,t,s)=>(z(e).pay[q(t)]||{})[s]||null,U=e=>(window.Pupils?Pupils.current(e):[]).slice().sort((t,s)=>String(t.cls||"").localeCompare(String(s.cls||""),"fr",{numeric:!0})||`${t.last} ${t.first}`.localeCompare(`${s.last} ${s.first}`,"ar")),X=e=>`${e.last||""} ${e.first||""}`.trim(),j=e=>(Math.round((+e||0)*100)/100).toLocaleString("en-US").replace(/,/g," ");function H(e,t,s,o,d,u){const l=z(e).pay,r=q(t),h=l[r]||(l[r]={});if(o){const n=h[s]||{};h[s]={a:d??(n.a!=null?n.a:W(e,t.lvl,s)),d:n.d||todayIso()};const a=u??n.n;a&&(h[s].n=String(a))}else delete h[s];Object.keys(h).length||delete l[r]}function V(e,t){const s={};return k().forEach(([o])=>{let d=0,u=0,l=0;t.forEach(r=>{if(!O(T(r.lvl),o))return;l++;const h=M(e,r,o);h&&(d++,u+=+h.a||0)}),s[o]={n:d,sum:u,tot:l}}),s}const D={sy:"",unit:"",cls:"",q:"",only:""},ct=[["param","تهيئة مبالغ المساهمات"],["pay","مسك المساهمات"],["vir","مسك التحويلات"],["out","المخرجات"]];window.pageDues=function(e,t){Y(DB),t&&t.tab&&(D.tab=t.tab);const s=D.tab||(D.tab="pay"),o=D.sy||(D.sy=MK.curSy()),d=Array.from(new Set([MK.curSy()].concat(Object.keys((DB.pupils||{}).years||{}),Object.keys(DB.dues.years)))).sort().reverse();e.innerHTML=`<div class="page-h"><div><h2>الاشتراكات والتسجيل (المساهمات)</h2><div class="muted">${m(k().map(l=>l[1]).join("، "))}</div></div>
+      <div class="btn-row"><select class="inp" id="dsY" style="width:auto">${d.map(l=>`<option value="${l}" ${l===o?"selected":""}>${m(MK.syDash(l).replace("-","/"))}</option>`).join("")}</select>
+      <button class="btn pri" id="dsPrint">${ic("print")} المخرجات للطباعة</button></div></div>
+      <div class="mk-tabs"><div class="seg" id="dsTabs">${ct.map(([l,r],h)=>`<button data-t="${l}" class="${s===l?"on":""}"><b class="ds-n">${h+1}</b> ${r}</button>`).join("")}</div></div>
+      <div id="dsBody"></div>`,$("#dsY",e).onchange=l=>{D.sy=l.target.value,D.unit=D.cls="",window.pageDues(e)},$("#dsPrint",e).onclick=()=>go("duesDoc"),$$("#dsTabs button",e).forEach(l=>l.onclick=()=>{D.tab=l.dataset.t,go("dues",{tab:l.dataset.t})});const u=$("#dsBody",e);({param:lt,pay:pt,vir:ot,out:rt})[s](e,u,o,d)};const it=e=>{const t=U(e),s=K.LV.sort(Array.from(new Set(t.map(o=>o.lvl).filter(Boolean))));return s.length?s:window.Cyc?Cyc.levels():[]},dt=e=>(k().find(t=>t[0]===e)||[])[1]||e;function lt(e,t,s){const o=U(s),d=F.filter(([n])=>o.some(a=>T(a.lvl)===n)||n===st()),u=z(s),l=it(s),r="التعليم الأولي: التأمين المدرسي فقط (اختياري)؛ الانخراط في التعاونية يخص التعليم الابتدائي فقط؛ التأمين والانخراط في الجمعية الرياضية يخصان الابتدائي والإعدادي والتأهيلي.";t.innerHTML=`<div class="card"><div class="card-h"><h3>المبالغ حسب السلك (بالدرهم)</h3></div><div class="card-b">
+        <p class="muted" style="margin-top:0;font-size:12.8px">حدد مبلغ كل مساهمة لكل سلك؛ يمكن تحديد مبلغ خاص بكل مستوى في الجدول الموالي (كما في منظومة مسار). ${window.Cyc&&Cyc.isSec()?"":r}</p>
+        <table class="tbl"><thead><tr><th>السلك</th>${k().map(([,n])=>`<th>${m(n)}</th>`).join("")}</tr></thead><tbody>
+        ${d.map(([n,a])=>`<tr><td class="b">${a}</td>${k().map(([i])=>O(n,i)?`<td><input class="inp ds-rate" type="number" min="0" step="0.5" data-s="${n}" data-i="${i}" value="${m((u.rates[n]||{})[i]??"")}" style="width:100px" placeholder="0"></td>`:'<td class="muted">—</td>').join("")}</tr>`).join("")}
         </tbody></table></div></div>
       <div class="card" style="margin-top:12px"><div class="card-h"><h3>المبالغ حسب المستوى (اختياري)</h3></div><div class="card-b">
         <p class="muted" style="margin-top:0;font-size:12.8px">خانة فارغة = مبلغ السلك. يُطبَّق المبلغ على التلاميذ الذين يُحدَّدون كمؤدين بعد ذلك، ويمكن تحيين المبالغ المسجلة بالزر أسفله.</p>
-        <table class="tbl"><thead><tr><th>المستوى</th>${ITEMS_().map(([, n]) => `<th>${esc(n)}</th>`).join('')}<th>عدد التلاميذ</th></tr></thead><tbody>
-        ${L.map(l => `<tr><td class="b">${esc(K.LV.ar(l))}</td>${ITEMS_().map(([it]) => hasItem(STG_OF(l), it) ? `<td><input class="inp ds-lrate" type="number" min="0" step="0.5" data-l="${l}" data-i="${it}" value="${esc((y.lrates[l] || {})[it] ?? '')}" style="width:90px" placeholder="${esc(rate(sy, STG_OF(l), it))}"></td>` : '<td class="muted">—</td>').join('')}<td class="num">${all.filter(p => p.lvl === l).length}</td></tr>`).join('')}
-        </tbody></table><div class="btn-row" style="margin-top:8px"><button class="btn sm" id="dsApply">${ic('hist')} تطبيق المبالغ على المساهمات المسجلة</button></div></div></div>
+        <table class="tbl"><thead><tr><th>المستوى</th>${k().map(([,n])=>`<th>${m(n)}</th>`).join("")}<th>عدد التلاميذ</th></tr></thead><tbody>
+        ${l.map(n=>`<tr><td class="b">${m(K.LV.ar(n))}</td>${k().map(([a])=>O(T(n),a)?`<td><input class="inp ds-lrate" type="number" min="0" step="0.5" data-l="${n}" data-i="${a}" value="${m((u.lrates[n]||{})[a]??"")}" style="width:90px" placeholder="${m(J(s,T(n),a))}"></td>`:'<td class="muted">—</td>').join("")}<td class="num">${o.filter(a=>a.lvl===n).length}</td></tr>`).join("")}
+        </tbody></table><div class="btn-row" style="margin-top:8px"><button class="btn sm" id="dsApply">${ic("hist")} تطبيق المبالغ على المساهمات المسجلة</button></div></div></div>
       <div class="card" style="margin-top:12px"><div class="card-h"><h3>المساهمات والجهات المستفيدة (للتحويلات)</h3></div><div class="card-b">
         <table class="tbl"><thead><tr><th>المساهمة</th><th>الأسلاك المعنية</th><th>الجهة المستفيدة</th><th>رقم الحساب (RIB)</th><th>البنك</th><th></th></tr></thead><tbody>
-        ${ITEMS_().map(([it, n]) => { const c = custom().find(x => x.k === it), bf = y.benef[it] || {}; return `<tr><td class="b">${esc(n)}</td><td class="sm">${c ? STAGES.map(([k, sn]) => `<label style="white-space:nowrap;margin-inline-end:6px"><input type="checkbox" class="ds-cst" data-i="${it}" data-s="${k}" ${!c.stages || !c.stages.length || c.stages.includes(k) ? 'checked' : ''}> ${sn}</label>`).join(' ') : esc(it === 'coop' ? 'التعليم الابتدائي' : it === 'sport' ? 'الابتدائي والإعدادي والتأهيلي' : 'كل الأسلاك')}</td>
-          <td><input class="inp ds-bf" data-i="${it}" data-f="who" value="${esc(bf.who || '')}" placeholder="${esc(it === 'ins' ? 'شركة التأمين / المديرية الإقليمية' : it === 'sport' ? 'الجمعية الرياضية المدرسية' : it === 'coop' ? 'جمعية تنمية التعاون المدرسي' : '')}"></td>
-          <td><input class="inp ds-bf" data-i="${it}" data-f="rib" value="${esc(bf.rib || '')}" dir="ltr" style="width:200px"></td><td><input class="inp ds-bf" data-i="${it}" data-f="bank" value="${esc(bf.bank || '')}" style="width:120px"></td>
-          <td>${c ? `<button class="btn sm danger icon" data-cdel="${it}" title="حذف المساهمة">✕</button>` : ''}</td></tr>`; }).join('')}
+        ${k().map(([n,a])=>{const i=_().find(f=>f.k===n),b=u.benef[n]||{};return`<tr><td class="b">${m(a)}</td><td class="sm">${i?F.map(([f,c])=>`<label style="white-space:nowrap;margin-inline-end:6px"><input type="checkbox" class="ds-cst" data-i="${n}" data-s="${f}" ${!i.stages||!i.stages.length||i.stages.includes(f)?"checked":""}> ${c}</label>`).join(" "):m(n==="coop"?"التعليم الابتدائي":n==="sport"?"الابتدائي والإعدادي والتأهيلي":"كل الأسلاك")}</td>
+          <td><input class="inp ds-bf" data-i="${n}" data-f="who" value="${m(b.who||"")}" placeholder="${m(n==="ins"?"شركة التأمين / المديرية الإقليمية":n==="sport"?"الجمعية الرياضية المدرسية":n==="coop"?"جمعية تنمية التعاون المدرسي":"")}"></td>
+          <td><input class="inp ds-bf" data-i="${n}" data-f="rib" value="${m(b.rib||"")}" dir="ltr" style="width:200px"></td><td><input class="inp ds-bf" data-i="${n}" data-f="bank" value="${m(b.bank||"")}" style="width:120px"></td>
+          <td>${i?`<button class="btn sm danger icon" data-cdel="${n}" title="حذف المساهمة">✕</button>`:""}</td></tr>`}).join("")}
         </tbody></table>
-        <div class="btn-row" style="margin-top:8px"><b>مساهمات أخرى:</b><input class="inp" id="dsNewC" placeholder="المساهمة (مثال: الأنشطة الموازية)" style="max-width:260px"><input class="inp" id="dsNewA" type="number" min="0" step="0.5" placeholder="المبلغ بالدرهم" style="max-width:130px"><button class="btn sm" id="dsAddC">${ic('plus')} إضافة</button></div></div></div>`;
-    const re = () => window.pageDues(v);
-    $$('.ds-rate', b).forEach(el => el.onchange = () => { (y.rates[el.dataset.s] = y.rates[el.dataset.s] || {})[el.dataset.i] = el.value; persist(); re(); });
-    $$('.ds-lrate', b).forEach(el => el.onchange = () => { const o = y.lrates[el.dataset.l] = y.lrates[el.dataset.l] || {}; if (el.value === '') delete o[el.dataset.i]; else o[el.dataset.i] = el.value; persist(); });
-    $$('.ds-bf', b).forEach(el => el.onchange = () => { (y.benef[el.dataset.i] = y.benef[el.dataset.i] || {})[el.dataset.f] = el.value.trim(); persist(); });
-    $$('.ds-cst', b).forEach(el => el.onchange = () => { const c = custom().find(x => x.k === el.dataset.i); if (!c) return; const S0 = new Set(c.stages && c.stages.length ? c.stages : STAGES.map(x => x[0])); if (el.checked) S0.add(el.dataset.s); else S0.delete(el.dataset.s); c.stages = Array.from(S0); persist(); });
-    $$('[data-cdel]', b).forEach(el => el.onclick = async () => { if (!(await confirmBox(`حذف المساهمة «${esc(itemName(el.dataset.cdel))}» ومبالغها؟`, 'حذف'))) return; DB.dues.custom = custom().filter(x => x.k !== el.dataset.cdel); persist(); re(); });
-    $('#dsAddC', b).onclick = () => { const n = $('#dsNewC', b).value.trim(), am = $('#dsNewA', b).value.trim(); if (!n) return; const k = uid('dc'); custom().push({ k, n, stages: [] }); if (am) stages.forEach(([sg]) => { (y.rates[sg] = y.rates[sg] || {})[k] = am; }); persist(); re(); };
-    $('#dsApply', b).onclick = async () => {
-      const P = pupils(sy); let n = 0;
-      P.forEach(p => ITEMS_().forEach(([it]) => { const r = paid(sy, p, it); if (r) { const a = rateL(sy, p.lvl, it); if (+r.a !== a) { r.a = a; n++; } } }));
-      persist(); toast(n ? `تم تحيين ${n} مبلغا مسجلا` : 'المبالغ المسجلة مطابقة');
-    };
-  }
-  /* ---------- 3. transfers (Massar «مسك التحويلات»): for each income, the collected amount shared between the institutions (percentages), then the transfer of each share ---------- */
-  function virTab(v, b, sy) {
-    const P = pupils(sy), T = stats(sy, P);
-    const card = ([it, n]) => {
-      const c = T[it] || { sum: 0, n: 0 }, L = allocOf(sy, it), pct = L.reduce((t, l) => t + (+l.pct || 0), 0), sent = sentOf(sy, it);
-      return `<div class="card ds-vc" data-it="${it}"><div class="card-h"><h3>المداخيل: ${esc(n)}</h3><span style="flex:1"></span><span class="tag2">المبلغ المستخلص: <b>${money(c.sum)}</b> د (${c.n} تلميذ(ة))</span></div><div class="card-b">
+        <div class="btn-row" style="margin-top:8px"><b>مساهمات أخرى:</b><input class="inp" id="dsNewC" placeholder="المساهمة (مثال: الأنشطة الموازية)" style="max-width:260px"><input class="inp" id="dsNewA" type="number" min="0" step="0.5" placeholder="المبلغ بالدرهم" style="max-width:130px"><button class="btn sm" id="dsAddC">${ic("plus")} إضافة</button></div></div></div>`;const h=()=>window.pageDues(e);$$(".ds-rate",t).forEach(n=>n.onchange=()=>{(u.rates[n.dataset.s]=u.rates[n.dataset.s]||{})[n.dataset.i]=n.value,persist(),h()}),$$(".ds-lrate",t).forEach(n=>n.onchange=()=>{const a=u.lrates[n.dataset.l]=u.lrates[n.dataset.l]||{};n.value===""?delete a[n.dataset.i]:a[n.dataset.i]=n.value,persist()}),$$(".ds-bf",t).forEach(n=>n.onchange=()=>{(u.benef[n.dataset.i]=u.benef[n.dataset.i]||{})[n.dataset.f]=n.value.trim(),persist()}),$$(".ds-cst",t).forEach(n=>n.onchange=()=>{const a=_().find(b=>b.k===n.dataset.i);if(!a)return;const i=new Set(a.stages&&a.stages.length?a.stages:F.map(b=>b[0]));n.checked?i.add(n.dataset.s):i.delete(n.dataset.s),a.stages=Array.from(i),persist()}),$$("[data-cdel]",t).forEach(n=>n.onclick=async()=>{await confirmBox(`حذف المساهمة «${m(dt(n.dataset.cdel))}» ومبالغها؟`,"حذف")&&(DB.dues.custom=_().filter(a=>a.k!==n.dataset.cdel),persist(),h())}),$("#dsAddC",t).onclick=()=>{const n=$("#dsNewC",t).value.trim(),a=$("#dsNewA",t).value.trim();if(!n)return;const i=uid("dc");_().push({k:i,n,stages:[]}),a&&d.forEach(([b])=>{(u.rates[b]=u.rates[b]||{})[i]=a}),persist(),h()},$("#dsApply",t).onclick=async()=>{const n=U(s);let a=0;n.forEach(i=>k().forEach(([b])=>{const f=M(s,i,b);if(f){const c=W(s,i.lvl,b);+f.a!==c&&(f.a=c,a++)}})),persist(),toast(a?`تم تحيين ${a} مبلغا مسجلا`:"المبالغ المسجلة مطابقة")}}function ot(e,t,s){const o=U(s),d=V(s,o),u=([r,h])=>{const n=d[r]||{sum:0,n:0},a=Q(s,r),i=a.reduce((f,c)=>f+(+c.pct||0),0),b=G(s,r);return`<div class="card ds-vc" data-it="${r}"><div class="card-h"><h3>المداخيل: ${m(h)}</h3><span style="flex:1"></span><span class="tag2">المبلغ المستخلص: <b>${j(n.sum)}</b> د (${n.n} تلميذ(ة))</span></div><div class="card-b">
         <table class="tbl compact"><thead><tr><th>المؤسسة</th><th style="width:70px">النسبة %</th><th>المبلغ المخصص (د)</th><th>تاريخ التحويل</th><th>مبلغ التحويل (د)</th><th>حساب التحويل (RIB)</th><th>المرجع</th><th></th></tr></thead><tbody>
-        ${L.map((l, i) => { const al = Math.round(c.sum * (+l.pct || 0)) / 100, done = +l.a > 0, ok = done && Math.abs(+l.a - al) < 0.01;
-          return `<tr><td><input class="inp ds-al" data-i="${i}" data-f="who" value="${esc(l.who)}"></td><td><input class="inp ds-al" data-i="${i}" data-f="pct" type="number" min="0" max="100" step="0.5" value="${esc(l.pct)}" style="width:78px"></td>
-            <td class="num b">${money(al)}</td><td><input class="inp ds-al" data-i="${i}" data-f="d" type="date" value="${esc(l.d || '')}"></td>
-            <td><input class="inp ds-al" data-i="${i}" data-f="a" type="number" min="0" step="0.01" value="${esc(l.a || '')}" placeholder="${al || ''}" style="width:110px;${done ? (ok ? 'border-color:#1f7a45' : 'border-color:#c0392b') : ''}"></td>
-            <td><input class="inp ds-al" data-i="${i}" data-f="rib" dir="ltr" value="${esc(l.rib || '')}" style="width:210px"></td><td><input class="inp ds-al" data-i="${i}" data-f="ref" dir="ltr" value="${esc(l.ref || '')}" style="width:110px" placeholder="رقم التحويل"></td>
-            <td><button class="btn sm" data-full="${i}" title="تحويل المبلغ المخصص كاملا اليوم">✓</button>${L.length > 1 ? `<button class="btn sm danger icon" data-adel="${i}">✕</button>` : ''}</td></tr>`; }).join('')}
-        <tr class="tot"><td><b>المجموع</b></td><td class="num ${Math.abs(pct - 100) > 0.01 ? 'att-hot' : ''}"><b>${pct}%</b></td><td class="num b">${money(c.sum * pct / 100)}</td><td></td><td class="num b">${money(sent)}</td><td colspan="3" class="${c.sum - sent > 0.004 ? 'att-hot' : ''}">الباقي غير المحول: <b>${money(c.sum - sent)}</b> د</td></tr></tbody></table>
-        <div class="btn-row" style="margin-top:6px"><button class="btn sm" data-aadd="1">${ic('plus')} إضافة مؤسسة مستفيدة</button><button class="btn sm" data-areset="1">${ic('hist')} النسب المعتمدة</button>${Math.abs(pct - 100) > 0.01 ? '<span class="att-hot" style="font-size:12.5px">مجموع النسب يجب أن يساوي 100%</span>' : ''}</div></div></div>`;
-    };
-    b.innerHTML = `<p class="muted" style="margin:0 0 10px;line-height:1.8">لكل مدخول: المبلغ المستخلص من «مسك المساهمات»، يوزع على المؤسسات المستفيدة حسب النسب (التأمين المدرسي: شركة التأمين 100%؛ الجمعية الرياضية المدرسية: جمعية المؤسسة 65%، الفرع الإقليمي 10%، الفرع الجهوي 5%، الجامعة الملكية المغربية للرياضة المدرسية 20%)، ثم يُسجل تاريخ ومبلغ وحساب تحويل كل حصة.</p>
-      ${ITEMS_().map(card).join('')}`;
-    const re = () => { const y0 = b.closest('.page') ? 0 : window.scrollY; window.pageDues(v); };
-    $$('.ds-vc', b).forEach(cd => {
-      const it = cd.dataset.it, L = allocOf(sy, it);
-      $$('.ds-al', cd).forEach(el => el.onchange = () => { const l = L[+el.dataset.i]; l[el.dataset.f] = el.value.trim(); if (el.dataset.f === 'rib' && l.rib && !(Y(sy).benef[it] || {}).rib && +el.dataset.i === 0) (Y(sy).benef[it] = Y(sy).benef[it] || {}).rib = l.rib; persist(); if (['pct', 'a'].includes(el.dataset.f)) re(); });
-      $$('[data-full]', cd).forEach(el => el.onclick = () => { const l = L[+el.dataset.full], c = T[it] || { sum: 0 }; l.a = String(Math.round(c.sum * (+l.pct || 0)) / 100); if (!l.d) l.d = todayIso(); persist(); re(); });
-      $$('[data-adel]', cd).forEach(el => el.onclick = () => { L.splice(+el.dataset.adel, 1); persist(); re(); });
-      $('[data-aadd]', cd).onclick = () => { L.push({ who: '', pct: '0', rib: '', d: '', a: '', ref: '' }); persist(); re(); };
-      $('[data-areset]', cd).onclick = async () => { if (!(await confirmBox('العودة إلى المؤسسات والنسب المعتمدة لهذا المدخول؟ تُحذف التحويلات المسجلة له.', 'العودة'))) return; delete Y(sy).alloc[it]; persist(); re(); };
-    });
-  }
-  /* ---------- 4. outputs ---------- */
-  function outTab(v, b, sy) {
-    const P = pupils(sy), T = stats(sy, P), y = Y(sy);
-    const sent = it => sentOf(sy, it);
-    const OUT = [['gen', 'مداخيل التسجيل', 'لكل مساهمة: عدد المعنيين والمؤدين والمبلغ المستخلص والمحول والباقي، مع التوزيع حسب المستوى.'], ['vir', 'التحويلات المالية', 'لكل مدخول: المبلغ المستخلص، المؤسسات المستفيدة ونسبها، المبلغ المخصص، تاريخ ومبلغ وحساب كل تحويل، والباقي.'],
-      ['sum', 'حصيلة حسب الأقسام', 'لكل قسم: عدد التلاميذ، المؤدون وغير المؤدين والمبلغ.'], ['list', 'المنخرطون / المؤدون', 'اللائحة الاسمية للمنخرطين في التعاونية أو الجمعية الرياضية أو التأمين المدرسي، مع المبلغ ورقم الوصل.'], ['miss', 'لائحة غير المؤدين', 'التلاميذ المعنيون الذين لم يؤدوا المساهمة.'], ['rcpt', 'وصولات الأداء', 'وصل أداء لكل تلميذ(ة) بالمساهمات المؤداة (4 في الصفحة).']];
-    b.innerHTML = `<div class="card"><div class="card-b"><table class="tbl"><thead><tr><th>المساهمة</th><th>المعنيون</th><th>المؤدون</th><th>نسبة الأداء</th><th>المحصل (د)</th><th>المحول (د)</th><th>الباقي (د)</th></tr></thead><tbody>
-      ${ITEMS_().map(([it, n]) => { const c = T[it] || { n: 0, tot: 0, sum: 0 }, s2 = sent(it); return `<tr><td class="b">${esc(n)}</td><td class="num">${c.tot}</td><td class="num">${c.n}</td><td class="num">${c.tot ? Math.round(c.n / c.tot * 100) : 0}%</td><td class="num b">${money(c.sum)}</td><td class="num">${money(s2)}</td><td class="num b">${money(c.sum - s2)}</td></tr>`; }).join('')}
+        ${a.map((f,c)=>{const v=Math.round(n.sum*(+f.pct||0))/100,x=+f.a>0,p=x&&Math.abs(+f.a-v)<.01;return`<tr><td><input class="inp ds-al" data-i="${c}" data-f="who" value="${m(f.who)}"></td><td><input class="inp ds-al" data-i="${c}" data-f="pct" type="number" min="0" max="100" step="0.5" value="${m(f.pct)}" style="width:78px"></td>
+            <td class="num b">${j(v)}</td><td><input class="inp ds-al" data-i="${c}" data-f="d" type="date" value="${m(f.d||"")}"></td>
+            <td><input class="inp ds-al" data-i="${c}" data-f="a" type="number" min="0" step="0.01" value="${m(f.a||"")}" placeholder="${v||""}" style="width:110px;${x?p?"border-color:#1f7a45":"border-color:#c0392b":""}"></td>
+            <td><input class="inp ds-al" data-i="${c}" data-f="rib" dir="ltr" value="${m(f.rib||"")}" style="width:210px"></td><td><input class="inp ds-al" data-i="${c}" data-f="ref" dir="ltr" value="${m(f.ref||"")}" style="width:110px" placeholder="رقم التحويل"></td>
+            <td><button class="btn sm" data-full="${c}" title="تحويل المبلغ المخصص كاملا اليوم">✓</button>${a.length>1?`<button class="btn sm danger icon" data-adel="${c}">✕</button>`:""}</td></tr>`}).join("")}
+        <tr class="tot"><td><b>المجموع</b></td><td class="num ${Math.abs(i-100)>.01?"att-hot":""}"><b>${i}%</b></td><td class="num b">${j(n.sum*i/100)}</td><td></td><td class="num b">${j(b)}</td><td colspan="3" class="${n.sum-b>.004?"att-hot":""}">الباقي غير المحول: <b>${j(n.sum-b)}</b> د</td></tr></tbody></table>
+        <div class="btn-row" style="margin-top:6px"><button class="btn sm" data-aadd="1">${ic("plus")} إضافة مؤسسة مستفيدة</button><button class="btn sm" data-areset="1">${ic("hist")} النسب المعتمدة</button>${Math.abs(i-100)>.01?'<span class="att-hot" style="font-size:12.5px">مجموع النسب يجب أن يساوي 100%</span>':""}</div></div></div>`};t.innerHTML=`<p class="muted" style="margin:0 0 10px;line-height:1.8">لكل مدخول: المبلغ المستخلص من «مسك المساهمات»، يوزع على المؤسسات المستفيدة حسب النسب (التأمين المدرسي: شركة التأمين 100%؛ الجمعية الرياضية المدرسية: جمعية المؤسسة 65%، الفرع الإقليمي 10%، الفرع الجهوي 5%، الجامعة الملكية المغربية للرياضة المدرسية 20%)، ثم يُسجل تاريخ ومبلغ وحساب تحويل كل حصة.</p>
+      ${k().map(u).join("")}`;const l=()=>{const r=t.closest(".page")?0:window.scrollY;window.pageDues(e)};$$(".ds-vc",t).forEach(r=>{const h=r.dataset.it,n=Q(s,h);$$(".ds-al",r).forEach(a=>a.onchange=()=>{const i=n[+a.dataset.i];i[a.dataset.f]=a.value.trim(),a.dataset.f==="rib"&&i.rib&&!(z(s).benef[h]||{}).rib&&+a.dataset.i==0&&((z(s).benef[h]=z(s).benef[h]||{}).rib=i.rib),persist(),["pct","a"].includes(a.dataset.f)&&l()}),$$("[data-full]",r).forEach(a=>a.onclick=()=>{const i=n[+a.dataset.full],b=d[h]||{sum:0};i.a=String(Math.round(b.sum*(+i.pct||0))/100),i.d||(i.d=todayIso()),persist(),l()}),$$("[data-adel]",r).forEach(a=>a.onclick=()=>{n.splice(+a.dataset.adel,1),persist(),l()}),$("[data-aadd]",r).onclick=()=>{n.push({who:"",pct:"0",rib:"",d:"",a:"",ref:""}),persist(),l()},$("[data-areset]",r).onclick=async()=>{await confirmBox("العودة إلى المؤسسات والنسب المعتمدة لهذا المدخول؟ تُحذف التحويلات المسجلة له.","العودة")&&(delete z(s).alloc[h],persist(),l())}})}function rt(e,t,s){const o=U(s),d=V(s,o),u=z(s),l=h=>G(s,h),r=[["gen","مداخيل التسجيل","لكل مساهمة: عدد المعنيين والمؤدين والمبلغ المستخلص والمحول والباقي، مع التوزيع حسب المستوى."],["vir","التحويلات المالية","لكل مدخول: المبلغ المستخلص، المؤسسات المستفيدة ونسبها، المبلغ المخصص، تاريخ ومبلغ وحساب كل تحويل، والباقي."],["sum","حصيلة حسب الأقسام","لكل قسم: عدد التلاميذ، المؤدون وغير المؤدين والمبلغ."],["list","المنخرطون / المؤدون","اللائحة الاسمية للمنخرطين في التعاونية أو الجمعية الرياضية أو التأمين المدرسي، مع المبلغ ورقم الوصل."],["miss","لائحة غير المؤدين","التلاميذ المعنيون الذين لم يؤدوا المساهمة."],["rcpt","وصولات الأداء","وصل أداء لكل تلميذ(ة) بالمساهمات المؤداة (4 في الصفحة)."]];t.innerHTML=`<div class="card"><div class="card-b"><table class="tbl"><thead><tr><th>المساهمة</th><th>المعنيون</th><th>المؤدون</th><th>نسبة الأداء</th><th>المحصل (د)</th><th>المحول (د)</th><th>الباقي (د)</th></tr></thead><tbody>
+      ${k().map(([h,n])=>{const a=d[h]||{n:0,tot:0,sum:0},i=l(h);return`<tr><td class="b">${m(n)}</td><td class="num">${a.tot}</td><td class="num">${a.n}</td><td class="num">${a.tot?Math.round(a.n/a.tot*100):0}%</td><td class="num b">${j(a.sum)}</td><td class="num">${j(i)}</td><td class="num b">${j(a.sum-i)}</td></tr>`}).join("")}
       </tbody></table></div></div>
-      <div class="doc-cards" style="margin-top:12px">${OUT.map(([k, t, d]) => `<div class="card doc-card" data-out="${k}"><div class="e">🧾</div><div><h3>${t}</h3><p>${d}</p></div></div>`).join('')}</div>`;
-    $$('[data-out]', b).forEach(el => el.onclick = () => go('duesDoc', { kind: el.dataset.out }));
-  }
-  function payTab(v, b, sy, years) {
-    const all = pupils(sy);
-    const stages = STAGES.filter(([k]) => all.some(p => STG_OF(p.lvl) === k) || k === cycleStage());
-    const units = Array.from(new Set(all.map(p => p.unit).filter(Boolean)));
-    const classes = Array.from(new Set(all.filter(p => !st.unit || K.U.same(p.unit, st.unit)).map(p => p.cls).filter(Boolean)));
-    const rows = all.filter(p => (!st.unit || K.U.same(p.unit, st.unit)) && (!st.cls || p.cls === st.cls) && (!st.q || MK.hkey(nameOf(p) + p.code).includes(MK.hkey(st.q))));
-    const tot = stats(sy, all);
-    const a0 = 'التعليم الأولي: التأمين المدرسي فقط (اختياري)؛ الانخراط في التعاونية يخص التعليم الابتدائي فقط؛ التأمين والانخراط في الجمعية الرياضية يخصان الابتدائي والإعدادي والتأهيلي.';
-    b.innerHTML = `      <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0">${ITEMS_().map(([it, n]) => `<div class="card"><div class="card-b"><div class="muted" style="font-size:12.5px">${n}</div><div style="font-size:22px;font-weight:800">${tot[it].n} <span class="muted" style="font-size:13px">/ ${tot[it].tot}</span></div><div style="font-size:13px">المبلغ المحصل: <b>${money(tot[it].sum)}</b> د</div></div></div>`).join('')}</div>
+      <div class="doc-cards" style="margin-top:12px">${r.map(([h,n,a])=>`<div class="card doc-card" data-out="${h}"><div class="e">🧾</div><div><h3>${n}</h3><p>${a}</p></div></div>`).join("")}</div>`,$$("[data-out]",t).forEach(h=>h.onclick=()=>go("duesDoc",{kind:h.dataset.out}))}function pt(e,t,s,o){const d=U(s),u=F.filter(([c])=>d.some(v=>T(v.lvl)===c)||c===st()),l=Array.from(new Set(d.map(c=>c.unit).filter(Boolean))),r=Array.from(new Set(d.filter(c=>!D.unit||K.U.same(c.unit,D.unit)).map(c=>c.cls).filter(Boolean))),h=d.filter(c=>(!D.unit||K.U.same(c.unit,D.unit))&&(!D.cls||c.cls===D.cls)&&(!D.q||MK.hkey(X(c)+c.code).includes(MK.hkey(D.q)))),n=V(s,d),a="التعليم الأولي: التأمين المدرسي فقط (اختياري)؛ الانخراط في التعاونية يخص التعليم الابتدائي فقط؛ التأمين والانخراط في الجمعية الرياضية يخصان الابتدائي والإعدادي والتأهيلي.";t.innerHTML=`      <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0">${k().map(([c,v])=>`<div class="card"><div class="card-b"><div class="muted" style="font-size:12.5px">${v}</div><div style="font-size:22px;font-weight:800">${n[c].n} <span class="muted" style="font-size:13px">/ ${n[c].tot}</span></div><div style="font-size:13px">المبلغ المحصل: <b>${j(n[c].sum)}</b> د</div></div></div>`).join("")}</div>
       <div class="card"><div class="card-h"><h3>التلاميذ</h3></div><div class="card-b">
         <div class="btn-row" style="margin-bottom:8px;flex-wrap:wrap">
-          <input class="inp" id="dsQ" placeholder="بحث بالاسم أو الرمز" value="${esc(st.q)}" style="width:200px">
-          ${units.length > 1 ? `<select class="inp" id="dsU" style="width:auto"><option value="">كل الوحدات</option>${units.map(u => `<option ${u === st.unit ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>` : ''}
-          <select class="inp" id="dsC" style="width:auto"><option value="">كل الأقسام</option>${classes.map(u => `<option ${u === st.cls ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>
-          ${ITEMS_().map(([it, n]) => { const ap = rows.filter(p => hasItem(STG_OF(p.lvl), it)), allOn = ap.length > 0 && ap.every(p => paid(sy, p, it)), anyOn = ap.some(p => paid(sy, p, it));
-            return `<button class="btn sm ${allOn ? 'danger' : ''}" data-all="${it}" data-on="${allOn ? 1 : 0}" ${ap.length ? '' : 'disabled'} title="${allOn ? 'إلغاء تحديد كل التلاميذ المعروضين' : 'تحديد كل التلاميذ المعروضين'}">${esc(n)}: ${allOn ? 'إلغاء تحديد الكل' : 'تحديد الكل'}</button>${anyOn && !allOn ? `<button class="btn sm" data-none="${it}" title="إلغاء تحديد المعروضين">إلغاء</button>` : ''}`; }).join('')}
+          <input class="inp" id="dsQ" placeholder="بحث بالاسم أو الرمز" value="${m(D.q)}" style="width:200px">
+          ${l.length>1?`<select class="inp" id="dsU" style="width:auto"><option value="">كل الوحدات</option>${l.map(c=>`<option ${c===D.unit?"selected":""}>${m(c)}</option>`).join("")}</select>`:""}
+          <select class="inp" id="dsC" style="width:auto"><option value="">كل الأقسام</option>${r.map(c=>`<option ${c===D.cls?"selected":""}>${m(c)}</option>`).join("")}</select>
+          ${k().map(([c,v])=>{const x=h.filter(g=>O(T(g.lvl),c)),p=x.length>0&&x.every(g=>M(s,g,c)),L=x.some(g=>M(s,g,c));return`<button class="btn sm ${p?"danger":""}" data-all="${c}" data-on="${p?1:0}" ${x.length?"":"disabled"} title="${p?"إلغاء تحديد كل التلاميذ المعروضين":"تحديد كل التلاميذ المعروضين"}">${m(v)}: ${p?"إلغاء تحديد الكل":"تحديد الكل"}</button>${L&&!p?`<button class="btn sm" data-none="${c}" title="إلغاء تحديد المعروضين">إلغاء</button>`:""}`}).join("")}
         </div>
-        <div class="btn-row" style="margin-bottom:8px;flex-wrap:wrap"><button class="btn sm" id="dsImp">${ic('up')} استيراد لائحة المنخرطين (Excel / xls)</button><button class="btn sm" id="dsNum">${ic('list')} ترقيم وصولات التأمين تباعا</button><button class="btn sm" id="dsExp">${ic('down')} تصدير Excel</button></div>
-        ${all.length ? `<div style="max-height:60vh;overflow:auto"><table class="tbl"><thead><tr><th>ر.ت</th><th>الاسم والنسب</th><th>القسم</th>${ITEMS_().map(([, n]) => `<th>${n}</th>`).join('')}</tr></thead><tbody>
-        ${rows.slice(0, 600).map((p, i) => `<tr><td class="num">${i + 1}</td><td class="b">${esc(nameOf(p))}</td><td dir="ltr" style="text-align:right">${esc(p.cls || '')}</td>${ITEMS_().map(([it]) => { const sg = STG_OF(p.lvl); if (!hasItem(sg, it)) return '<td class="muted">—</td>'; const r = paid(sy, p, it); return `<td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="ds-ck" data-k="${esc(pkey(p))}" data-i="${it}" ${r ? 'checked' : ''}>${r ? `<input class="inp ds-amt" type="number" min="0" step="0.5" data-k="${esc(pkey(p))}" data-i="${it}" value="${esc(r.a)}" style="width:72px" title="المبلغ">${it === 'ins' ? `<input class="inp ds-no" data-k="${esc(pkey(p))}" data-i="${it}" value="${esc(r.n || '')}" placeholder="رقم الوصل" style="width:104px" dir="ltr">` : ''}` : ''}</label></td>`; }).join('')}</tr>`).join('')}
-        </tbody></table></div>${rows.length > 600 ? '<p class="muted">يُعرض أول 600 تلميذ؛ استعمل المرشحات.</p>' : ''}` : '<p class="muted">لا توجد لائحة تلاميذ لهذا الموسم. استورد لوائح التلاميذ من «بطاقة التلاميذ» أولا.</p>'}
-      </div></div>`;
-    const re = () => window.pageDues(v);
-    const q = $('#dsQ', v); q.onchange = () => { st.q = q.value; re(); };
-    if ($('#dsU', v)) $('#dsU', v).onchange = e => { st.unit = e.target.value; st.cls = ''; re(); };
-    $('#dsC', v).onchange = e => { st.cls = e.target.value; re(); };
-    const byKey = k => all.find(p => pkey(p) === k);
-    $$('.ds-ck', v).forEach(el => el.onchange = () => { const p = byKey(el.dataset.k); if (!p) return; setPaid(sy, p, el.dataset.i, el.checked); persist(); re(); });
-    $$('.ds-amt', v).forEach(el => el.onchange = () => { const p = byKey(el.dataset.k); if (!p) return; setPaid(sy, p, el.dataset.i, true, +el.value || 0); persist(); re(); });
-    $$('.ds-no', v).forEach(el => el.onchange = () => { const p = byKey(el.dataset.k); if (!p) return; const r = paid(sy, p, el.dataset.i); if (!r) return; const n = el.value.trim(); if (n) r.n = n; else delete r.n; persist(); });
-    // «تحديد الكل» is a switch: when every displayed pupil is already ticked it becomes «إلغاء تحديد الكل»
-    $$('[data-all]', v).forEach(b => b.onclick = async () => {
-      const it = b.dataset.all, ap = rows.filter(p => hasItem(STG_OF(p.lvl), it));
-      if (b.dataset.on === '1') { if (!await confirmBox(`إلغاء <b>${esc((ITEMS_().find(x => x[0] === it) || [])[1])}</b> لـ <b>${ap.length}</b> تلميذ(ة) معروضين؟ ستحذف مبالغهم وأرقام وصولاتهم.`, 'إلغاء التحديد')) return; ap.forEach(p => setPaid(sy, p, it, false)); }
-      else ap.forEach(p => { if (!paid(sy, p, it)) setPaid(sy, p, it, true); });
-      persist(); re();
-    });
-    $$('[data-none]', v).forEach(b => b.onclick = () => { const it = b.dataset.none; rows.forEach(p => { if (paid(sy, p, it)) setPaid(sy, p, it, false); }); persist(); re(); });
-    $('#dsImp', v).onclick = () => importList(sy, re);
-    $('#dsNum', v).onclick = () => numberReceipts(sy, all, re);
-    $('#dsExp', v).onclick = () => exportList(sy, rows);
-  }
-
-  /* ---------- import of the list of members (Excel or old .xls) + insurance receipt numbers ---------- */
-  const CODE = /^[A-Za-z]\d{8,10}$/;
-  const itemOfTitle = t => /التأمين|تأمين/.test(t) ? 'ins' : /التعاونية|تعاونية/.test(t) ? 'coop' : /الرياضية|رياضي/.test(t) ? 'sport' : '';
-  function parseList(sheets) {
-    const out = []; let title = '';
-    sheets.forEach(sh => {
-      const rows = sh.rows || [];
-      rows.slice(0, 25).forEach(r => (r || []).forEach(c => { const t = String(c == null ? '' : c); if (!title && /منخرط|التأمين|التعاونية|الجمعية|الانخراط|اشتراك/.test(t)) title = t.trim(); }));
-      rows.forEach(r => {
-        const cells = (r || []).map(x => String(x == null ? '' : x).trim());
-        const ci = cells.findIndex(x => CODE.test(x));
-        if (ci < 0) return;
-        const no = cells.find((x, i) => i !== ci && /^\d{5,}$/.test(x)) || '';      // the receipt number (the serial «ر.ت» is short)
-        const unit = cells.find(x => x && !/^[\d.,\s]+$/.test(x) && !CODE.test(x) && !/^(ذكر|أنثى|انثى)$/.test(x)) || '';
-        out.push({ code: cells[ci].toUpperCase(), no, unit });
-      });
-    });
-    return { rows: out, title };
-  }
-  async function importList(sy, re) {
-    const files = await MK.openFiles(); if (!files) return;       // 1.9.3 — several files at once: each file is a list of one due
-    const all = pupils(sy), byCode = new Map(all.map(p => [String(p.code || '').toUpperCase(), p]));
-    const parts = [], empty = [];
-    files.forEach(f => {
-      const L = parseList(f.sheets);
-      if (!L.rows.length) { empty.push(f.name); return; }
-      const hit = L.rows.filter(r => byCode.has(r.code)), miss = L.rows.filter(r => !byCode.has(r.code));
-      parts.push({ f, L, hit, miss, nNo: hit.filter(r => r.no).length, guess: itemOfTitle(L.title) || 'ins' });
-    });
-    if (!parts.length) return toast(files.length > 1 ? 'لم يتم العثور على رموز مسار (مثل R231040958) في أي من الملفات المختارة' : 'لم يتم العثور على رموز مسار (مثل R231040958) في الملف', true);
-    if (empty.length) toast('ملفات بدون رموز مسار تم تجاهلها: ' + empty.join('، '), true);
-    const many = parts.length > 1, sfx = i => (i ? String(i) : '');
-    const body = document.createElement('div');
-    body.innerHTML = parts.map((x, i) => `<div class="di-part" data-p="${i}" ${many ? 'style="border:1px solid var(--line,#d8dfd9);border-radius:10px;padding:10px 12px;margin:0 0 10px"' : ''}>
-      ${many ? `<div style="font-weight:700;margin:0 0 6px">${i + 1}/${parts.length} — <bdi>${esc(x.f.name)}</bdi></div>` : ''}
-      <p style="margin:0 0 8px;line-height:1.9">عدد التلاميذ في الملف: <b>${x.L.rows.length}</b> — الموجودون في بطاقة التلاميذ: <b>${x.hit.length}</b>${x.miss.length ? ` — غير الموجودين: <b class="att-hot">${x.miss.length}</b>` : ''}.${x.L.title ? `<br><span class="muted">عنوان الملف: ${esc(x.L.title)}</span>` : ''}</p>
-      <div class="fld"><label>الواجب الذي يخصه الملف</label><select class="inp" id="diIt${sfx(i)}">${ITEMS_().map(([k, n]) => `<option value="${k}" ${k === x.guess ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="diNo${sfx(i)}" ${x.nNo ? 'checked' : ''} ${x.nNo ? '' : 'disabled'}><span>تسجيل أرقام الوصولات (${x.nNo} رقم في الملف)</span></label>
-      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="diRep${sfx(i)}"><span>إلغاء الأداء عن التلاميذ غير الواردين في الملف (استبدال اللائحة الحالية)</span></label>
-      ${x.miss.length ? `<p class="muted" style="font-size:12px;line-height:1.7;margin:6px 0 0">رموز غير موجودة في بطاقة التلاميذ: ${esc(x.miss.slice(0, 8).map(r => r.code).join('، '))}${x.miss.length > 8 ? '…' : ''}. استورد لوائح التلاميذ أولا إن كانت ناقصة.</p>` : ''}</div>`).join('');
-    modal({ title: many ? `استيراد ${parts.length} لوائح للمنخرطين` : 'استيراد لائحة المنخرطين', size: many ? '' : 'sm', body, actions: [{ label: 'استيراد', cls: 'pri', onClick: () => {
-      const msgs = [];
-      parts.forEach((x, i) => {
-        const it = $('#diIt' + sfx(i), body).value, withNo = $('#diNo' + sfx(i), body).checked, rep = $('#diRep' + sfx(i), body).checked;
-        const inFile = new Set(x.hit.map(r => r.code));
-        let n = 0, skipped = 0;
-        if (rep) all.forEach(p => { if (hasItem(STG_OF(p.lvl), it) && paid(sy, p, it) && !inFile.has(String(p.code || '').toUpperCase())) setPaid(sy, p, it, false); });
-        x.hit.forEach(r => { const p = byCode.get(r.code); if (!hasItem(STG_OF(p.lvl), it)) { skipped++; return; } setPaid(sy, p, it, true, null, withNo && r.no ? r.no : null); n++; });
-        msgs.push(`تم تسجيل ${n} تلميذ(ة) في «${(ITEMS_().find(y => y[0] === it) || [])[1]}»${skipped ? ` — ${skipped} لا يخصهم هذا الواجب` : ''}${x.miss.length ? ` — ${x.miss.length} غير موجودين في بطاقة التلاميذ` : ''}`);
-      });
-      persist(); re();
-      toast(many ? `${parts.length} لوائح: ${msgs.join(' | ')}` : msgs[0]);
-    } }, { label: 'إلغاء' }] });
-  }
-  // consecutive receipt numbers for the insured pupils (in the order of the list: class, then name)
-  function numberReceipts(sy, all, re) {
-    const ins = all.filter(p => hasItem(STG_OF(p.lvl), 'ins') && paid(sy, p, 'ins'));
-    if (!ins.length) return toast('حدد التلاميذ المؤمَّنين أولا', true);
-    const used = ins.map(p => paid(sy, p, 'ins').n).filter(n => /^\d+$/.test(String(n || '')));
-    const next = used.length ? String(Math.max(...used.map(Number)) + 1) : '';
-    const body = document.createElement('div');
-    body.innerHTML = `<p style="margin:0 0 8px;line-height:1.9">سيتم ترقيم وصولات <b>${ins.length}</b> تلميذ(ة) مؤمَّن(ة) ترقيما متتابعا حسب ترتيب اللائحة (القسم ثم الاسم).</p>
-      <div class="fld"><label>رقم الوصل الأول</label><input class="inp" id="dnS" dir="ltr" value="${esc(next)}" placeholder="5094442"></div>
-      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="dnAll"><span>إعادة ترقيم الجميع (وإلا يُرقَّم من لا رقم له فقط، مع تجاوز الأرقام المستعملة)</span></label>`;
-    modal({ title: 'ترقيم وصولات التأمين', size: 'sm', body, actions: [{ label: 'ترقيم', cls: 'pri', onClick: () => {
-      const s0 = $('#dnS', body).value.trim(); if (!/^\d+$/.test(s0)) { toast('أدخل رقما صحيحا للوصل الأول', true); return false; }
-      const all2 = $('#dnAll', body).checked, w = s0.length;
-      const taken = new Set(all2 ? [] : used.map(String));
-      let cur = +s0, n = 0;
-      ins.forEach(p => {
-        const r = paid(sy, p, 'ins'); if (!all2 && r.n) return;
-        while (taken.has(String(cur).padStart(w, '0'))) cur++;
-        r.n = String(cur).padStart(w, '0'); taken.add(r.n); cur++; n++;
-      });
-      persist(); re(); toast(`تم ترقيم ${n} وصل(ا) تباعا`);
-    } }, { label: 'إلغاء' }] });
-  }
-  async function exportList(sy, rows) {
-    const rowsX = [['ر.ت', 'الوحدة المدرسية', 'القسم', 'رمز مسار', 'النسب', 'الاسم'].concat(ITEMS_().map(([, n]) => n + ' (المبلغ)'), ['رقم وصل التأمين'])];
-    rows.forEach((p, i) => rowsX.push([i + 1, p.unit || '', p.cls || '', p.code || '', p.last || '', p.first || ''].concat(ITEMS_().map(([it]) => { if (!hasItem(STG_OF(p.lvl), it)) return ''; const r = paid(sy, p, it); return r ? +r.a || 0 : ''; }), [(paid(sy, p, 'ins') || {}).n || ''])));
-    const r = await window.api.saveXlsx(rowsX, `الاشتراكات_${MK.syDash(sy)}.xlsx`, 'الاشتراكات');
-    if (r && r.ok) toast('تم التصدير إلى Excel');
-  }
-
-  /* ---------- printable lists ---------- */
-  const KINDS = [['gen', 'مداخيل التسجيل (الحصيلة العامة)'], ['vir', 'التحويلات المالية'], ['sum', 'حصيلة حسب الأقسام'], ['list', 'لائحة المنخرطين / المؤدين'], ['miss', 'لائحة غير المؤدين'], ['rcpt', 'وصولات الأداء']];
-  function build(s, f) {
-    const sy = f.sy, all = pupils(sy).filter(p => (!f.unit || K.U.same(p.unit, f.unit)) && (!f.cls || p.cls === f.cls) && (!f.stage || STG_OF(p.lvl) === f.stage));
-    const it = f.item, name = (ITEMS_().find(x => x[0] === it) || ITEMS_()[0])[1];
-    const sub = `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}${f.unit ? ' — ' + esc(f.unit) : ''}${f.cls ? ' — القسم ' + esc(f.cls) : ''}`;
-    const mem = all.filter(p => hasItem(STG_OF(p.lvl), it));
-    const y = Y(sy), sent = i2 => sentOf(sy, i2);
-    if (f.kind === 'gen') {
-      const T = stats(sy, all), lv = K.LV.sort(Array.from(new Set(all.map(p => p.lvl).filter(Boolean))));
-      const rows = ITEMS_().map(([i2, n], i) => { const c = T[i2] || { n: 0, tot: 0, sum: 0 }, s2 = sent(i2); return tr([i + 1, { t: n, c: 'b r' }, c.tot, c.n, c.tot - c.n, `${c.tot ? Math.round(c.n / c.tot * 100) : 0}%`, { t: money(c.sum), c: 'nw b' }, { t: money(s2), c: 'nw' }, { t: money(c.sum - s2), c: 'nw b' }]); });
-      const tl = ITEMS_().reduce((a, [i2]) => { const c = T[i2] || { sum: 0 }; a.s += c.sum; a.v += sent(i2); return a; }, { s: 0, v: 0 });
-      rows.push(tr([{ t: 'المجموع', c: 'd', s: 6 }, { t: money(tl.s), c: 'nw' }, { t: money(tl.v), c: 'nw' }, { t: money(tl.s - tl.v), c: 'nw' }]));
-      const lrows = lv.map(l => { const A = all.filter(p => p.lvl === l); return tr([{ t: K.LV.ar(l), c: 'b r' }, A.length].concat(ITEMS_().map(([i2]) => { if (!hasItem(STG_OF(l), i2)) return '—'; const pd = A.filter(p => paid(sy, p, i2)); return `${pd.length} — ${money(pd.reduce((a, p) => a + (+paid(sy, p, i2).a || 0), 0))}`; }))); });
-      return SB.pages(s, { title: 'مداخيل التسجيل', sub, page: 'a4', blocks: [SB.tbl(thr(['ر.ت', 'المساهمة', 'المعنيون', 'المؤدون', 'غير المؤدين', 'نسبة الأداء', 'المحصل (د)', 'المحول (د)', 'الباقي (د)'].map(t => ({ t, c: 'd' }))), rows, 'big'),
-        SB.cap('التوزيع حسب المستوى (عدد المؤدين — المبلغ بالدرهم)'), SB.tbl(thr(['المستوى', 'التلاميذ'].concat(ITEMS_().map(x => x[1])).map(t => ({ t, c: 'd' }))), lrows.length ? lrows : [tr([''])], 'cmp')] });
-    }
-    if (f.kind === 'vir') {
-      const T = stats(sy, pupils(sy)), its = ITEMS_().filter(([i2]) => !f.item || f.item === '*' || i2 === f.item), blocks = [];
-      its.forEach(([i2, n]) => {
-        const c = T[i2] || { sum: 0 }, L = allocOf(sy, i2);
-        const rows = L.map(l => { const al = Math.round(c.sum * (+l.pct || 0)) / 100; return tr([{ t: l.who, c: 'b r' }, `${+l.pct || 0}%`, { t: money(al), c: 'nw' }, l.d ? fmtDate(l.d) : '', { t: +l.a ? money(l.a) : '', c: 'nw b' }, { t: l.rib || '', c: 'ltr sm' }, { t: l.ref || '', c: 'ltr sm' }]); });
-        rows.push(tr([{ t: 'المجموع', c: 'b' }, `${L.reduce((t, l) => t + (+l.pct || 0), 0)}%`, { t: money(c.sum * L.reduce((t, l) => t + (+l.pct || 0), 0) / 100), c: 'nw' }, '', { t: money(sentOf(sy, i2)), c: 'nw b' }, { t: `الباقي: ${money(c.sum - sentOf(sy, i2))} د`, s: 2 }], 'tot'));
-        blocks.push({ html: `<div class="sb-cap r" style="margin-top:3mm">المداخيل: ${esc(n)} — المبلغ المستخلص: ${money(c.sum)} درهم</div>`, keepNext: true }, SB.tbl(thr(['المؤسسة', 'النسبة', 'المبلغ المخصص (د)', 'تاريخ التحويل', 'مبلغ التحويل (د)', 'حساب التحويل', 'المرجع'].map(t => ({ t, c: 'd' }))), rows, 'cmp'));
-      });
-      return SB.pages(s, { title: 'التحويلات المالية', sub: `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4l', blocks });
-    }
-    if (f.kind === 'rcpt') {
-      const L = all.filter(p => ITEMS_().some(([i2]) => paid(sy, p, i2)));
-      const one = p => { const its = ITEMS_().filter(([i2]) => paid(sy, p, i2)), tot = its.reduce((a, [i2]) => a + (+paid(sy, p, i2).a || 0), 0);
-        return `<div class="ds-rc"><div class="ds-rc-h"><b>وصل أداء المساهمات</b><span>${esc(s.school || '')} — ${esc(MK.syDash(sy).replace('-', '/'))}</span></div>
-          <div class="ds-rc-g"><div>التلميذ(ة): <b>${esc(nameOf(p))}</b></div><div>رمز مسار: <b dir="ltr">${esc(p.code || '')}</b></div><div>القسم: <b dir="ltr">${esc(p.cls || '')}</b></div><div>المستوى: <b>${esc(K.LV.ar(p.lvl))}</b></div></div>
-          <table class="sb-t cmp"><thead>${thr(['المساهمة', 'المبلغ (د)', 'التاريخ', 'رقم الوصل'])}</thead><tbody>${its.map(([i2, n]) => { const r = paid(sy, p, i2); return tr([{ t: n, c: 'r' }, { t: money(r.a), c: 'nw' }, r.d ? fmtDate(r.d) : '', { t: r.n || '', c: 'ltr' }]); }).join('')}${tr([{ t: 'المجموع', c: 'b' }, { t: money(tot), c: 'nw b' }, '', ''])}</tbody></table>
-          <div class="ds-rc-s"><span>توقيع المستلم(ة)</span><span>خاتم المؤسسة</span></div></div>`; };
-      const pages = []; for (let i = 0; i < Math.max(1, L.length); i += 4) pages.push(`<div class="ds-rcs">${L.slice(i, i + 4).map(one).join('')}</div>`);
-      return pages;
-    }
-    if (f.kind === 'sum') {
-      const groups = new Map();
-      mem.forEach(p => { const k = p.cls || '—'; (groups.get(k) || groups.set(k, []).get(k)).push(p); });
-      const rows = [], T = { n: 0, a: 0, m: 0 };
-      Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })).forEach((k, i) => {
-        const g = groups.get(k), pd = g.filter(p => paid(sy, p, it)), sum = pd.reduce((x, p) => x + (+paid(sy, p, it).a || 0), 0);
-        T.n += g.length; T.a += pd.length; T.m += sum;
-        rows.push(tr([i + 1, { t: k, c: 'b' }, g.length, pd.length, g.length - pd.length, { t: money(sum), c: 'nw' }]));
-      });
-      rows.push(tr([{ t: 'المجموع', c: 'd', span: 2 }, T.n, T.a, T.n - T.a, money(T.m)]));
-      return SB.pages(s, { title: `حصيلة ${name}`, sub, page: 'a4', blocks: [SB.tbl(thr(['ر.ت', 'القسم', 'عدد التلاميذ', 'المؤدون', 'غير المؤدين', 'المبلغ (درهم)'].map(t => ({ t, c: 'd' }))), rows, 'big')] });
-    }
-    const pick = mem.filter(p => !!paid(sy, p, it) === (f.kind === 'list'));
-    const withNo = f.kind === 'list' && it === 'ins' && pick.some(p => (paid(sy, p, it) || {}).n);
-    const head = thr(['ر.ت', 'رمز مسار', 'الاسم والنسب', 'القسم'].concat(f.kind === 'list' ? (withNo ? ['رقم الوصل'] : []).concat(['المبلغ', 'تاريخ الأداء']) : ['ملاحظات']).map(t => ({ t, c: 'd' })));
-    const rows = pick.map((p, i) => { const r = paid(sy, p, it); return tr([i + 1, { t: p.code || '', c: 'ltr sm' }, { t: nameOf(p), c: 'b r' }, { t: p.cls || '', c: 'ltr' }].concat(f.kind === 'list' ? (withNo ? [{ t: r.n || '', c: 'ltr' }] : []).concat([{ t: money(r.a), c: 'nw' }, r.d ? fmtDate(r.d) : '']) : [''])); });
-    const total = f.kind === 'list' ? pick.reduce((x, p) => x + (+paid(sy, p, it).a || 0), 0) : 0;
-    const title = f.kind === 'list' ? `لائحة ${it === 'coop' ? 'المنخرطين في التعاونية المدرسية' : it === 'sport' ? 'المنخرطين في الجمعية الرياضية المدرسية' : 'التلاميذ المؤمَّنين'}` : `لائحة التلاميذ غير المؤدين: ${name}`;
-    const note = `<p class="sb-p">العدد: <b>${pick.length}</b>${f.kind === 'list' ? ` — مجموع المبالغ: <b>${money(total)}</b> درهم` : ''}</p>`;
-    return SB.pages(s, { title, sub, page: 'a4', blocks: [note, SB.tbl(head, rows.length ? rows : [tr(['', '', '', '', '', ''].slice(0, 5))], 'big')] });
-  }
-
-  window.pageDuesDoc = function (v, arg) {
-    migrate(DB);
-    const sy0 = st.sy || MK.curSy();
-    MK.docPage(v, {
-      title: 'مخرجات الاشتراكات والتسجيل', icon: '🧾', modes: false, word: true, state: { sy: sy0, item: 'ins', kind: (arg && arg.kind) || 'gen', unit: '', cls: '', stage: '' },
-      back: () => go('dues'),
-      form: function form(box, s0, refresh) {
-        const all = pupils(s0.sy), units = Array.from(new Set(all.map(p => p.unit).filter(Boolean))), classes = Array.from(new Set(all.map(p => p.cls).filter(Boolean)));
-        const sel = (id, l, opts, cur) => `<div class="fld"><label>${l}</label><select class="inp" id="${id}">${opts.map(([v2, t]) => `<option value="${esc(v2)}" ${v2 === cur ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>`;
-        box.innerHTML = sel('dd2', 'الوثيقة', KINDS, s0.kind) + (['gen', 'rcpt'].includes(s0.kind) ? '' : sel('dd1', 'المساهمة', (s0.kind === 'vir' ? [['*', 'كل المساهمات']] : []).concat(ITEMS_()), s0.item)) + sel('dd3', 'السلك', [['', 'كل الأسلاك']].concat(STAGES), s0.stage)
-          + (units.length > 1 ? sel('dd4', 'الوحدة المدرسية', [['', 'كل الوحدات']].concat(units.map(u => [u, u])), s0.unit) : '') + sel('dd5', 'القسم', [['', 'كل الأقسام']].concat(classes.map(c => [c, c])), s0.cls);
-        [['dd1', 'item'], ['dd2', 'kind', true], ['dd3', 'stage'], ['dd4', 'unit'], ['dd5', 'cls']].forEach(([id, k, again]) => { const el = $('#' + id, box); if (el) el.onchange = e => { s0[k] = e.target.value; if (k === 'kind' && s0.kind !== 'vir' && s0.item === '*') s0.item = 'ins'; if (again) form(box, s0, refresh); refresh(); }; });
-      },
-      build: s0 => ({ page: s0.kind === 'vir' ? 'a4l' : 'a4', pages: build(S(), s0) }),
-      fname: s0 => 'لائحة_' + (ITEMS_().find(x => x[0] === s0.item) || ITEMS_()[0])[1].replace(/\s+/g, '_')
-    });
-  };
-  Dx.modCss += `
+        <div class="btn-row" style="margin-bottom:8px;flex-wrap:wrap"><button class="btn sm" id="dsImp">${ic("up")} استيراد لائحة المنخرطين (Excel / xls)</button><button class="btn sm" id="dsNum">${ic("list")} ترقيم وصولات التأمين تباعا</button><button class="btn sm" id="dsExp">${ic("down")} تصدير Excel</button></div>
+        ${d.length?`<div style="max-height:60vh;overflow:auto"><table class="tbl"><thead><tr><th>ر.ت</th><th>الاسم والنسب</th><th>القسم</th>${k().map(([,c])=>`<th>${c}</th>`).join("")}</tr></thead><tbody>
+        ${h.slice(0,600).map((c,v)=>`<tr><td class="num">${v+1}</td><td class="b">${m(X(c))}</td><td dir="ltr" style="text-align:right">${m(c.cls||"")}</td>${k().map(([x])=>{const p=T(c.lvl);if(!O(p,x))return'<td class="muted">—</td>';const L=M(s,c,x);return`<td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="ds-ck" data-k="${m(q(c))}" data-i="${x}" ${L?"checked":""}>${L?`<input class="inp ds-amt" type="number" min="0" step="0.5" data-k="${m(q(c))}" data-i="${x}" value="${m(L.a)}" style="width:72px" title="المبلغ">${x==="ins"?`<input class="inp ds-no" data-k="${m(q(c))}" data-i="${x}" value="${m(L.n||"")}" placeholder="رقم الوصل" style="width:104px" dir="ltr">`:""}`:""}</label></td>`}).join("")}</tr>`).join("")}
+        </tbody></table></div>${h.length>600?'<p class="muted">يُعرض أول 600 تلميذ؛ استعمل المرشحات.</p>':""}`:'<p class="muted">لا توجد لائحة تلاميذ لهذا الموسم. استورد لوائح التلاميذ من «بطاقة التلاميذ» أولا.</p>'}
+      </div></div>`;const i=()=>window.pageDues(e),b=$("#dsQ",e);b.onchange=()=>{D.q=b.value,i()},$("#dsU",e)&&($("#dsU",e).onchange=c=>{D.unit=c.target.value,D.cls="",i()}),$("#dsC",e).onchange=c=>{D.cls=c.target.value,i()};const f=c=>d.find(v=>q(v)===c);$$(".ds-ck",e).forEach(c=>c.onchange=()=>{const v=f(c.dataset.k);v&&(H(s,v,c.dataset.i,c.checked),persist(),i())}),$$(".ds-amt",e).forEach(c=>c.onchange=()=>{const v=f(c.dataset.k);v&&(H(s,v,c.dataset.i,!0,+c.value||0),persist(),i())}),$$(".ds-no",e).forEach(c=>c.onchange=()=>{const v=f(c.dataset.k);if(!v)return;const x=M(s,v,c.dataset.i);if(!x)return;const p=c.value.trim();p?x.n=p:delete x.n,persist()}),$$("[data-all]",e).forEach(c=>c.onclick=async()=>{const v=c.dataset.all,x=h.filter(p=>O(T(p.lvl),v));if(c.dataset.on==="1"){if(!await confirmBox(`إلغاء <b>${m((k().find(p=>p[0]===v)||[])[1])}</b> لـ <b>${x.length}</b> تلميذ(ة) معروضين؟ ستحذف مبالغهم وأرقام وصولاتهم.`,"إلغاء التحديد"))return;x.forEach(p=>H(s,p,v,!1))}else x.forEach(p=>{M(s,p,v)||H(s,p,v,!0)});persist(),i()}),$$("[data-none]",e).forEach(c=>c.onclick=()=>{const v=c.dataset.none;h.forEach(x=>{M(s,x,v)&&H(s,x,v,!1)}),persist(),i()}),$("#dsImp",e).onclick=()=>mt(s,i),$("#dsNum",e).onclick=()=>$t(s,d,i),$("#dsExp",e).onclick=()=>bt(s,h)}const at=/^[A-Za-z]\d{8,10}$/,ut=e=>/التأمين|تأمين/.test(e)?"ins":/التعاونية|تعاونية/.test(e)?"coop":/الرياضية|رياضي/.test(e)?"sport":"";function ht(e){const t=[];let s="";return e.forEach(o=>{const d=o.rows||[];d.slice(0,25).forEach(u=>(u||[]).forEach(l=>{const r=String(l??"");!s&&/منخرط|التأمين|التعاونية|الجمعية|الانخراط|اشتراك/.test(r)&&(s=r.trim())})),d.forEach(u=>{const l=(u||[]).map(a=>String(a??"").trim()),r=l.findIndex(a=>at.test(a));if(r<0)return;const h=l.find((a,i)=>i!==r&&/^\d{5,}$/.test(a))||"",n=l.find(a=>a&&!/^[\d.,\s]+$/.test(a)&&!at.test(a)&&!/^(ذكر|أنثى|انثى)$/.test(a))||"";t.push({code:l[r].toUpperCase(),no:h,unit:n})})}),{rows:t,title:s}}async function mt(e,t){const s=await MK.openFiles();if(!s)return;const o=U(e),d=new Map(o.map(a=>[String(a.code||"").toUpperCase(),a])),u=[],l=[];if(s.forEach(a=>{const i=ht(a.sheets);if(!i.rows.length){l.push(a.name);return}const b=i.rows.filter(c=>d.has(c.code)),f=i.rows.filter(c=>!d.has(c.code));u.push({f:a,L:i,hit:b,miss:f,nNo:b.filter(c=>c.no).length,guess:ut(i.title)||"ins"})}),!u.length)return toast(s.length>1?"لم يتم العثور على رموز مسار (مثل R231040958) في أي من الملفات المختارة":"لم يتم العثور على رموز مسار (مثل R231040958) في الملف",!0);l.length&&toast("ملفات بدون رموز مسار تم تجاهلها: "+l.join("، "),!0);const r=u.length>1,h=a=>a?String(a):"",n=document.createElement("div");n.innerHTML=u.map((a,i)=>`<div class="di-part" data-p="${i}" ${r?'style="border:1px solid var(--line,#d8dfd9);border-radius:10px;padding:10px 12px;margin:0 0 10px"':""}>
+      ${r?`<div style="font-weight:700;margin:0 0 6px">${i+1}/${u.length} — <bdi>${m(a.f.name)}</bdi></div>`:""}
+      <p style="margin:0 0 8px;line-height:1.9">عدد التلاميذ في الملف: <b>${a.L.rows.length}</b> — الموجودون في بطاقة التلاميذ: <b>${a.hit.length}</b>${a.miss.length?` — غير الموجودين: <b class="att-hot">${a.miss.length}</b>`:""}.${a.L.title?`<br><span class="muted">عنوان الملف: ${m(a.L.title)}</span>`:""}</p>
+      <div class="fld"><label>الواجب الذي يخصه الملف</label><select class="inp" id="diIt${h(i)}">${k().map(([b,f])=>`<option value="${b}" ${b===a.guess?"selected":""}>${m(f)}</option>`).join("")}</select></div>
+      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="diNo${h(i)}" ${a.nNo?"checked":""} ${a.nNo?"":"disabled"}><span>تسجيل أرقام الوصولات (${a.nNo} رقم في الملف)</span></label>
+      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="diRep${h(i)}"><span>إلغاء الأداء عن التلاميذ غير الواردين في الملف (استبدال اللائحة الحالية)</span></label>
+      ${a.miss.length?`<p class="muted" style="font-size:12px;line-height:1.7;margin:6px 0 0">رموز غير موجودة في بطاقة التلاميذ: ${m(a.miss.slice(0,8).map(b=>b.code).join("، "))}${a.miss.length>8?"…":""}. استورد لوائح التلاميذ أولا إن كانت ناقصة.</p>`:""}</div>`).join(""),modal({title:r?`استيراد ${u.length} لوائح للمنخرطين`:"استيراد لائحة المنخرطين",size:r?"":"sm",body:n,actions:[{label:"استيراد",cls:"pri",onClick:()=>{const a=[];u.forEach((i,b)=>{const f=$("#diIt"+h(b),n).value,c=$("#diNo"+h(b),n).checked,v=$("#diRep"+h(b),n).checked,x=new Set(i.hit.map(g=>g.code));let p=0,L=0;v&&o.forEach(g=>{O(T(g.lvl),f)&&M(e,g,f)&&!x.has(String(g.code||"").toUpperCase())&&H(e,g,f,!1)}),i.hit.forEach(g=>{const y=d.get(g.code);if(!O(T(y.lvl),f)){L++;return}H(e,y,f,!0,null,c&&g.no?g.no:null),p++}),a.push(`تم تسجيل ${p} تلميذ(ة) في «${(k().find(g=>g[0]===f)||[])[1]}»${L?` — ${L} لا يخصهم هذا الواجب`:""}${i.miss.length?` — ${i.miss.length} غير موجودين في بطاقة التلاميذ`:""}`)}),persist(),t(),toast(r?`${u.length} لوائح: ${a.join(" | ")}`:a[0])}},{label:"إلغاء"}]})}function $t(e,t,s){const o=t.filter(r=>O(T(r.lvl),"ins")&&M(e,r,"ins"));if(!o.length)return toast("حدد التلاميذ المؤمَّنين أولا",!0);const d=o.map(r=>M(e,r,"ins").n).filter(r=>/^\d+$/.test(String(r||""))),u=d.length?String(Math.max(...d.map(Number))+1):"",l=document.createElement("div");l.innerHTML=`<p style="margin:0 0 8px;line-height:1.9">سيتم ترقيم وصولات <b>${o.length}</b> تلميذ(ة) مؤمَّن(ة) ترقيما متتابعا حسب ترتيب اللائحة (القسم ثم الاسم).</p>
+      <div class="fld"><label>رقم الوصل الأول</label><input class="inp" id="dnS" dir="ltr" value="${m(u)}" placeholder="5094442"></div>
+      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" id="dnAll"><span>إعادة ترقيم الجميع (وإلا يُرقَّم من لا رقم له فقط، مع تجاوز الأرقام المستعملة)</span></label>`,modal({title:"ترقيم وصولات التأمين",size:"sm",body:l,actions:[{label:"ترقيم",cls:"pri",onClick:()=>{const r=$("#dnS",l).value.trim();if(!/^\d+$/.test(r))return toast("أدخل رقما صحيحا للوصل الأول",!0),!1;const h=$("#dnAll",l).checked,n=r.length,a=new Set(h?[]:d.map(String));let i=+r,b=0;o.forEach(f=>{const c=M(e,f,"ins");if(!(!h&&c.n)){for(;a.has(String(i).padStart(n,"0"));)i++;c.n=String(i).padStart(n,"0"),a.add(c.n),i++,b++}}),persist(),s(),toast(`تم ترقيم ${b} وصل(ا) تباعا`)}},{label:"إلغاء"}]})}async function bt(e,t){const s=[["ر.ت","الوحدة المدرسية","القسم","رمز مسار","النسب","الاسم"].concat(k().map(([,d])=>d+" (المبلغ)"),["رقم وصل التأمين"])];t.forEach((d,u)=>s.push([u+1,d.unit||"",d.cls||"",d.code||"",d.last||"",d.first||""].concat(k().map(([l])=>{if(!O(T(d.lvl),l))return"";const r=M(e,d,l);return r?+r.a||0:""}),[(M(e,d,"ins")||{}).n||""])));const o=await window.api.saveXlsx(s,`الاشتراكات_${MK.syDash(e)}.xlsx`,"الاشتراكات");o&&o.ok&&toast("تم التصدير إلى Excel")}const ft=[["gen","مداخيل التسجيل (الحصيلة العامة)"],["vir","التحويلات المالية"],["sum","حصيلة حسب الأقسام"],["list","لائحة المنخرطين / المؤدين"],["miss","لائحة غير المؤدين"],["rcpt","وصولات الأداء"]];function gt(e,t){const s=t.sy,o=U(s).filter(p=>(!t.unit||K.U.same(p.unit,t.unit))&&(!t.cls||p.cls===t.cls)&&(!t.stage||T(p.lvl)===t.stage)),d=t.item,u=(k().find(p=>p[0]===d)||k()[0])[1],l=`الموسم الدراسي ${m(MK.syDash(s).replace("-","/"))}${t.unit?" — "+m(t.unit):""}${t.cls?" — القسم "+m(t.cls):""}`,r=o.filter(p=>O(T(p.lvl),d)),h=z(s),n=p=>G(s,p);if(t.kind==="gen"){const p=V(s,o),L=K.LV.sort(Array.from(new Set(o.map(E=>E.lvl).filter(Boolean)))),g=k().map(([E,A],B)=>{const w=p[E]||{n:0,tot:0,sum:0},N=n(E);return I([B+1,{t:A,c:"b r"},w.tot,w.n,w.tot-w.n,`${w.tot?Math.round(w.n/w.tot*100):0}%`,{t:j(w.sum),c:"nw b"},{t:j(N),c:"nw"},{t:j(w.sum-N),c:"nw b"}])}),y=k().reduce((E,[A])=>{const B=p[A]||{sum:0};return E.s+=B.sum,E.v+=n(A),E},{s:0,v:0});g.push(I([{t:"المجموع",c:"d",s:6},{t:j(y.s),c:"nw"},{t:j(y.v),c:"nw"},{t:j(y.s-y.v),c:"nw"}]));const C=L.map(E=>{const A=o.filter(B=>B.lvl===E);return I([{t:K.LV.ar(E),c:"b r"},A.length].concat(k().map(([B])=>{if(!O(T(E),B))return"—";const w=A.filter(N=>M(s,N,B));return`${w.length} — ${j(w.reduce((N,vt)=>N+(+M(s,vt,B).a||0),0))}`})))});return P.pages(e,{title:"مداخيل التسجيل",sub:l,page:"a4",blocks:[P.tbl(R(["ر.ت","المساهمة","المعنيون","المؤدون","غير المؤدين","نسبة الأداء","المحصل (د)","المحول (د)","الباقي (د)"].map(E=>({t:E,c:"d"}))),g,"big"),P.cap("التوزيع حسب المستوى (عدد المؤدين — المبلغ بالدرهم)"),P.tbl(R(["المستوى","التلاميذ"].concat(k().map(E=>E[1])).map(E=>({t:E,c:"d"}))),C.length?C:[I([""])],"cmp")]})}if(t.kind==="vir"){const p=V(s,U(s)),L=k().filter(([y])=>!t.item||t.item==="*"||y===t.item),g=[];return L.forEach(([y,C])=>{const E=p[y]||{sum:0},A=Q(s,y),B=A.map(w=>{const N=Math.round(E.sum*(+w.pct||0))/100;return I([{t:w.who,c:"b r"},`${+w.pct||0}%`,{t:j(N),c:"nw"},w.d?Z(w.d):"",{t:+w.a?j(w.a):"",c:"nw b"},{t:w.rib||"",c:"ltr sm"},{t:w.ref||"",c:"ltr sm"}])});B.push(I([{t:"المجموع",c:"b"},`${A.reduce((w,N)=>w+(+N.pct||0),0)}%`,{t:j(E.sum*A.reduce((w,N)=>w+(+N.pct||0),0)/100),c:"nw"},"",{t:j(G(s,y)),c:"nw b"},{t:`الباقي: ${j(E.sum-G(s,y))} د`,s:2}],"tot")),g.push({html:`<div class="sb-cap r" style="margin-top:3mm">المداخيل: ${m(C)} — المبلغ المستخلص: ${j(E.sum)} درهم</div>`,keepNext:!0},P.tbl(R(["المؤسسة","النسبة","المبلغ المخصص (د)","تاريخ التحويل","مبلغ التحويل (د)","حساب التحويل","المرجع"].map(w=>({t:w,c:"d"}))),B,"cmp"))}),P.pages(e,{title:"التحويلات المالية",sub:`الموسم الدراسي ${m(MK.syDash(s).replace("-","/"))}`,page:"a4l",blocks:g})}if(t.kind==="rcpt"){const p=o.filter(y=>k().some(([C])=>M(s,y,C))),L=y=>{const C=k().filter(([A])=>M(s,y,A)),E=C.reduce((A,[B])=>A+(+M(s,y,B).a||0),0);return`<div class="ds-rc"><div class="ds-rc-h"><b>وصل أداء المساهمات</b><span>${m(e.school||"")} — ${m(MK.syDash(s).replace("-","/"))}</span></div>
+          <div class="ds-rc-g"><div>التلميذ(ة): <b>${m(X(y))}</b></div><div>رمز مسار: <b dir="ltr">${m(y.code||"")}</b></div><div>القسم: <b dir="ltr">${m(y.cls||"")}</b></div><div>المستوى: <b>${m(K.LV.ar(y.lvl))}</b></div></div>
+          <table class="sb-t cmp"><thead>${R(["المساهمة","المبلغ (د)","التاريخ","رقم الوصل"])}</thead><tbody>${C.map(([A,B])=>{const w=M(s,y,A);return I([{t:B,c:"r"},{t:j(w.a),c:"nw"},w.d?Z(w.d):"",{t:w.n||"",c:"ltr"}])}).join("")}${I([{t:"المجموع",c:"b"},{t:j(E),c:"nw b"},"",""])}</tbody></table>
+          <div class="ds-rc-s"><span>توقيع المستلم(ة)</span><span>خاتم المؤسسة</span></div></div>`},g=[];for(let y=0;y<Math.max(1,p.length);y+=4)g.push(`<div class="ds-rcs">${p.slice(y,y+4).map(L).join("")}</div>`);return g}if(t.kind==="sum"){const p=new Map;r.forEach(y=>{const C=y.cls||"—";(p.get(C)||p.set(C,[]).get(C)).push(y)});const L=[],g={n:0,a:0,m:0};return Array.from(p.keys()).sort((y,C)=>y.localeCompare(C,"fr",{numeric:!0})).forEach((y,C)=>{const E=p.get(y),A=E.filter(w=>M(s,w,d)),B=A.reduce((w,N)=>w+(+M(s,N,d).a||0),0);g.n+=E.length,g.a+=A.length,g.m+=B,L.push(I([C+1,{t:y,c:"b"},E.length,A.length,E.length-A.length,{t:j(B),c:"nw"}]))}),L.push(I([{t:"المجموع",c:"d",span:2},g.n,g.a,g.n-g.a,j(g.m)])),P.pages(e,{title:`حصيلة ${u}`,sub:l,page:"a4",blocks:[P.tbl(R(["ر.ت","القسم","عدد التلاميذ","المؤدون","غير المؤدين","المبلغ (درهم)"].map(y=>({t:y,c:"d"}))),L,"big")]})}const a=r.filter(p=>!!M(s,p,d)==(t.kind==="list")),i=t.kind==="list"&&d==="ins"&&a.some(p=>(M(s,p,d)||{}).n),b=R(["ر.ت","رمز مسار","الاسم والنسب","القسم"].concat(t.kind==="list"?(i?["رقم الوصل"]:[]).concat(["المبلغ","تاريخ الأداء"]):["ملاحظات"]).map(p=>({t:p,c:"d"}))),f=a.map((p,L)=>{const g=M(s,p,d);return I([L+1,{t:p.code||"",c:"ltr sm"},{t:X(p),c:"b r"},{t:p.cls||"",c:"ltr"}].concat(t.kind==="list"?(i?[{t:g.n||"",c:"ltr"}]:[]).concat([{t:j(g.a),c:"nw"},g.d?Z(g.d):""]):[""]))}),c=t.kind==="list"?a.reduce((p,L)=>p+(+M(s,L,d).a||0),0):0,v=t.kind==="list"?`لائحة ${d==="coop"?"المنخرطين في التعاونية المدرسية":d==="sport"?"المنخرطين في الجمعية الرياضية المدرسية":"التلاميذ المؤمَّنين"}`:`لائحة التلاميذ غير المؤدين: ${u}`,x=`<p class="sb-p">العدد: <b>${a.length}</b>${t.kind==="list"?` — مجموع المبالغ: <b>${j(c)}</b> درهم`:""}</p>`;return P.pages(e,{title:v,sub:l,page:"a4",blocks:[x,P.tbl(b,f.length?f:[I(["","","","","",""].slice(0,5))],"big")]})}window.pageDuesDoc=function(e,t){Y(DB);const s=D.sy||MK.curSy();MK.docPage(e,{title:"مخرجات الاشتراكات والتسجيل",icon:"🧾",modes:!1,word:!0,state:{sy:s,item:"ins",kind:t&&t.kind||"gen",unit:"",cls:"",stage:""},back:()=>go("dues"),form:function o(d,u,l){const r=U(u.sy),h=Array.from(new Set(r.map(i=>i.unit).filter(Boolean))),n=Array.from(new Set(r.map(i=>i.cls).filter(Boolean))),a=(i,b,f,c)=>`<div class="fld"><label>${b}</label><select class="inp" id="${i}">${f.map(([v,x])=>`<option value="${m(v)}" ${v===c?"selected":""}>${m(x)}</option>`).join("")}</select></div>`;d.innerHTML=a("dd2","الوثيقة",ft,u.kind)+(["gen","rcpt"].includes(u.kind)?"":a("dd1","المساهمة",(u.kind==="vir"?[["*","كل المساهمات"]]:[]).concat(k()),u.item))+a("dd3","السلك",[["","كل الأسلاك"]].concat(F),u.stage)+(h.length>1?a("dd4","الوحدة المدرسية",[["","كل الوحدات"]].concat(h.map(i=>[i,i])),u.unit):"")+a("dd5","القسم",[["","كل الأقسام"]].concat(n.map(i=>[i,i])),u.cls),[["dd1","item"],["dd2","kind",!0],["dd3","stage"],["dd4","unit"],["dd5","cls"]].forEach(([i,b,f])=>{const c=$("#"+i,d);c&&(c.onchange=v=>{u[b]=v.target.value,b==="kind"&&u.kind!=="vir"&&u.item==="*"&&(u.item="ins"),f&&o(d,u,l),l()})})},build:o=>({page:o.kind==="vir"?"a4l":"a4",pages:gt(S(),o)}),fname:o=>"لائحة_"+(k().find(d=>d[0]===o.item)||k()[0])[1].replace(/\s+/g,"_")})},tt.modCss+=`
   .ds-rcs{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:128mm;gap:5mm}.ds-rc{border:1.4px solid #1f3864;border-radius:3mm;padding:3mm;font-size:10pt;line-height:1.6;display:flex;flex-direction:column}
   .ds-rc-h{display:flex;flex-direction:column;align-items:center;border-bottom:1px solid #4472c4;margin-bottom:2mm;color:#1f3864}.ds-rc-h b{font-size:14pt}.ds-rc-g{display:grid;grid-template-columns:1fr 1fr;gap:0 3mm;margin-bottom:2mm}
-  .ds-rc-s{display:flex;justify-content:space-between;margin-top:auto;font-weight:700;min-height:18mm}`;
-  { const c = document.createElement('style'); c.textContent = '.ds-n{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;background:var(--sec,#7a4a1e);color:#fff;font-size:11px;margin-inline-end:4px}'; document.head.appendChild(c); }
-  window.Dues = { tab: () => st.tab || 'pay', migrate, rate, rateL, paid, setPaid, stats, STG_OF, items: () => ITEMS_() };
-})();
+  .ds-rc-s{display:flex;justify-content:space-between;margin-top:auto;font-weight:700;min-height:18mm}`;{const e=document.createElement("style");e.textContent=".ds-n{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;background:var(--sec,#7a4a1e);color:#fff;font-size:11px;margin-inline-end:4px}",document.head.appendChild(e)}window.Dues={tab:()=>D.tab||"pay",migrate:Y,rate:J,rateL:W,paid:M,setPaid:H,stats:V,STG_OF:T,items:()=>k()}})();

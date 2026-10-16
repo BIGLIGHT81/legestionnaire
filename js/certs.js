@@ -1,591 +1,95 @@
-'use strict';
-/* الشواهد المدرسية — register of former (or current) pupils, numbered school certificates (2 copies on one A4),
-   register of delivered certificates, Excel import / export. */
-(function () {
-  const Dx = window.Docs;
-  const { esc, fmtDate } = Dx;
-  const today = () => Dx.todayIso();
-
-  /* levels follow the cycle chosen in the settings (K.LV = Massar levels):
-     primary -> روض الأطفال / الأولى والثانية أولي / الأول … السادس ابتدائي;  collège -> الأولى والثانية والثالثة إعدادي;
-     qualifying -> الجذع المشترك / الأولى باكالوريا / الثانية باكالوريا (+ المسلك أو الشعبة), then the collège levels
-     (many qualifying schools keep a collège section).  The field stays free text for older files. */
-  const LV = () => window.K.LV;
-  const kindNow = () => (window.Cyc ? Cyc.kind() : 'pri');
-  const cycleKeys = kind => (window.Cyc ? Cyc.levels(kind) : ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
-  const levelsFor = kind => {
-    if (!/^(pri|col|lyc)$/.test(kind || '')) kind = /تأهيل/.test(kind || '') ? 'lyc' : /إعداد/.test(kind || '') ? 'col' : 'pri';
-    // a lycée also delivers certificates for the collège years of its former pupils (their own names, not mapped to the cycle)
-    return Array.from(new Set(cycleKeys(kind).map(k => LV().name(k)).concat(kind === 'lyc' ? cycleKeys('col').map(k => ((window.K && K.LV.byK(k)) || {}).ar || LV().name(k)) : [])));
-  };
-  // key of a level text typed / imported («الثانية باكالوريا», «الأول ابتدائي»...), '' when free text
-  const lvKey = t => { try { const s = LV().splitLabel(t); if (s) return s.k; return LV().fromLabel(t); } catch (e) { return ''; } };
-  const lvRank = t => { const k = lvKey(t); return k ? LV().idx(k) : 99; };
-  const cmpLv = (a, b) => lvRank(a) - lvRank(b) || String(a).localeCompare(String(b), 'ar');
-  // level + number between brackets + pathway, as written in the certificate
-  const lvFull = (x, withNo) => {
-    const lv = String((x && x.level) || '').trim(); if (!lv) return '';
-    const k = lvKey(lv), n = withNo ? levelNo(lv) : '', br = String((x && x.branch) || '').trim();
-    let t = lv + (n ? ` (${n})` : '');
-    if (br) t += k === 'TC' ? ` ${br}` : ` — ${k === 'B1' || k === 'B2' ? 'مسلك ' : ''}${br}`;
-    return t;
-  };
-  const showBranchNow = () => kindNow() === 'lyc';
-  const lvExample = () => { const k = kindNow(); return k === 'lyc' ? 'الثانية باكالوريا (02)' : k === 'col' ? 'الثالثة إعدادي (03)' : 'الخامس ابتدائي (05)'; };
-  // a typed or imported level may carry its pathway («الثانية باكالوريا علوم رياضية», «2BACSVT»): split it
-  const normLevel = o => {
-    if (!o || !o.level) return o;
-    const s = LV().splitLabel(o.level);
-    if (s) { o.level = s.level; if (s.branch && !o.branch) o.branch = s.branch; }
-    return o;
-  };
-  const YEARS = (() => { const y = +MK.schoolYear(today()).slice(0, 4); const a = []; for (let i = y; i >= 1960; i--) a.push(`${i}/${i + 1}`); return a; })();
-  const KIND = { left: 'غادر المؤسسة (منقطع / منتقل)', current: 'يتابع دراسته حاليا بالمؤسسة' };
-
-  function migrate(db) {
-    const c = db.certs = db.certs || {};
-    c.students = Array.isArray(c.students) ? c.students : [];
-    c.issued = Array.isArray(c.issued) ? c.issued : [];
-    if (!c.purpose) c.purpose = 'لأغراض إدارية';
-    // 1.8: the school's own model («أنا الموقع أسفله ... أشهد بأن») becomes the default certificate
-    if (!c.v2) { if (c.purpose === 'لغرض إداري') c.purpose = 'لأغراض إدارية'; if (!c.model) c.model = 'attest'; c.v2 = true; }
-    if (!c.model) c.model = 'attest';
-  }
-  window.Certs = { migrate };
-  const CD = () => DB.certs;
-  const stById = id => CD().students.find(x => x.id === id);
-  const key = s => MK.hkey(s);
-  const showD = v => MK.showDate(v);
-  // dates typed or imported: ISO when recognisable, otherwise kept as typed (e.g. "1985" or "1985-1986")
-  const cleanDate = v => { v = String(v == null ? '' : v).trim(); if (!v) return ''; const d = normDate(v); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : v; };
-  const cleanSY = v => { v = String(v == null ? '' : v).trim().replace(/\s+/g, ''); const m = /^(\d{4})[/\-](\d{4})$/.exec(v); if (m) { const a = +m[1], b = +m[2]; return a < b ? `${a}/${b}` : `${b}/${a}`; } return v === '/' ? '' : v; };
-  const gender = g => /^(أنثى|انثى|انثي|أنثي|f|fille|féminin|feminin|ث)$/i.test(String(g || '').trim()) ? 'أنثى' : /^(ذكر|m|garçon|garcon|masculin|ذ)$/i.test(String(g || '').trim()) ? 'ذكر' : '';
-  const certNo = r => r && r.no ? `${MK.pad2(r.no)}/${String(r.year || '').slice(-2)}` : '';
-  const nextNo = year => CD().issued.filter(r => +r.year === +year).reduce((m, r) => Math.max(m, +r.no || 0), 0) + 1;
-  const issuedOf = id => CD().issued.filter(r => r.studentId === id);
-  const sortedStudents = () => CD().students.slice().sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-
-  /* ================================================================= */
-  let tab = 'students';
-  const flt = { q: '', unit: '', level: '', year: '', iq: '' };
-  const SECC = () => !!(window.Cyc && Cyc.single());            // collège / lycée: one institution, no school units
-  const autoSync = () => { try { if (window.Pupils && Pupils.toCerts) Pupils.toCerts(MK.curSy(), true); } catch (e) {} };
-  window.pageCerts = function (v, arg) {
-    migrate(DB); autoSync();
-    if (arg && arg.tab) tab = arg.tab;
-    const T = [['students', 'سجل التلاميذ'], ['issued', 'الشواهد المسلمة']];
-    v.innerHTML = `<div class="page-h"><h1>الشواهد المدرسية (ملفات الأرشيف)</h1><span class="sub">${CD().students.length} تلميذ(ة) — ${CD().issued.length} شهادة مسلمة</span><span class="sp"></span>
-        <button class="btn" id="cAdd">${ic('plus')} إضافة تلميذ(ة)</button>
-        <button class="btn pri" id="cNew">${ic('cap')} شهادة مدرسية</button></div>
-      <div class="mk-tabs"><div class="seg" id="cTabs">${T.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-      <div id="cBody"></div>`;
-    $$('#cTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; go('certs'); });
-    $('#cAdd').onclick = () => studentForm(null, () => go('certs', { tab: 'students' }));
-    $('#cNew').onclick = () => go('certDoc', { kind: 'cert' });
-    (tab === 'issued' ? tabIssued : tabStudents)($('#cBody'));
-  };
-
-  function tabStudents(b) {
-    const units = SECC() ? [] : Array.from(new Set(CD().students.map(x => x.unit).filter(Boolean))).sort((x, y) => x.localeCompare(y, 'ar'));
-    const levels = Array.from(new Set(CD().students.map(x => x.level).filter(Boolean))).sort(cmpLv);
-    b.innerHTML = `<div class="card"><div class="toolbar">
-        <div class="search">${ic('search')}<input class="inp" id="sq" placeholder="بحث بالاسم أو رقم التسجيل أو مكان الازدياد..." value="${esc(flt.q)}"></div>
-        ${units.length ? `<select class="inp" id="su" style="width:auto"><option value="">كل الوحدات المدرسية</option>${units.map(u => `<option ${flt.unit === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>` : ''}
-        ${levels.length ? `<select class="inp" id="sl" style="width:auto"><option value="">كل المستويات</option>${levels.map(u => `<option ${flt.level === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>` : ''}
+"use strict";(function(){const B=window.Docs,{esc:c,fmtDate:Y}=B,R=()=>B.todayIso(),P=()=>window.K.LV,V=()=>window.Cyc?Cyc.kind():"pri",oe=t=>window.Cyc?Cyc.levels(t):["P1","P2","P3","P4","P5","P6"],we=t=>(/^(pri|col|lyc)$/.test(t||"")||(t=/تأهيل/.test(t||"")?"lyc":/إعداد/.test(t||"")?"col":"pri"),Array.from(new Set(oe(t).map(e=>P().name(e)).concat(t==="lyc"?oe("col").map(e=>(window.K&&K.LV.byK(e)||{}).ar||P().name(e)):[])))),O=t=>{try{const e=P().splitLabel(t);return e?e.k:P().fromLabel(t)}catch{return""}},le=t=>{const e=O(t);return e?P().idx(e):99},ce=(t,e)=>le(t)-le(e)||String(t).localeCompare(String(e),"ar"),A=(t,e)=>{const a=String(t&&t.level||"").trim();if(!a)return"";const o=O(a),d=e?Be(a):"",r=String(t&&t.branch||"").trim();let l=a+(d?` (${d})`:"");return r&&(l+=o==="TC"?` ${r}`:` — ${o==="B1"||o==="B2"?"مسلك ":""}${r}`),l},W=()=>V()==="lyc",ye=()=>{const t=V();return t==="lyc"?"الثانية باكالوريا (02)":t==="col"?"الثالثة إعدادي (03)":"الخامس ابتدائي (05)"},X=t=>{if(!t||!t.level)return t;const e=P().splitLabel(t.level);return e&&(t.level=e.level,e.branch&&!t.branch&&(t.branch=e.branch)),t},de=(()=>{const t=+MK.schoolYear(R()).slice(0,4),e=[];for(let a=t;a>=1960;a--)e.push(`${a}/${a+1}`);return e})(),re={left:"غادر المؤسسة (منقطع / منتقل)",current:"يتابع دراسته حاليا بالمؤسسة"};function z(t){const e=t.certs=t.certs||{};e.students=Array.isArray(e.students)?e.students:[],e.issued=Array.isArray(e.issued)?e.issued:[],e.purpose||(e.purpose="لأغراض إدارية"),e.v2||(e.purpose==="لغرض إداري"&&(e.purpose="لأغراض إدارية"),e.model||(e.model="attest"),e.v2=!0),e.model||(e.model="attest")}window.Certs={migrate:z};const v=()=>DB.certs,j=t=>v().students.find(e=>e.id===t),F=t=>MK.hkey(t),D=t=>MK.showDate(t),M=t=>{if(t=String(t??"").trim(),!t)return"";const e=normDate(t);return/^\d{4}-\d{2}-\d{2}$/.test(e)?e:t},ue=t=>{t=String(t??"").trim().replace(/\s+/g,"");const e=/^(\d{4})[/\-](\d{4})$/.exec(t);if(e){const a=+e[1],o=+e[2];return a<o?`${a}/${o}`:`${o}/${a}`}return t==="/"?"":t},ke=t=>/^(أنثى|انثى|انثي|أنثي|f|fille|féminin|feminin|ث)$/i.test(String(t||"").trim())?"أنثى":/^(ذكر|m|garçon|garcon|masculin|ذ)$/i.test(String(t||"").trim())?"ذكر":"",C=t=>t&&t.no?`${MK.pad2(t.no)}/${String(t.year||"").slice(-2)}`:"",J=t=>v().issued.filter(e=>+e.year==+t).reduce((e,a)=>Math.max(e,+a.no||0),0)+1,pe=t=>v().issued.filter(e=>e.studentId===t),q=()=>v().students.slice().sort((t,e)=>t.name.localeCompare(e.name,"ar"));let _="students";const y={q:"",unit:"",level:"",year:"",iq:""},k=()=>!!(window.Cyc&&Cyc.single()),he=()=>{try{window.Pupils&&Pupils.toCerts&&Pupils.toCerts(MK.curSy(),!0)}catch{}};window.pageCerts=function(t,e){z(DB),he(),e&&e.tab&&(_=e.tab);const a=[["students","سجل التلاميذ"],["issued","الشواهد المسلمة"]];t.innerHTML=`<div class="page-h"><h1>الشواهد المدرسية (ملفات الأرشيف)</h1><span class="sub">${v().students.length} تلميذ(ة) — ${v().issued.length} شهادة مسلمة</span><span class="sp"></span>
+        <button class="btn" id="cAdd">${ic("plus")} إضافة تلميذ(ة)</button>
+        <button class="btn pri" id="cNew">${ic("cap")} شهادة مدرسية</button></div>
+      <div class="mk-tabs"><div class="seg" id="cTabs">${a.map(([o,d])=>`<button data-t="${o}" class="${_===o?"on":""}">${d}</button>`).join("")}</div></div>
+      <div id="cBody"></div>`,$$("#cTabs button").forEach(o=>o.onclick=()=>{_=o.dataset.t,go("certs")}),$("#cAdd").onclick=()=>U(null,()=>go("certs",{tab:"students"})),$("#cNew").onclick=()=>go("certDoc",{kind:"cert"}),(_==="issued"?Ne:Se)($("#cBody"))};function Se(t){const e=k()?[]:Array.from(new Set(v().students.map(d=>d.unit).filter(Boolean))).sort((d,r)=>d.localeCompare(r,"ar")),a=Array.from(new Set(v().students.map(d=>d.level).filter(Boolean))).sort(ce);t.innerHTML=`<div class="card"><div class="toolbar">
+        <div class="search">${ic("search")}<input class="inp" id="sq" placeholder="بحث بالاسم أو رقم التسجيل أو مكان الازدياد..." value="${c(y.q)}"></div>
+        ${e.length?`<select class="inp" id="su" style="width:auto"><option value="">كل الوحدات المدرسية</option>${e.map(d=>`<option ${y.unit===d?"selected":""}>${c(d)}</option>`).join("")}</select>`:""}
+        ${a.length?`<select class="inp" id="sl" style="width:auto"><option value="">كل المستويات</option>${a.map(d=>`<option ${y.level===d?"selected":""}>${c(d)}</option>`).join("")}</select>`:""}
         <span style="flex:1"></span>
-        <button class="btn sm" id="sTpl" title="نموذج Excel فارغ يملأ ثم يستورد">${ic('down')} نموذج الاستيراد</button>
-        <button class="btn sm" id="sImp">${ic('up')} استيراد Excel</button>
-        <button class="btn sm" id="sExp">${ic('down')} تصدير Excel</button>
-        <button class="btn sm" id="sPrn">${ic('print')} طباعة اللائحة</button></div>
+        <button class="btn sm" id="sTpl" title="نموذج Excel فارغ يملأ ثم يستورد">${ic("down")} نموذج الاستيراد</button>
+        <button class="btn sm" id="sImp">${ic("up")} استيراد Excel</button>
+        <button class="btn sm" id="sExp">${ic("down")} تصدير Excel</button>
+        <button class="btn sm" id="sPrn">${ic("print")} طباعة اللائحة</button></div>
       <div id="sT"></div></div>
-      <p class="muted" style="font-size:12.5px;margin-top:10px">الاستيراد والتصدير يعتمدان «لائحة التلاميذ» (${SECC() ? 'ورقة واحدة' : 'ورقة لكل وحدة مدرسية'}): ر.ت، الاسم الكامل باللغة العربية، الاسم الكامل باللغة الفرنسية، الجنس، تاريخ الازدياد، مكان الازدياد، رقم التسجيل، تاريخ الإلتحاق، أخر مستوى دراسي، الموسم الدراسي، تاريخ المغادرة أو الانقطاع،${SECC() ? '' : ' الوحدة المدرسية،'} رقم الحالة المدنية. يقبل أيضا ملف برنامج الشواهد القديم (xlsb) مع سجل الشواهد المسلمة.</p>`;
-    const draw = () => {
-      const qq = key(flt.q);
-      const list = sortedStudents().filter(x => (!flt.unit || x.unit === flt.unit) && (!flt.level || x.level === flt.level)
-        && (!qq || key([x.name, x.nameFr, x.regNo, x.birthPlace, x.code, x.civilNo].join(' ')).includes(qq)));
-      $('#sT').innerHTML = list.length ? `<table class="tbl compact"><thead><tr><th style="width:40px">#</th><th>الاسم والنسب</th><th>تاريخ ومكان الازدياد</th><th>آخر مستوى</th><th>رقم التسجيل</th><th>الموسم الدراسي</th><th>تاريخ المغادرة</th>${SECC() ? '' : '<th>الوحدة</th>'}<th></th></tr></thead><tbody>
-        ${list.map((x, i) => { const n = issuedOf(x.id).length; return `<tr data-id="${x.id}"><td class="muted num">${i + 1}</td>
-          <td class="name-cell"><b>${esc(x.name)}</b><small>${x.nameFr ? `<span dir="ltr">${esc(x.nameFr)}</span> — ` : ''}${esc(x.gender || '')}${x.status === 'current' ? ' — متمدرس(ة)' : ''}${n ? ` — ${n} شهادة` : ''}</small></td>
-          <td><span class="num nw">${esc(showD(x.birth))}</span><br><small class="muted">${esc(x.birthPlace || '')}</small></td><td class="${x.branch ? '' : 'nw'}">${esc(lvFull(x))}</td><td class="num">${esc(x.regNo || '')}</td>
-          <td class="num nw">${esc(x.schoolYear || '')}</td><td class="num nw">${esc(showD(x.leaveDate))}</td>${SECC() ? '' : `<td class="muted">${esc(x.unit || '')}</td>`}
-          <td class="act"><button class="btn sm pri" data-a="cert">${ic('print')} شهادة</button> <button class="btn sm" data-a="edit">${ic('edit')}</button> <button class="btn sm danger icon" data-a="del">${ic('trash')}</button></td></tr>`; }).join('')}
-        </tbody></table>` : `<div class="empty-state">${CD().students.length ? 'لا توجد نتائج مطابقة' : 'لا يوجد تلاميذ بعد. أضف تلميذا أو استورد لائحة من Excel.'}</div>`;
-      $$('#sT tr[data-id]').forEach(tr => {
-        const x = stById(tr.dataset.id);
-        $$('[data-a]', tr).forEach(btn => btn.onclick = async ev => {
-          ev.stopPropagation();
-          if (btn.dataset.a === 'cert') go('certDoc', { kind: 'cert', studentId: x.id });
-          if (btn.dataset.a === 'edit') studentForm(x, draw);
-          if (btn.dataset.a === 'del') {
-            const n = issuedOf(x.id).length;
-            if (!await confirmBox(`حذف التلميذ(ة) <b>${esc(x.name)}</b> من السجل؟${n ? `<br><span class="muted">تبقى الشواهد المسلمة له (${n}) في سجل الشواهد.</span>` : ''}`, 'حذف')) return;
-            if (x.code) { DB.certs.skip = DB.certs.skip || []; if (!DB.certs.skip.includes(x.code)) DB.certs.skip.push(x.code); }
-            CD().students = CD().students.filter(y => y.id !== x.id); persist(); draw();
-          }
-        });
-        tr.ondblclick = () => go('certDoc', { kind: 'cert', studentId: x.id });
-      });
-    };
-    $('#sq').oninput = e => { flt.q = e.target.value; draw(); };
-    if ($('#su')) $('#su').onchange = e => { flt.unit = e.target.value; draw(); };
-    if ($('#sl')) $('#sl').onchange = e => { flt.level = e.target.value; draw(); };
-    $('#sTpl').onclick = downloadTemplate;
-    $('#sImp').onclick = importStudents;
-    $('#sExp').onclick = exportStudents;
-    $('#sPrn').onclick = () => go('certDoc', { kind: 'students', unit: flt.unit, level: flt.level });
-    draw();
-  }
-
-  function tabIssued(b) {
-    const years = Array.from(new Set(CD().issued.map(r => String(r.year)).filter(Boolean))).sort().reverse();
-    b.innerHTML = `<div class="card"><div class="toolbar">
-        <select class="inp" id="iy" style="width:auto"><option value="">كل السنوات</option>${years.map(y => `<option ${flt.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
-        <div class="search">${ic('search')}<input class="inp" id="iq" placeholder="بحث بالاسم أو الرقم..." value="${esc(flt.iq)}"></div>
+      <p class="muted" style="font-size:12.5px;margin-top:10px">الاستيراد والتصدير يعتمدان «لائحة التلاميذ» (${k()?"ورقة واحدة":"ورقة لكل وحدة مدرسية"}): ر.ت، الاسم الكامل باللغة العربية، الاسم الكامل باللغة الفرنسية، الجنس، تاريخ الازدياد، مكان الازدياد، رقم التسجيل، تاريخ الإلتحاق، أخر مستوى دراسي، الموسم الدراسي، تاريخ المغادرة أو الانقطاع،${k()?"":" الوحدة المدرسية،"} رقم الحالة المدنية. يقبل أيضا ملف برنامج الشواهد القديم (xlsb) مع سجل الشواهد المسلمة.</p>`;const o=()=>{const d=F(y.q),r=q().filter(l=>(!y.unit||l.unit===y.unit)&&(!y.level||l.level===y.level)&&(!d||F([l.name,l.nameFr,l.regNo,l.birthPlace,l.code,l.civilNo].join(" ")).includes(d)));$("#sT").innerHTML=r.length?`<table class="tbl compact"><thead><tr><th style="width:40px">#</th><th>الاسم والنسب</th><th>تاريخ ومكان الازدياد</th><th>آخر مستوى</th><th>رقم التسجيل</th><th>الموسم الدراسي</th><th>تاريخ المغادرة</th>${k()?"":"<th>الوحدة</th>"}<th></th></tr></thead><tbody>
+        ${r.map((l,p)=>{const n=pe(l.id).length;return`<tr data-id="${l.id}"><td class="muted num">${p+1}</td>
+          <td class="name-cell"><b>${c(l.name)}</b><small>${l.nameFr?`<span dir="ltr">${c(l.nameFr)}</span> — `:""}${c(l.gender||"")}${l.status==="current"?" — متمدرس(ة)":""}${n?` — ${n} شهادة`:""}</small></td>
+          <td><span class="num nw">${c(D(l.birth))}</span><br><small class="muted">${c(l.birthPlace||"")}</small></td><td class="${l.branch?"":"nw"}">${c(A(l))}</td><td class="num">${c(l.regNo||"")}</td>
+          <td class="num nw">${c(l.schoolYear||"")}</td><td class="num nw">${c(D(l.leaveDate))}</td>${k()?"":`<td class="muted">${c(l.unit||"")}</td>`}
+          <td class="act"><button class="btn sm pri" data-a="cert">${ic("print")} شهادة</button> <button class="btn sm" data-a="edit">${ic("edit")}</button> <button class="btn sm danger icon" data-a="del">${ic("trash")}</button></td></tr>`}).join("")}
+        </tbody></table>`:`<div class="empty-state">${v().students.length?"لا توجد نتائج مطابقة":"لا يوجد تلاميذ بعد. أضف تلميذا أو استورد لائحة من Excel."}</div>`,$$("#sT tr[data-id]").forEach(l=>{const p=j(l.dataset.id);$$("[data-a]",l).forEach(n=>n.onclick=async s=>{if(s.stopPropagation(),n.dataset.a==="cert"&&go("certDoc",{kind:"cert",studentId:p.id}),n.dataset.a==="edit"&&U(p,o),n.dataset.a==="del"){const m=pe(p.id).length;if(!await confirmBox(`حذف التلميذ(ة) <b>${c(p.name)}</b> من السجل؟${m?`<br><span class="muted">تبقى الشواهد المسلمة له (${m}) في سجل الشواهد.</span>`:""}`,"حذف"))return;p.code&&(DB.certs.skip=DB.certs.skip||[],DB.certs.skip.includes(p.code)||DB.certs.skip.push(p.code)),v().students=v().students.filter(u=>u.id!==p.id),persist(),o()}}),l.ondblclick=()=>go("certDoc",{kind:"cert",studentId:p.id})})};$("#sq").oninput=d=>{y.q=d.target.value,o()},$("#su")&&($("#su").onchange=d=>{y.unit=d.target.value,o()}),$("#sl")&&($("#sl").onchange=d=>{y.level=d.target.value,o()}),$("#sTpl").onclick=Fe,$("#sImp").onclick=Ee,$("#sExp").onclick=Me,$("#sPrn").onclick=()=>go("certDoc",{kind:"students",unit:y.unit,level:y.level}),o()}function Ne(t){const e=Array.from(new Set(v().issued.map(o=>String(o.year)).filter(Boolean))).sort().reverse();t.innerHTML=`<div class="card"><div class="toolbar">
+        <select class="inp" id="iy" style="width:auto"><option value="">كل السنوات</option>${e.map(o=>`<option ${y.year===o?"selected":""}>${o}</option>`).join("")}</select>
+        <div class="search">${ic("search")}<input class="inp" id="iq" placeholder="بحث بالاسم أو الرقم..." value="${c(y.iq)}"></div>
         <span style="flex:1"></span>
-        <button class="btn sm" id="iExp">${ic('down')} تصدير Excel</button>
-        <button class="btn sm" id="iPrn">${ic('print')} طباعة سجل الشواهد</button></div>
-      <div id="iT"></div></div>`;
-    const draw = () => {
-      const qq = key(flt.iq);
-      const list = CD().issued.filter(r => (!flt.year || String(r.year) === flt.year) && (!qq || key((r.snap || {}).name + ' ' + certNo(r)).includes(qq) || certNo(r).includes(flt.iq.trim())))
-        .sort((a, c) => (c.date || '').localeCompare(a.date || '') || (+c.no || 0) - (+a.no || 0));
-      $('#iT').innerHTML = list.length ? `<table class="tbl"><thead><tr><th>الرقم</th><th>تاريخ التسليم</th><th>الاسم والنسب</th><th>المستوى</th><th>الموسم الدراسي</th><th>الغرض</th><th></th></tr></thead><tbody>
-        ${list.map(r => { const sn = r.snap || {}; return `<tr data-id="${r.id}"><td class="num"><b>${esc(certNo(r)) || '—'}</b></td><td class="num">${fmtDate(r.date)}</td><td><b>${esc(sn.name || '')}</b></td>
-          <td>${esc(lvFull(sn))}</td><td class="num">${esc(sn.schoolYear || '')}</td><td class="muted">${esc(r.purpose || '')}</td>
-          <td class="act"><button class="btn sm" data-a="open">${ic('print')} فتح / طباعة</button> <button class="btn sm danger icon" data-a="del">${ic('trash')}</button></td></tr>`; }).join('')}
-        </tbody></table>` : '<div class="empty-state">لم تُسلم أي شهادة بعد</div>';
-      $$('#iT tr[data-id]').forEach(tr => {
-        const r = CD().issued.find(x => x.id === tr.dataset.id);
-        $$('[data-a]', tr).forEach(btn => btn.onclick = async () => {
-          if (btn.dataset.a === 'open') go('certDoc', { kind: 'cert', issuedId: r.id });
-          if (btn.dataset.a === 'del' && await confirmBox(`حذف الشهادة رقم <b>${esc(certNo(r))}</b> (${esc((r.snap || {}).name || '')}) من السجل؟`, 'حذف')) {
-            CD().issued = CD().issued.filter(x => x.id !== r.id); persist(); draw();
-          }
-        });
-      });
-    };
-    $('#iy').onchange = e => { flt.year = e.target.value; draw(); };
-    $('#iq').oninput = e => { flt.iq = e.target.value; draw(); };
-    $('#iExp').onclick = exportIssued;
-    $('#iPrn').onclick = () => go('certDoc', { kind: 'issuedReg', year: flt.year });
-    draw();
-  }
-
-  /* ---------- student form ---------- */
-  const SFIELDS = [['name', 'الاسم الكامل باللغة العربية', true], ['nameFr', 'الاسم الكامل باللغة الفرنسية'], ['father', 'اسم الأب (من أبيه/ها)'], ['gender', 'الجنس'], ['status', 'الوضعية'], ['birth', 'تاريخ الازدياد'], ['birthPlace', 'مكان الازدياد'],
-    ['regNo', 'رقم التسجيل'], ['joinDate', 'تاريخ الالتحاق'], ['level', 'آخر مستوى دراسي'], ['branch', 'المسلك / الشعبة (الجذع المشترك، الباكالوريا)'], ['schoolYear', 'الموسم الدراسي'], ['leaveDate', 'تاريخ المغادرة أو الانقطاع'], ['unit', 'الوحدة المدرسية'],
-    ['civilNo', 'رقم الحالة المدنية'], ['code', 'رمز مسار (اختياري)'], ['note', 'ملاحظة', false, 'full']];
-  // columns of the school's pupils list (import / export / template)
-  const LIST_BASE = [['n', 'ر.ت'], ['name', 'الاسم الكامل باللغة العربية'], ['nameFr', 'الاسم الكامل باللغة الفرنسية'], ['gender', 'الجنس'], ['birth', 'تاريخ الازدياد'], ['birthPlace', 'مكان الازدياد'],
-    ['regNo', 'رقم التسجيل'], ['joinDate', 'تاريخ الإلتحاق'], ['level', 'أخر مستوى دراسي'], ['schoolYear', 'الموسم الدراسي'], ['leaveDate', 'تاريخ المغادرة أو الانقطاع'], ['unit', 'الوحدة المدرسية'], ['civilNo', 'رقم الحالة المدنية'], ['father', 'اسم الأب']];
-  const LIST_BASE_W = [6, 28, 28, 8, 16, 22, 12, 16, 18, 16, 18, 20, 16, 22];
-  // qualifying cycle (or a register that already has pathways): one more column after the level
-  const withBranch = () => showBranchNow() || CD().students.some(x => x.branch);
-  const listAll = () => withBranch() ? LIST_BASE.slice(0, 9).concat([['branch', 'المسلك / الشعبة']], LIST_BASE.slice(9)) : LIST_BASE;
-  const listWAll = () => withBranch() ? LIST_BASE_W.slice(0, 9).concat([22], LIST_BASE_W.slice(9)) : LIST_BASE_W;
-  const listCols = () => SECC() ? listAll().filter(c => c[0] !== 'unit') : listAll();
-  const listW = () => { const all = listAll(), w = listWAll(); return SECC() ? w.filter((x, i) => all[i] && all[i][0] !== 'unit') : w; };
-  const DATE_K = ['birth', 'joinDate', 'leaveDate'];
-  const listRow = (x, i) => listCols().map(([k]) => k === 'n' ? String(i + 1) : DATE_K.includes(k) ? showD(x[k]) : String(x[k] == null ? '' : x[k]));
-  // suggestions of the pathway for the typed level (common core, 1st / 2nd baccalaureate)
-  const branchOpts = lv => { const k = lvKey(lv), L = k && LV().BRANCHES[k] ? LV().BRANCHES[k] : Array.from(new Set([].concat(...Object.values(LV().BRANCHES)))); return L.map(o => `<option value="${esc(o)}">`).join(''); };
-  function studentForm(x, after) {
-    const d = Object.assign({ gender: '', status: 'left' }, x || {});
-    const units = Array.from(new Set(CD().students.map(y => y.unit).filter(Boolean)));
-    const inp = ([k, l, req, full]) => {
-      let h;
-      if (k === 'gender') h = `<select class="inp" data-k="gender"><option value=""></option><option ${d.gender === 'ذكر' ? 'selected' : ''}>ذكر</option><option ${d.gender === 'أنثى' ? 'selected' : ''}>أنثى</option></select>`;
-      else if (k === 'status') h = `<select class="inp" data-k="status">${Object.entries(KIND).map(([v, t]) => `<option value="${v}" ${d.status === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
-      else if (k === 'level') h = `<input class="inp" data-k="level" list="lvL" value="${esc(d.level || '')}"><datalist id="lvL">${levelsFor(kindNow()).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
-      else if (k === 'branch') h = `<input class="inp" data-k="branch" list="brL" value="${esc(d.branch || '')}" placeholder="مثال: العلوم التجريبية"><datalist id="brL">${branchOpts(d.level)}</datalist>`;
-      else if (k === 'schoolYear') h = `<input class="inp" data-k="schoolYear" list="syL" value="${esc(d.schoolYear || '')}" placeholder="مثال: 2015/2016"><datalist id="syL">${YEARS.map(o => `<option value="${o}">`).join('')}</datalist>`;
-      else if (k === 'unit') h = `<input class="inp" data-k="unit" list="unL" value="${esc(d.unit || '')}"><datalist id="unL">${units.map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
-      else if (DATE_K.includes(k)) h = `<input class="inp" data-k="${k}" value="${esc(showD(d[k]))}" placeholder="يوم/شهر/سنة">`;
-      else if (k === 'nameFr') h = `<input class="inp" data-k="nameFr" dir="ltr" value="${esc(d.nameFr || '')}">`;
-      else h = `<input class="inp" data-k="${k}" value="${esc(d[k] || '')}">`;
-      return `<div class="fld ${full ? 'full' : ''}"><label>${l}${req ? ' <span style="color:var(--red)">*</span>' : ''}</label>${h}</div>`;
-    };
-    const body = document.createElement('div');
-    const pl = window.K && K.PP ? K.PP : null;
-    // the pathway is asked in the qualifying cycle (or when the pupil already has one)
-    const FIELDS = SFIELDS.filter(f => !(SECC() && f[0] === 'unit')).filter(f => f[0] !== 'branch' || showBranchNow() || d.branch || /باكالوريا|الجذع/.test(d.level || ''));
-    body.innerHTML = `${!x && pl ? `<div class="fld full" style="margin-bottom:8px"><label>اختيار من بطاقة التلاميذ (اكتب الاسم أو رمز مسار فتُملأ المعطيات تلقائيا)</label><input class="inp" id="stPick" list="k2Pupils" placeholder="ابحث بالاسم أو برمز مسار..." autocomplete="off"></div>` : ''}<div class="fgrid">${FIELDS.map(inp).join('')}</div>${pl ? `<datalist id="k2Pupils">${pl.options('k2Pupils')}</datalist>` : ''}`;
-    const pk = $('#stPick', body);
-    if (pk) pk.onchange = () => {
-      const r = K.PP.resolve('pupil', pk.value); if (!r) return;
-      const q = r.rec, set = (k, v) => { const el = $(`[data-k="${k}"]`, body); if (el && v) el.value = v; };
-      set('name', q.name); set('code', q.code); set('gender', q.gender); set('birth', showD(q.birth)); set('birthPlace', q.place); set('level', LV().name(q.lvl)); set('branch', LV().branchOfClass(q.cls)); set('schoolYear', MK.curSy()); set('unit', q.unit);
-      pk.value = q.name; syncBranch();
-    };
-    // typing «الثانية باكالوريا علوم رياضية» (or a Massar class code) fills the level and the pathway; the suggestions follow the level
-    const syncBranch = () => { const lv = $('[data-k="level"]', body), dl = $('#brL', body); if (dl && lv) dl.innerHTML = branchOpts(lv.value); };
-    const lvEl = $('[data-k="level"]', body);
-    if (lvEl) { lvEl.oninput = syncBranch; lvEl.onchange = () => { const o = normLevel({ level: lvEl.value.trim(), branch: '' }); lvEl.value = o.level; const br = $('[data-k="branch"]', body); if (br && o.branch && !br.value.trim()) br.value = o.branch; syncBranch(); }; }
-    modal({ title: x ? 'تعديل معطيات التلميذ(ة)' : 'إضافة تلميذ(ة)', body, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: () => {
-      const o = {}; $$('[data-k]', body).forEach(el => { o[el.dataset.k] = el.value.trim(); });
-      if (!o.name) { toast('المرجو كتابة الاسم الكامل باللغة العربية', true); return false; }
-      normLevel(o); if (o.branch == null) o.branch = (x && x.branch) || '';
-      DATE_K.forEach(k => { o[k] = cleanDate(o[k]); }); o.schoolYear = cleanSY(o.schoolYear);
-      if (x) Object.assign(x, o); else CD().students.push(Object.assign({ id: uid('st') }, o));
-      persist(); after && after(); toast(x ? 'تم حفظ التعديلات' : 'تمت إضافة التلميذ(ة)');
-    } }, { label: 'إلغاء' }] });
-  }
-
-  /* ---------- Excel import / export ---------- */
-  const IMP = MK.matcher({
-    name: ['الاسم الكامل باللغة العربية', 'الاسم الكامل بالعربية', 'الاسم والنسب', 'الإسم والنسب', 'الاسم و النسب', 'الاسم الكامل', 'الإسم الكامل', 'Nom et prénom (arabe)'],
-    father: ['اسم الأب', 'اسم الاب', 'إسم الأب', 'من أبيه', 'من ابيه', 'الأب', 'الاب', 'Nom du père', 'Prénom du père'],
-    nameFr: ['الاسم الكامل باللغة الفرنسية', 'الاسم الكامل بالفرنسية', 'الاسم بالفرنسية', 'Nom et prénom', 'Nom complet'],
-    joinDate: ['تاريخ الإلتحاق', 'تاريخ الالتحاق', 'Date d\'inscription'], civilNo: ['رقم الحالة المدنية', 'رقم عقد الازدياد', 'N° état civil'],
-    last: ['النسب', 'الاسم العائلي', 'Nom'], first: ['الاسم', 'الإسم', 'الاسم الشخصي', 'Prénom'],
-    gender: ['الجنس', 'النوع', 'Sexe', 'Genre'], birth: ['تاريخ الازدياد', 'تاريخ الإزدياد', 'تاريخ الولادة', 'Date de naissance'],
-    birthPlace: ['مكان الازدياد', 'مكان الإزدياد', 'مكان الولادة', 'Lieu de naissance'],
-    level: ['آخر مستوى دراسي', 'آخر مستوى', 'المستوى', 'المستوى الدراسي', 'Niveau'], branch: ['المسلك / الشعبة', 'المسلك أو الشعبة', 'المسلك', 'الشعبة', 'المسلك والشعبة', 'Filière', 'Parcours', 'Option'], regNo: ['رقم التسجيل', 'رقم التسجيل بالسجل', 'رقم التسجيل في السجل', 'N° inscription'],
-    schoolYear: ['الموسم الدراسي', 'السنة الدراسية', 'Année scolaire'], leaveDate: ['تاريخ المغادرة أو الانقطاع', 'تاريخ المغادرة او الانقطاع', 'تاريخ المغادرة', 'تاريخ الانقطاع', 'تاريخ الإنقطاع', 'Date de sortie'],
-    n: ['ر.ت', 'ر ت', 'الرقم الترتيبي'], issued: ['تاريخ تسليم الشهادة', 'تاريخ التسليم'], unit: ['الوحدة المدرسية', 'الوحدة', 'الفرعية'], code: ['رمز مسار', 'رقم التلميذ', 'الرمز', 'Code Massar', 'CNE']
-  });
-  const stKey = o => [key(o.name), cleanDate(o.birth), String(o.regNo || '')].join('|');
-  // the same pupil in an imported list: code Massar, or registration number (same name or birth date), or name + birth date
-  function findStudent(o) {
-    const L = CD().students, nk = key(o.name), b = cleanDate(o.birth);
-    return (o.code && L.find(x => x.code && String(x.code).trim().toUpperCase() === String(o.code).trim().toUpperCase()))
-      || (o.regNo && L.find(x => x.regNo && String(x.regNo) === String(o.regNo) && (key(x.name) === nk || (b && cleanDate(x.birth) === b))))
-      || (nk && L.find(x => key(x.name) === nk && (!b || !x.birth || cleanDate(x.birth) === b) && (!o.regNo || !x.regNo || String(x.regNo) === String(o.regNo))))
-      || null;
-  }
-  async function importStudents() {
-    const sheets = await MK.openTable(); if (!sheets) return;
-    const isig = new Set(CD().issued.map(r => [r.studentId, r.date, r.imp || ''].join('|')));
-    let added = 0, updated = 0, iss = 0, used = 0;
-    const now = new Date().toISOString();
-    // the sheet of delivered certificates first (it creates its pupils), then the pupils' register
-    const parsed = sheets.map(sh => { const h = MK.headerRow(sh.rows, IMP, 3); if (!h) return null; const col = {}; h.map.forEach((k, i) => { if (k && col[k] == null) col[k] = i; }); return { sh, h, col }; })
-      .filter(p => p && (p.col.name != null || p.col.last != null || p.col.first != null));
-    // a workbook with one sheet per school unit: the sheet name gives the unit when the column is empty
-    const unitOfSheet = n => parsed.length > 1 ? String(n || '').replace(/احصاء|إحصاء|ارشيف|أرشيف|لائحة|التلاميذ/g, '').replace(/[()]/g, ' ').replace(/^\s*ب\s+/, '').replace(/\s+/g, ' ').trim() : '';
-    parsed.forEach(({ sh, h, col }) => {
-      used++;
-      const shUnit = unitOfSheet(sh.name);
-      const g = (r, k) => (col[k] == null ? '' : String(r[col[k]] == null ? '' : r[col[k]]).trim());
-      const pending = [];
-      sh.rows.slice(h.hi + 1).forEach(r => {
-        const name = g(r, 'name') || [g(r, 'last'), g(r, 'first')].filter(Boolean).join(' ');
-        if (!name || /^\d+$/.test(name)) return;
-        const o = { name, nameFr: g(r, 'nameFr'), father: g(r, 'father'), gender: gender(g(r, 'gender')), birth: cleanDate(g(r, 'birth')), birthPlace: g(r, 'birthPlace'), level: g(r, 'level'), branch: g(r, 'branch'),
-          regNo: g(r, 'regNo').replace(/\.0+$/, ''), joinDate: cleanDate(g(r, 'joinDate')), schoolYear: cleanSY(g(r, 'schoolYear')), leaveDate: cleanDate(g(r, 'leaveDate')),
-          unit: g(r, 'unit') || shUnit, civilNo: g(r, 'civilNo').replace(/\.0+$/, ''), code: g(r, 'code') };
-        normLevel(o);   // «الثانية باكالوريا علوم رياضية» / «2BACSVT» -> level + pathway
-        Object.keys(o).forEach(k => { if (!o[k]) delete o[k]; });
-        // the imported list is the reference: its filled cells update the pupil (empty cells keep what was entered)
-        let st = findStudent(o);
-        if (st) { Object.keys(o).forEach(f => { if (o[f]) st[f] = o[f]; }); updated++; } else { st = Object.assign({ id: uid('st'), status: 'left' }, o); CD().students.push(st); added++; }
-        const di = cleanDate(g(r, 'issued'));
-        if (col.issued != null && /^\d{4}-\d{2}-\d{2}$/.test(di)) pending.push({ st, date: di, n: g(r, 'n') });
-      });
-      // delivered certificates: numbered per calendar year in delivery order
-      pending.sort((a, c) => a.date.localeCompare(c.date)).forEach(p => {
-        const s = [p.st.id, p.date, p.n || ''].join('|');
-        if (isig.has(s)) return; isig.add(s);
-        const year = +p.date.slice(0, 4);
-        CD().issued.push({ id: uid('ce'), studentId: p.st.id, no: nextNo(year), year, date: p.date, purpose: CD().purpose, kind: 'left', snap: snapOf(p.st), created: now, imp: p.n || 'x' });
-        iss++;
-      });
-    });
-    if (!used) return toast('لم يتم العثور على رؤوس الأعمدة (الاسم والنسب، تاريخ الازدياد، المستوى...). استعمل نموذج الاستيراد.', true);
-    if (!added && !updated && !iss) return toast('لم يتم العثور على أي تلميذ في الملف', true);
-    persist(); go('certs');
-    toast(`تمت إضافة ${added} تلميذ(ة)${updated ? `، وتحديث ${updated}` : ''}${iss ? `، واستيراد ${iss} شهادة مسلمة` : ''}`);
-  }
-  // template: the school's list, one sheet per school unit (or a single sheet)
-  async function downloadTemplate() {
-    const LC = listCols(), LIST_W = listW();
-    const head = LC.map(c => c[1]);
-    const blank = () => { const rows = [head]; for (let i = 1; i <= 100; i++) rows.push([String(i)].concat(head.slice(1).map(() => ''))); return rows; };
-    const units = SECC() ? [] : Array.from(new Set(CD().students.map(x => x.unit).filter(Boolean)));
-    const sheets = units.length ? units.map(u => ({ name: u, rows: blank().map((r, i) => i ? r.map((v, j) => LC[j][0] === 'unit' ? u : v) : r), widths: LIST_W })) : [{ name: 'لائحة التلاميذ', rows: blank(), widths: LIST_W }];
-    const r = await saveBook(sheets, 'لائحة_التلاميذ.xlsx');
-    if (r && r.ok) toast('تم حفظ النموذج (لائحة التلاميذ): املأه في Excel ثم استورده');
-  }
-  // export in the same format: one sheet per school unit
-  async function exportStudents() {
-    const all = sortedStudents();
-    const units = SECC() ? [] : Array.from(new Set(all.map(x => x.unit || ''))).sort((a, b) => a.localeCompare(b, 'ar'));
-    const LIST_W = listW();
-    const head = listCols().map(c => c[1]);
-    const sheets = units.length > 1 || (units.length === 1 && units[0])
-      ? units.map(u => ({ name: u || 'بدون وحدة', rows: [head].concat(all.filter(x => (x.unit || '') === u).map(listRow)), widths: LIST_W }))
-      : [{ name: 'لائحة التلاميذ', rows: [head].concat(all.map(listRow)), widths: LIST_W }];
-    const r = await saveBook(sheets, 'لائحة_التلاميذ.xlsx');
-    if (r && r.ok) toast(SECC() ? 'تم التصدير إلى Excel' : 'تم التصدير إلى Excel (ورقة لكل وحدة مدرسية)');
-  }
-  const saveBook = (sheets, name) => window.api.saveXlsxBook ? window.api.saveXlsxBook(sheets, name)
-    : window.api.saveXlsx([].concat(...sheets.map((s, i) => i ? s.rows.slice(1) : s.rows)), name, 'التلاميذ', listW());
-  async function exportIssued() {
-    const list = CD().issued.filter(r => !flt.year || String(r.year) === flt.year).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const wb = CD().issued.some(r => r.snap && r.snap.branch) || showBranchNow();
-    const ins0 = (a, v) => wb ? a.slice(0, 7).concat([v], a.slice(7)) : a;   // pathway column right after the level
-    const ins = (a, v) => { const r = ins0(a, v); return SECC() ? r.filter((_, i) => i !== (wb ? 12 : 11)) : r; };   // no school-unit column in a collège / lycée
-    const rows = [ins(['ر.ت', 'الرقم', 'الاسم والنسب', 'الجنس', 'تاريخ الازدياد', 'مكان الازدياد', 'آخر مستوى دراسي', 'رقم التسجيل', 'الموسم الدراسي', 'تاريخ المغادرة', 'تاريخ تسليم الشهادة', 'الوحدة المدرسية', 'الغرض'], 'المسلك / الشعبة')]
-      .concat(list.map((r, i) => { const s = r.snap || {}; return ins([String(i + 1), certNo(r), s.name || '', s.gender || '', showD(s.birth), s.birthPlace || '', s.level || '', s.regNo || '', s.schoolYear || '', showD(s.leaveDate), fmtDate(r.date), s.unit || '', r.purpose || ''], s.branch || ''); }));
-    const r = await window.api.saveXlsx(rows, 'سجل_الشواهد_المسلمة.xlsx', 'الشواهد المسلمة', ins([6, 10, 28, 8, 14, 22, 16, 12, 14, 14, 14, 20, 18], 22));
-    if (r.ok) toast('تم التصدير إلى Excel');
-  }
-  const snapOf = x => { const o = {}; ['name', 'nameFr', 'father', 'gender', 'birth', 'birthPlace', 'level', 'branch', 'regNo', 'joinDate', 'schoolYear', 'leaveDate', 'unit', 'civilNo', 'code'].forEach(k => { o[k] = x[k] || ''; }); return o; };
-
-  /* ================================================================= */
-  /* certificate (one A5 copy) */
-  const G = g => g === 'أنثى'
-    ? { the: 'التلميذة', of: 'من أبيها', born: 'المولودة', reg: 'والمسجلة', was: 'كانت تتابع دراستها', is: 'تتابع دراستها', left: 'غادرت', to: 'لها' }
-    : g === 'ذكر' ? { the: 'التلميذ', of: 'من أبيه', born: 'المولود', reg: 'والمسجل', was: 'كان يتابع دراسته', is: 'يتابع دراسته', left: 'غادر', to: 'له' }
-      : { the: 'التلميذ(ة)', of: 'من أبيه(ا)', born: 'المولود(ة)', reg: 'والمسجل(ة)', was: 'كان يتابع دراسته(ها)', is: 'يتابع دراسته(ها)', left: 'غادر(ت)', to: 'له(ها)' };
-  // gender used in the text: the pupil's, else the one chosen / suggested in the certificate form
-  const genderFor = (x, st) => x.gender || (st && st.gender) || '';
-  function certCopy(s, x, st) {
-    const g = G(genderFor(x, st));
-    const V = Dx.V;
-    const sy = st.kind === 'current' ? (st.sy || MK.schoolYear(st.date)) : x.schoolYear;
-    return `
-      <div class="ct-hdr">${Dx.header(s)}</div>
+        <button class="btn sm" id="iExp">${ic("down")} تصدير Excel</button>
+        <button class="btn sm" id="iPrn">${ic("print")} طباعة سجل الشواهد</button></div>
+      <div id="iT"></div></div>`;const a=()=>{const o=F(y.iq),d=v().issued.filter(r=>(!y.year||String(r.year)===y.year)&&(!o||F((r.snap||{}).name+" "+C(r)).includes(o)||C(r).includes(y.iq.trim()))).sort((r,l)=>(l.date||"").localeCompare(r.date||"")||(+l.no||0)-(+r.no||0));$("#iT").innerHTML=d.length?`<table class="tbl"><thead><tr><th>الرقم</th><th>تاريخ التسليم</th><th>الاسم والنسب</th><th>المستوى</th><th>الموسم الدراسي</th><th>الغرض</th><th></th></tr></thead><tbody>
+        ${d.map(r=>{const l=r.snap||{};return`<tr data-id="${r.id}"><td class="num"><b>${c(C(r))||"—"}</b></td><td class="num">${Y(r.date)}</td><td><b>${c(l.name||"")}</b></td>
+          <td>${c(A(l))}</td><td class="num">${c(l.schoolYear||"")}</td><td class="muted">${c(r.purpose||"")}</td>
+          <td class="act"><button class="btn sm" data-a="open">${ic("print")} فتح / طباعة</button> <button class="btn sm danger icon" data-a="del">${ic("trash")}</button></td></tr>`}).join("")}
+        </tbody></table>`:'<div class="empty-state">لم تُسلم أي شهادة بعد</div>',$$("#iT tr[data-id]").forEach(r=>{const l=v().issued.find(p=>p.id===r.dataset.id);$$("[data-a]",r).forEach(p=>p.onclick=async()=>{p.dataset.a==="open"&&go("certDoc",{kind:"cert",issuedId:l.id}),p.dataset.a==="del"&&await confirmBox(`حذف الشهادة رقم <b>${c(C(l))}</b> (${c((l.snap||{}).name||"")}) من السجل؟`,"حذف")&&(v().issued=v().issued.filter(n=>n.id!==l.id),persist(),a())})})};$("#iy").onchange=o=>{y.year=o.target.value,a()},$("#iq").oninput=o=>{y.iq=o.target.value,a()},$("#iExp").onclick=je,$("#iPrn").onclick=()=>go("certDoc",{kind:"issuedReg",year:y.year}),a()}const Le=[["name","الاسم الكامل باللغة العربية",!0],["nameFr","الاسم الكامل باللغة الفرنسية"],["father","اسم الأب (من أبيه/ها)"],["gender","الجنس"],["status","الوضعية"],["birth","تاريخ الازدياد"],["birthPlace","مكان الازدياد"],["regNo","رقم التسجيل"],["joinDate","تاريخ الالتحاق"],["level","آخر مستوى دراسي"],["branch","المسلك / الشعبة (الجذع المشترك، الباكالوريا)"],["schoolYear","الموسم الدراسي"],["leaveDate","تاريخ المغادرة أو الانقطاع"],["unit","الوحدة المدرسية"],["civilNo","رقم الحالة المدنية"],["code","رمز مسار (اختياري)"],["note","ملاحظة",!1,"full"]],Q=[["n","ر.ت"],["name","الاسم الكامل باللغة العربية"],["nameFr","الاسم الكامل باللغة الفرنسية"],["gender","الجنس"],["birth","تاريخ الازدياد"],["birthPlace","مكان الازدياد"],["regNo","رقم التسجيل"],["joinDate","تاريخ الإلتحاق"],["level","أخر مستوى دراسي"],["schoolYear","الموسم الدراسي"],["leaveDate","تاريخ المغادرة أو الانقطاع"],["unit","الوحدة المدرسية"],["civilNo","رقم الحالة المدنية"],["father","اسم الأب"]],Z=[6,28,28,8,16,22,12,16,18,16,18,20,16,22],$e=()=>W()||v().students.some(t=>t.branch),x=()=>$e()?Q.slice(0,9).concat([["branch","المسلك / الشعبة"]],Q.slice(9)):Q,De=()=>$e()?Z.slice(0,9).concat([22],Z.slice(9)):Z,ee=()=>k()?x().filter(t=>t[0]!=="unit"):x(),te=()=>{const t=x(),e=De();return k()?e.filter((a,o)=>t[o]&&t[o][0]!=="unit"):e},ne=["birth","joinDate","leaveDate"],ve=(t,e)=>ee().map(([a])=>a==="n"?String(e+1):ne.includes(a)?D(t[a]):String(t[a]==null?"":t[a])),me=t=>{const e=O(t);return(e&&P().BRANCHES[e]?P().BRANCHES[e]:Array.from(new Set([].concat(...Object.values(P().BRANCHES))))).map(o=>`<option value="${c(o)}">`).join("")};function U(t,e){const a=Object.assign({gender:"",status:"left"},t||{}),o=Array.from(new Set(v().students.map(u=>u.unit).filter(Boolean))),d=([u,f,b,E])=>{let h;return u==="gender"?h=`<select class="inp" data-k="gender"><option value=""></option><option ${a.gender==="ذكر"?"selected":""}>ذكر</option><option ${a.gender==="أنثى"?"selected":""}>أنثى</option></select>`:u==="status"?h=`<select class="inp" data-k="status">${Object.entries(re).map(([i,g])=>`<option value="${i}" ${a.status===i?"selected":""}>${g}</option>`).join("")}</select>`:u==="level"?h=`<input class="inp" data-k="level" list="lvL" value="${c(a.level||"")}"><datalist id="lvL">${we(V()).map(i=>`<option value="${c(i)}">`).join("")}</datalist>`:u==="branch"?h=`<input class="inp" data-k="branch" list="brL" value="${c(a.branch||"")}" placeholder="مثال: العلوم التجريبية"><datalist id="brL">${me(a.level)}</datalist>`:u==="schoolYear"?h=`<input class="inp" data-k="schoolYear" list="syL" value="${c(a.schoolYear||"")}" placeholder="مثال: 2015/2016"><datalist id="syL">${de.map(i=>`<option value="${i}">`).join("")}</datalist>`:u==="unit"?h=`<input class="inp" data-k="unit" list="unL" value="${c(a.unit||"")}"><datalist id="unL">${o.map(i=>`<option value="${c(i)}">`).join("")}</datalist>`:ne.includes(u)?h=`<input class="inp" data-k="${u}" value="${c(D(a[u]))}" placeholder="يوم/شهر/سنة">`:u==="nameFr"?h=`<input class="inp" data-k="nameFr" dir="ltr" value="${c(a.nameFr||"")}">`:h=`<input class="inp" data-k="${u}" value="${c(a[u]||"")}">`,`<div class="fld ${E?"full":""}"><label>${f}${b?' <span style="color:var(--red)">*</span>':""}</label>${h}</div>`},r=document.createElement("div"),l=window.K&&K.PP?K.PP:null,p=Le.filter(u=>!(k()&&u[0]==="unit")).filter(u=>u[0]!=="branch"||W()||a.branch||/باكالوريا|الجذع/.test(a.level||""));r.innerHTML=`${!t&&l?'<div class="fld full" style="margin-bottom:8px"><label>اختيار من بطاقة التلاميذ (اكتب الاسم أو رمز مسار فتُملأ المعطيات تلقائيا)</label><input class="inp" id="stPick" list="k2Pupils" placeholder="ابحث بالاسم أو برمز مسار..." autocomplete="off"></div>':""}<div class="fgrid">${p.map(d).join("")}</div>${l?`<datalist id="k2Pupils">${l.options("k2Pupils")}</datalist>`:""}`;const n=$("#stPick",r);n&&(n.onchange=()=>{const u=K.PP.resolve("pupil",n.value);if(!u)return;const f=u.rec,b=(E,h)=>{const i=$(`[data-k="${E}"]`,r);i&&h&&(i.value=h)};b("name",f.name),b("code",f.code),b("gender",f.gender),b("birth",D(f.birth)),b("birthPlace",f.place),b("level",P().name(f.lvl)),b("branch",P().branchOfClass(f.cls)),b("schoolYear",MK.curSy()),b("unit",f.unit),n.value=f.name,s()});const s=()=>{const u=$('[data-k="level"]',r),f=$("#brL",r);f&&u&&(f.innerHTML=me(u.value))},m=$('[data-k="level"]',r);m&&(m.oninput=s,m.onchange=()=>{const u=X({level:m.value.trim(),branch:""});m.value=u.level;const f=$('[data-k="branch"]',r);f&&u.branch&&!f.value.trim()&&(f.value=u.branch),s()}),modal({title:t?"تعديل معطيات التلميذ(ة)":"إضافة تلميذ(ة)",body:r,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:()=>{const u={};if($$("[data-k]",r).forEach(f=>{u[f.dataset.k]=f.value.trim()}),!u.name)return toast("المرجو كتابة الاسم الكامل باللغة العربية",!0),!1;X(u),u.branch==null&&(u.branch=t&&t.branch||""),ne.forEach(f=>{u[f]=M(u[f])}),u.schoolYear=ue(u.schoolYear),t?Object.assign(t,u):v().students.push(Object.assign({id:uid("st")},u)),persist(),e&&e(),toast(t?"تم حفظ التعديلات":"تمت إضافة التلميذ(ة)")}},{label:"إلغاء"}]})}const Ie=MK.matcher({name:["الاسم الكامل باللغة العربية","الاسم الكامل بالعربية","الاسم والنسب","الإسم والنسب","الاسم و النسب","الاسم الكامل","الإسم الكامل","Nom et prénom (arabe)"],father:["اسم الأب","اسم الاب","إسم الأب","من أبيه","من ابيه","الأب","الاب","Nom du père","Prénom du père"],nameFr:["الاسم الكامل باللغة الفرنسية","الاسم الكامل بالفرنسية","الاسم بالفرنسية","Nom et prénom","Nom complet"],joinDate:["تاريخ الإلتحاق","تاريخ الالتحاق","Date d'inscription"],civilNo:["رقم الحالة المدنية","رقم عقد الازدياد","N° état civil"],last:["النسب","الاسم العائلي","Nom"],first:["الاسم","الإسم","الاسم الشخصي","Prénom"],gender:["الجنس","النوع","Sexe","Genre"],birth:["تاريخ الازدياد","تاريخ الإزدياد","تاريخ الولادة","Date de naissance"],birthPlace:["مكان الازدياد","مكان الإزدياد","مكان الولادة","Lieu de naissance"],level:["آخر مستوى دراسي","آخر مستوى","المستوى","المستوى الدراسي","Niveau"],branch:["المسلك / الشعبة","المسلك أو الشعبة","المسلك","الشعبة","المسلك والشعبة","Filière","Parcours","Option"],regNo:["رقم التسجيل","رقم التسجيل بالسجل","رقم التسجيل في السجل","N° inscription"],schoolYear:["الموسم الدراسي","السنة الدراسية","Année scolaire"],leaveDate:["تاريخ المغادرة أو الانقطاع","تاريخ المغادرة او الانقطاع","تاريخ المغادرة","تاريخ الانقطاع","تاريخ الإنقطاع","Date de sortie"],n:["ر.ت","ر ت","الرقم الترتيبي"],issued:["تاريخ تسليم الشهادة","تاريخ التسليم"],unit:["الوحدة المدرسية","الوحدة","الفرعية"],code:["رمز مسار","رقم التلميذ","الرمز","Code Massar","CNE"]}),Oe=t=>[F(t.name),M(t.birth),String(t.regNo||"")].join("|");function Pe(t){const e=v().students,a=F(t.name),o=M(t.birth);return t.code&&e.find(d=>d.code&&String(d.code).trim().toUpperCase()===String(t.code).trim().toUpperCase())||t.regNo&&e.find(d=>d.regNo&&String(d.regNo)===String(t.regNo)&&(F(d.name)===a||o&&M(d.birth)===o))||a&&e.find(d=>F(d.name)===a&&(!o||!d.birth||M(d.birth)===o)&&(!t.regNo||!d.regNo||String(d.regNo)===String(t.regNo)))||null}async function Ee(){const t=await MK.openTable();if(!t)return;const e=new Set(v().issued.map(s=>[s.studentId,s.date,s.imp||""].join("|")));let a=0,o=0,d=0,r=0;const l=new Date().toISOString(),p=t.map(s=>{const m=MK.headerRow(s.rows,Ie,3);if(!m)return null;const u={};return m.map.forEach((f,b)=>{f&&u[f]==null&&(u[f]=b)}),{sh:s,h:m,col:u}}).filter(s=>s&&(s.col.name!=null||s.col.last!=null||s.col.first!=null)),n=s=>p.length>1?String(s||"").replace(/احصاء|إحصاء|ارشيف|أرشيف|لائحة|التلاميذ/g,"").replace(/[()]/g," ").replace(/^\s*ب\s+/,"").replace(/\s+/g," ").trim():"";if(p.forEach(({sh:s,h:m,col:u})=>{r++;const f=n(s.name),b=(h,i)=>u[i]==null?"":String(h[u[i]]==null?"":h[u[i]]).trim(),E=[];s.rows.slice(m.hi+1).forEach(h=>{const i=b(h,"name")||[b(h,"last"),b(h,"first")].filter(Boolean).join(" ");if(!i||/^\d+$/.test(i))return;const g={name:i,nameFr:b(h,"nameFr"),father:b(h,"father"),gender:ke(b(h,"gender")),birth:M(b(h,"birth")),birthPlace:b(h,"birthPlace"),level:b(h,"level"),branch:b(h,"branch"),regNo:b(h,"regNo").replace(/\.0+$/,""),joinDate:M(b(h,"joinDate")),schoolYear:ue(b(h,"schoolYear")),leaveDate:M(b(h,"leaveDate")),unit:b(h,"unit")||f,civilNo:b(h,"civilNo").replace(/\.0+$/,""),code:b(h,"code")};X(g),Object.keys(g).forEach(N=>{g[N]||delete g[N]});let I=Pe(g);I?(Object.keys(g).forEach(N=>{g[N]&&(I[N]=g[N])}),o++):(I=Object.assign({id:uid("st"),status:"left"},g),v().students.push(I),a++);const L=M(b(h,"issued"));u.issued!=null&&/^\d{4}-\d{2}-\d{2}$/.test(L)&&E.push({st:I,date:L,n:b(h,"n")})}),E.sort((h,i)=>h.date.localeCompare(i.date)).forEach(h=>{const i=[h.st.id,h.date,h.n||""].join("|");if(e.has(i))return;e.add(i);const g=+h.date.slice(0,4);v().issued.push({id:uid("ce"),studentId:h.st.id,no:J(g),year:g,date:h.date,purpose:v().purpose,kind:"left",snap:se(h.st),created:l,imp:h.n||"x"}),d++})}),!r)return toast("لم يتم العثور على رؤوس الأعمدة (الاسم والنسب، تاريخ الازدياد، المستوى...). استعمل نموذج الاستيراد.",!0);if(!a&&!o&&!d)return toast("لم يتم العثور على أي تلميذ في الملف",!0);persist(),go("certs"),toast(`تمت إضافة ${a} تلميذ(ة)${o?`، وتحديث ${o}`:""}${d?`، واستيراد ${d} شهادة مسلمة`:""}`)}async function Fe(){const t=ee(),e=te(),a=t.map(p=>p[1]),o=()=>{const p=[a];for(let n=1;n<=100;n++)p.push([String(n)].concat(a.slice(1).map(()=>"")));return p},d=k()?[]:Array.from(new Set(v().students.map(p=>p.unit).filter(Boolean))),r=d.length?d.map(p=>({name:p,rows:o().map((n,s)=>s?n.map((m,u)=>t[u][0]==="unit"?p:m):n),widths:e})):[{name:"لائحة التلاميذ",rows:o(),widths:e}],l=await fe(r,"لائحة_التلاميذ.xlsx");l&&l.ok&&toast("تم حفظ النموذج (لائحة التلاميذ): املأه في Excel ثم استورده")}async function Me(){const t=q(),e=k()?[]:Array.from(new Set(t.map(l=>l.unit||""))).sort((l,p)=>l.localeCompare(p,"ar")),a=te(),o=ee().map(l=>l[1]),d=e.length>1||e.length===1&&e[0]?e.map(l=>({name:l||"بدون وحدة",rows:[o].concat(t.filter(p=>(p.unit||"")===l).map(ve)),widths:a})):[{name:"لائحة التلاميذ",rows:[o].concat(t.map(ve)),widths:a}],r=await fe(d,"لائحة_التلاميذ.xlsx");r&&r.ok&&toast(k()?"تم التصدير إلى Excel":"تم التصدير إلى Excel (ورقة لكل وحدة مدرسية)")}const fe=(t,e)=>window.api.saveXlsxBook?window.api.saveXlsxBook(t,e):window.api.saveXlsx([].concat(...t.map((a,o)=>o?a.rows.slice(1):a.rows)),e,"التلاميذ",te());async function je(){const t=v().issued.filter(l=>!y.year||String(l.year)===y.year).sort((l,p)=>(l.date||"").localeCompare(p.date||"")),e=v().issued.some(l=>l.snap&&l.snap.branch)||W(),a=(l,p)=>e?l.slice(0,7).concat([p],l.slice(7)):l,o=(l,p)=>{const n=a(l,p);return k()?n.filter((s,m)=>m!==(e?12:11)):n},d=[o(["ر.ت","الرقم","الاسم والنسب","الجنس","تاريخ الازدياد","مكان الازدياد","آخر مستوى دراسي","رقم التسجيل","الموسم الدراسي","تاريخ المغادرة","تاريخ تسليم الشهادة","الوحدة المدرسية","الغرض"],"المسلك / الشعبة")].concat(t.map((l,p)=>{const n=l.snap||{};return o([String(p+1),C(l),n.name||"",n.gender||"",D(n.birth),n.birthPlace||"",n.level||"",n.regNo||"",n.schoolYear||"",D(n.leaveDate),Y(l.date),n.unit||"",l.purpose||""],n.branch||"")}));(await window.api.saveXlsx(d,"سجل_الشواهد_المسلمة.xlsx","الشواهد المسلمة",o([6,10,28,8,14,22,16,12,14,14,14,20,18],22))).ok&&toast("تم التصدير إلى Excel")}const se=t=>{const e={};return["name","nameFr","father","gender","birth","birthPlace","level","branch","regNo","joinDate","schoolYear","leaveDate","unit","civilNo","code"].forEach(a=>{e[a]=t[a]||""}),e},Ce=t=>t==="أنثى"?{the:"التلميذة",of:"من أبيها",born:"المولودة",reg:"والمسجلة",was:"كانت تتابع دراستها",is:"تتابع دراستها",left:"غادرت",to:"لها"}:t==="ذكر"?{the:"التلميذ",of:"من أبيه",born:"المولود",reg:"والمسجل",was:"كان يتابع دراسته",is:"يتابع دراسته",left:"غادر",to:"له"}:{the:"التلميذ(ة)",of:"من أبيه(ا)",born:"المولود(ة)",reg:"والمسجل(ة)",was:"كان يتابع دراسته(ها)",is:"يتابع دراسته(ها)",left:"غادر(ت)",to:"له(ها)"},be=(t,e)=>t.gender||e&&e.gender||"";function Te(t,e,a){const o=Ce(be(e,a)),d=B.V,r=a.kind==="current"?a.sy||MK.schoolYear(a.date):e.schoolYear;return`
+      <div class="ct-hdr">${B.header(t)}</div>
       <div class="mk-certt">شهادة مدرسية</div>
-      <div class="mk-certno">رقم: ${st.noText ? `<span dir="ltr">${esc(st.noText)}</span>` : V('')}</div>
+      <div class="mk-certno">رقم: ${a.noText?`<span dir="ltr">${c(a.noText)}</span>`:d("")}</div>
       <div class="mk-cert">
-        <p>يشهد الموقع(ة) أسفله: ${V(s.director)}</p>
-        <p>مدير(ة) المؤسسة: ${V(s.school)}</p>
-        <p>أن ${g.the}: ${V(x.name)}</p>
-        ${st.showFather !== false ? `<p>${g.of}: ${V(x.father)}</p>` : ''}
-        <p>${g.born} ب: ${V(x.birthPlace)} &nbsp; بتاريخ: ${V(showD(x.birth))}</p>
-        <p>${g.reg} تحت رقم: ${V(x.regNo)}</p>
-        <p>${st.kind === 'current' ? g.is : g.was} بالمستوى: ${V(lvFull(x, false))}</p>
-        <p>برسم الموسم الدراسي: ${V(sy)}</p>
-        ${st.showUnit && x.unit && !SECC() ? `<p>بالوحدة المدرسية: ${V(x.unit)}</p>` : ''}
-        ${st.kind === 'current' ? '' : `<p>${g.left} المؤسسة بتاريخ: ${V(showD(x.leaveDate))}</p>`}
-        <p>سلمت ${g.to} هذه الشهادة ${esc(st.purpose || 'لغرض إداري')}.</p>
+        <p>يشهد الموقع(ة) أسفله: ${d(t.director)}</p>
+        <p>مدير(ة) المؤسسة: ${d(t.school)}</p>
+        <p>أن ${o.the}: ${d(e.name)}</p>
+        ${a.showFather!==!1?`<p>${o.of}: ${d(e.father)}</p>`:""}
+        <p>${o.born} ب: ${d(e.birthPlace)} &nbsp; بتاريخ: ${d(D(e.birth))}</p>
+        <p>${o.reg} تحت رقم: ${d(e.regNo)}</p>
+        <p>${a.kind==="current"?o.is:o.was} بالمستوى: ${d(A(e,!1))}</p>
+        <p>برسم الموسم الدراسي: ${d(r)}</p>
+        ${a.showUnit&&e.unit&&!k()?`<p>بالوحدة المدرسية: ${d(e.unit)}</p>`:""}
+        ${a.kind==="current"?"":`<p>${o.left} المؤسسة بتاريخ: ${d(D(e.leaveDate))}</p>`}
+        <p>سلمت ${o.to} هذه الشهادة ${c(a.purpose||"لغرض إداري")}.</p>
       </div>
-      <div class="l b mt">حرر ب: ${esc(st.city || s.city || '')} &nbsp; في: ${esc(fmtDate(st.date))}</div>
+      <div class="l b mt">حرر ب: ${c(a.city||t.city||"")} &nbsp; في: ${c(Y(a.date))}</div>
       <div class="l b mt2" style="margin-left:6mm">توقيع وخاتم السيد(ة) رئيس(ة) المؤسسة:</div>
-      <div class="spacer"></div>`;
-  }
-
-  /* the school's model (one A4 page): «أنا الموقع(ة) أسفله مدير(ة) ... أشهد بأن: السيد(ة) ... من أبيه(ا) ...» */
-  const GA = (g, cur) => g === 'أنثى'
-    ? { who: cur ? 'التلميذة' : 'السيدة', of: 'من أبيها', born: 'المزدادة', reg: 'والمسجلة', was: cur ? 'تتابع دراستها' : 'كانت تتابع دراستها', left: 'غادرت', to: 'لها' }
-    : g === 'ذكر' ? { who: cur ? 'التلميذ' : 'السيد', of: 'من أبيه', born: 'المزداد', reg: 'والمسجل', was: cur ? 'يتابع دراسته' : 'كان يتابع دراسته', left: 'غادر', to: 'له' }
-      : { who: cur ? 'التلميذ(ة)' : 'السيد(ة)', of: 'من أبيه(ا)', born: 'المزداد(ة)', reg: 'والمسجل(ة)', was: cur ? 'يتابع(تتابع) دراسته(ها)' : 'كان(ت) يتابع(تتابع) دراسته(ها)', left: 'غادر(ت)', to: 'له(ها)' };
-  const longDate = v => { const d = cleanDate(v); const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); return m ? `${+m[3]} ${Dx.MONTHS[+m[2] - 1]} ${m[1]}` : String(v || ''); };
-  // «(05)» for الخامس ابتدائي, «(03)» for الثالثة إعدادي, «(02)» for الثانية باكالوريا; the common core has no number.
-  // Free texts that K.LV does not know keep the old reading of the ordinal word.
-  const ORDN = [[/الأول|الاول|الأولى|الاولى/, 1], [/الثاني|الثانية/, 2], [/الثالث|الثالثة/, 3], [/الرابع/, 4], [/الخامس/, 5], [/السادس/, 6]];
-  function levelNo(lv) {
-    const k = lvKey(lv);
-    if (k) return LV().no(k) ? MK.pad2(LV().no(k)) : '';
-    const f = ORDN.find(([rx]) => rx.test(String(lv || ''))); return f ? MK.pad2(f[1]) : '';
-  }
-  function certAttest(s, x, st) {
-    const cur = st.kind === 'current';
-    const g = GA(genderFor(x, st), cur);
-    const B = v => String(v == null ? '' : v).trim() ? `<b>${esc(v)}</b>` : '<span class="v empty" style="min-width:40mm"></span>';
-    const sy = cur ? (st.sy || MK.schoolYear(st.date)) : x.schoolYear;
-    return `<div class="mk-hdr">${Dx.header(s)}</div>
+      <div class="spacer"></div>`}const Ke=(t,e)=>t==="أنثى"?{who:e?"التلميذة":"السيدة",of:"من أبيها",born:"المزدادة",reg:"والمسجلة",was:e?"تتابع دراستها":"كانت تتابع دراستها",left:"غادرت",to:"لها"}:t==="ذكر"?{who:e?"التلميذ":"السيد",of:"من أبيه",born:"المزداد",reg:"والمسجل",was:e?"يتابع دراسته":"كان يتابع دراسته",left:"غادر",to:"له"}:{who:e?"التلميذ(ة)":"السيد(ة)",of:"من أبيه(ا)",born:"المزداد(ة)",reg:"والمسجل(ة)",was:e?"يتابع(تتابع) دراسته(ها)":"كان(ت) يتابع(تتابع) دراسته(ها)",left:"غادر(ت)",to:"له(ها)"},ge=t=>{const e=M(t),a=/^(\d{4})-(\d{2})-(\d{2})$/.exec(e);return a?`${+a[3]} ${B.MONTHS[+a[2]-1]} ${a[1]}`:String(t||"")},Ae=[[/الأول|الاول|الأولى|الاولى/,1],[/الثاني|الثانية/,2],[/الثالث|الثالثة/,3],[/الرابع/,4],[/الخامس/,5],[/السادس/,6]];function Be(t){const e=O(t);if(e)return P().no(e)?MK.pad2(P().no(e)):"";const a=Ae.find(([o])=>o.test(String(t||"")));return a?MK.pad2(a[1]):""}function Ye(t,e,a){const o=a.kind==="current",d=Ke(be(e,a),o),r=p=>String(p??"").trim()?`<b>${c(p)}</b>`:'<span class="v empty" style="min-width:40mm"></span>',l=o?a.sy||MK.schoolYear(a.date):e.schoolYear;return`<div class="mk-hdr">${B.header(t)}</div>
       <div class="ct-title">شهادة مدرسية</div>
-      ${st.showNo ? `<div class="mk-certno" style="margin-top:-6mm">رقم: <span dir="ltr">${esc(st.noText || '')}</span></div>` : ''}
+      ${a.showNo?`<div class="mk-certno" style="margin-top:-6mm">رقم: <span dir="ltr">${c(a.noText||"")}</span></div>`:""}
       <div class="ct">
-        <div class="ct-intro">أنا الموقع(ة) أسفله مدير(ة) ${esc(s.school || '')} أشهد بأن:</div>
-        <div class="ct-name">${g.who}: ${B(x.name)}</div>
-        <div class="ct-name">${g.of}: ${B(x.father)}</div>
-        <div class="ct-p">${g.born}: ${B(x.birthPlace)} في: ${B(longDate(x.birth))}
-          ${g.reg} بالمؤسسة${st.showReg && x.regNo ? ` تحت رقم: <b>${esc(x.regNo)}</b>` : ''}، ${g.was} بهذه المؤسسة${st.showUnit && x.unit && !SECC() ? ` (الوحدة المدرسية: ${esc(x.unit)})` : ''}
-          بالمستوى: ${B(lvFull(x, st.showLvNo !== false))} ${cur ? 'برسم الموسم الدراسي' : 'للموسم الدراسي'} ${sy ? `<b>(${esc(sy)})</b>` : B('')}.
-          ${!cur && st.showLeave && x.leaveDate ? `${g.left} المؤسسة بتاريخ: <b>${esc(longDate(x.leaveDate))}</b>.` : ''}</div>
-        <div class="ct-p">سلمت ${g.to} هذه الشهادة ${esc(st.purpose || 'لأغراض إدارية')}.</div>
+        <div class="ct-intro">أنا الموقع(ة) أسفله مدير(ة) ${c(t.school||"")} أشهد بأن:</div>
+        <div class="ct-name">${d.who}: ${r(e.name)}</div>
+        <div class="ct-name">${d.of}: ${r(e.father)}</div>
+        <div class="ct-p">${d.born}: ${r(e.birthPlace)} في: ${r(ge(e.birth))}
+          ${d.reg} بالمؤسسة${a.showReg&&e.regNo?` تحت رقم: <b>${c(e.regNo)}</b>`:""}، ${d.was} بهذه المؤسسة${a.showUnit&&e.unit&&!k()?` (الوحدة المدرسية: ${c(e.unit)})`:""}
+          بالمستوى: ${r(A(e,a.showLvNo!==!1))} ${o?"برسم الموسم الدراسي":"للموسم الدراسي"} ${l?`<b>(${c(l)})</b>`:r("")}.
+          ${!o&&a.showLeave&&e.leaveDate?`${d.left} المؤسسة بتاريخ: <b>${c(ge(e.leaveDate))}</b>.`:""}</div>
+        <div class="ct-p">سلمت ${d.to} هذه الشهادة ${c(a.purpose||"لأغراض إدارية")}.</div>
       </div>
-      <div class="ct-foot"><div></div><div class="c">حرر بتاريخ:<div class="ct-d">${esc(fmtDate(st.date))}</div></div></div>
+      <div class="ct-foot"><div></div><div class="c">حرر بتاريخ:<div class="ct-d">${c(Y(a.date))}</div></div></div>
       <div class="ct-sig">توقيع رئيس(ة) المؤسسة:</div>
-      <div class="spacer"></div>`;
-  }
-
-  function regPages(s, st) {
-    const sign = MK.signBlock(s, { city: st.city, date: st.date });
-    if (st.kind === 'issuedReg') {
-      const list = CD().issued.filter(r => !st.year || String(r.year) === String(st.year)).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (+a.no || 0) - (+b.no || 0));
-      const rows = list.map((r, i) => { const x = r.snap || {}; return [i + 1, `<b>${esc(certNo(r))}</b>`, esc(x.name), esc(x.gender), esc(showD(x.birth)), esc(x.birthPlace), esc(lvFull(x)), esc(x.regNo), esc(x.schoolYear), esc(showD(x.leaveDate)), fmtDate(r.date)].concat(SECC() ? [] : [esc(x.unit)]); });
-      return MK.tablePages({ s, page: 'a4l', title: 'سجل الشواهد المدرسية المسلمة', info: `<div class="mk-info">${st.year ? `سنة: <b>${esc(st.year)}</b> — ` : ''}العدد: <b>${list.length}</b></div>`,
-        cols: [{ h: 'ر.ت', w: '4%' }, { h: 'الرقم', w: '6%' }, { h: 'الاسم والنسب', cls: 'r' }, { h: 'الجنس', w: '5%' }, { h: 'تاريخ الازدياد', w: '9%' }, { h: 'مكان الازدياد', w: '12%', cls: 'sm' },
-          { h: 'آخر مستوى', w: '9%', cls: 'sm' }, { h: 'رقم التسجيل', w: '7%' }, { h: 'الموسم', w: '8%' }, { h: 'تاريخ المغادرة', w: '9%' }, { h: 'تاريخ التسليم', w: '9%' }].concat(SECC() ? [] : [{ h: 'الوحدة', w: '10%', cls: 'sm' }]),
-        rows, sign, minRows: 8 });
-    }
-    const list = sortedStudents().filter(x => (!st.unit || x.unit === st.unit) && (!st.level || x.level === st.level));
-    const rows = list.map((x, i) => [i + 1, `<b>${esc(x.name)}</b>`, `<span dir="ltr">${esc(x.nameFr || '')}</span>`, esc(x.gender), esc(showD(x.birth)), esc(x.birthPlace), esc(x.regNo), esc(showD(x.joinDate)), esc(lvFull(x)), esc(x.schoolYear), esc(showD(x.leaveDate))].concat(SECC() ? [] : [esc(x.unit)], [esc(x.civilNo)]));
-    return MK.tablePages({ s, page: 'a4l', title: esc(st.title || 'لائحة التلاميذ المنقطعين وغير الملتحقين'),
-      info: `<div class="mk-info">${st.unit && !SECC() ? `الوحدة المدرسية: <b>${esc(st.unit)}</b> — ` : ''}${st.level ? `المستوى: <b>${esc(st.level)}</b> — ` : ''}العدد: <b>${list.length}</b></div>`,
-      cols: [{ h: 'ر.ت', w: '3.5%' }, { h: 'الاسم الكامل باللغة العربية', cls: 'r' }, { h: 'الاسم الكامل باللغة الفرنسية', w: '13%', cls: 'sm' }, { h: 'الجنس', w: '4.5%', cls: 'sm' }, { h: 'تاريخ الازدياد', w: '7.5%', cls: 'sm' },
-        { h: 'مكان الازدياد', w: '10%', cls: 'sm' }, { h: 'رقم التسجيل', w: '5.5%', cls: 'sm' }, { h: 'تاريخ الإلتحاق', w: '7.5%', cls: 'sm' }, { h: 'أخر مستوى دراسي', w: '8%', cls: 'sm' },
-        { h: 'الموسم الدراسي', w: '7.5%', cls: 'sm' }, { h: 'تاريخ المغادرة أو الانقطاع', w: '8%', cls: 'sm' }, ].concat(SECC() ? [] : [{ h: 'الوحدة المدرسية', w: '8%', cls: 'sm' }], [{ h: 'رقم الحالة المدنية', w: '6%', cls: 'sm' }]),
-      rows, sign, minRows: 8 });
-  }
-
-  window.pageCertDoc = function (v, arg) {
-    autoSync();
-    migrate(DB);
-    arg = arg || {};
-    const kind = arg.kind || 'cert';
-    if (kind !== 'cert') {
-      const KR = [['students', 'لائحة التلاميذ'], ['issuedReg', 'سجل الشواهد المدرسية المسلمة']];
-      MK.docPage(v, {
-        title: kind === 'students' ? 'لائحة التلاميذ' : 'سجل الشواهد المدرسية المسلمة', icon: '🎓', modes: false,
-        state: { kind, unit: arg.unit || '', level: arg.level || '', year: arg.year || '', city: S().city || '', date: today(), title: 'لائحة التلاميذ المنقطعين وغير الملتحقين' },
-        back: () => go('certs', { tab: kind === 'students' ? 'students' : 'issued' }),
-        form: (box, st, refresh) => {
-          const units = Array.from(new Set(CD().students.map(x => x.unit).filter(Boolean)));
-          const levels = Array.from(new Set(CD().students.map(x => x.level).filter(Boolean))).sort(cmpLv);
-          const years = Array.from(new Set(CD().issued.map(r => String(r.year)))).sort().reverse();
-          box.innerHTML = `<div class="sec-t">الوثيقة</div><div class="fld"><select class="inp" id="rK">${KR.map(([k, l]) => `<option value="${k}" ${k === kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-            ${kind === 'students' ? `<div class="fld"><label>العنوان</label><input class="inp" id="rTi" value="${esc(st.title)}"></div>
-              ${SECC() ? '' : `<div class="fld"><label>الوحدة المدرسية</label><select class="inp" id="rU"><option value="">الكل</option>${units.map(u => `<option ${u === st.unit ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></div>`}
-              <div class="fld"><label>المستوى</label><select class="inp" id="rL"><option value="">الكل</option>${levels.map(u => `<option ${u === st.level ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></div>`
-              : `<div class="fld"><label>السنة</label><select class="inp" id="rY"><option value="">كل السنوات</option>${years.map(y => `<option ${y === String(st.year) ? 'selected' : ''}>${y}</option>`).join('')}</select></div>`}
-            <div class="sec-t">التحرير</div><div class="fgrid"><div class="fld"><label>حرر ب</label><input class="inp" id="rC" value="${esc(st.city)}"></div>
-            <div class="fld"><label>في</label><input class="inp" type="date" id="rD" value="${esc(st.date)}"></div></div>`;
-          $('#rK', box).onchange = e => go('certDoc', { kind: e.target.value });
-          const bind = (id, k, ev) => { const el = $(id, box); if (el) el[ev || 'onchange'] = e => { st[k] = e.target.value; refresh(); }; };
-          bind('#rTi', 'title', 'oninput'); bind('#rU', 'unit'); bind('#rL', 'level'); bind('#rY', 'year'); bind('#rC', 'city', 'oninput'); bind('#rD', 'date');
-        },
-        build: st => ({ page: 'a4l', pages: regPages(S(), st) }),
-        fname: () => kind === 'students' ? 'لائحة_التلاميذ' : 'سجل_الشواهد_المسلمة'
-      });
-      return;
-    }
-
-    // certificate
-    const rec = arg.issuedId ? CD().issued.find(r => r.id === arg.issuedId) : null;
-    const st0 = rec
-      ? { mode: arg.mode || undefined, studentId: rec.studentId, issuedId: rec.id, kind: rec.kind || 'left', date: rec.date, city: rec.city || S().city || '', purpose: rec.purpose || CD().purpose, no: rec.no, year: rec.year, showUnit: !!rec.showUnit, sy: rec.sy || '', model: rec.model || 'classic', showNo: !!rec.showNo, showReg: !!rec.showReg, showLeave: !!rec.showLeave, showLvNo: rec.showLvNo !== false, showFather: rec.showFather !== false }
-      : { studentId: arg.studentId || '', issuedId: '', kind: '', date: today(), city: S().city || '', purpose: CD().purpose, no: '', year: '', showUnit: false, sy: '', model: CD().model || 'attest', showNo: !!CD().showNo, showReg: !!CD().showReg, showLeave: !!CD().showLeave, showLvNo: CD().showLvNo !== false, showFather: CD().showFather !== false };
-    const stud = st => (st.issuedId && !stById(st.studentId)) ? (CD().issued.find(r => r.id === st.issuedId) || {}).snap || {} : stById(st.studentId) || {};
-    const noFor = st => { if (st.issuedId) return { no: st.no, year: st.year }; const y = +(st.date || today()).slice(0, 4); return { no: st.no && +st.noYear === y ? st.no : nextNo(y), year: y }; };
-    MK.docPage(v, {
-      title: 'شهادة مدرسية', icon: '🎓', modes: true, state: st0, saveLabel: 'حفظ في السجل',
-      back: () => go('certs', { tab: rec ? 'issued' : 'students' }),
-      form: (box, st, refresh) => {
-        const x0 = stud(st);
-        if (!st.kind) st.kind = x0.status === 'current' ? 'current' : 'left';
-        box.innerHTML = `<div class="sec-t">التلميذ(ة)</div>
-          ${st.issuedId ? `<div class="emp-chip">${ic('cap', 'style="width:22px;height:22px;color:var(--pri)"')}<div><b>${esc(x0.name || '')}</b><br>شهادة رقم ${esc(certNo({ no: st.no, year: st.year }))} — مسجلة بتاريخ ${fmtDate(st.date)}</div></div>`
-            : `<div class="fld"><div class="picker" id="cpk"><div class="search">${ic('search')}<input class="inp" id="cpq" placeholder="ابحث بالاسم أو رقم التسجيل..." autocomplete="off"></div><div class="list"></div></div><div id="cchip"></div></div>`}
-          <div class="btn-row" style="margin:4px 0 6px">${!st.issuedId ? `<button class="btn sm" id="cNewSt">${ic('plus')} تلميذ(ة) جديد(ة)</button>` : ''}<button class="btn sm" id="cEdSt">${ic('edit')} تعديل معطيات التلميذ(ة)</button></div>
+      <div class="spacer"></div>`}function Re(t,e){const a=MK.signBlock(t,{city:e.city,date:e.date});if(e.kind==="issuedReg"){const r=v().issued.filter(p=>!e.year||String(p.year)===String(e.year)).sort((p,n)=>(p.date||"").localeCompare(n.date||"")||(+p.no||0)-(+n.no||0)),l=r.map((p,n)=>{const s=p.snap||{};return[n+1,`<b>${c(C(p))}</b>`,c(s.name),c(s.gender),c(D(s.birth)),c(s.birthPlace),c(A(s)),c(s.regNo),c(s.schoolYear),c(D(s.leaveDate)),Y(p.date)].concat(k()?[]:[c(s.unit)])});return MK.tablePages({s:t,page:"a4l",title:"سجل الشواهد المدرسية المسلمة",info:`<div class="mk-info">${e.year?`سنة: <b>${c(e.year)}</b> — `:""}العدد: <b>${r.length}</b></div>`,cols:[{h:"ر.ت",w:"4%"},{h:"الرقم",w:"6%"},{h:"الاسم والنسب",cls:"r"},{h:"الجنس",w:"5%"},{h:"تاريخ الازدياد",w:"9%"},{h:"مكان الازدياد",w:"12%",cls:"sm"},{h:"آخر مستوى",w:"9%",cls:"sm"},{h:"رقم التسجيل",w:"7%"},{h:"الموسم",w:"8%"},{h:"تاريخ المغادرة",w:"9%"},{h:"تاريخ التسليم",w:"9%"}].concat(k()?[]:[{h:"الوحدة",w:"10%",cls:"sm"}]),rows:l,sign:a,minRows:8})}const o=q().filter(r=>(!e.unit||r.unit===e.unit)&&(!e.level||r.level===e.level)),d=o.map((r,l)=>[l+1,`<b>${c(r.name)}</b>`,`<span dir="ltr">${c(r.nameFr||"")}</span>`,c(r.gender),c(D(r.birth)),c(r.birthPlace),c(r.regNo),c(D(r.joinDate)),c(A(r)),c(r.schoolYear),c(D(r.leaveDate))].concat(k()?[]:[c(r.unit)],[c(r.civilNo)]));return MK.tablePages({s:t,page:"a4l",title:c(e.title||"لائحة التلاميذ المنقطعين وغير الملتحقين"),info:`<div class="mk-info">${e.unit&&!k()?`الوحدة المدرسية: <b>${c(e.unit)}</b> — `:""}${e.level?`المستوى: <b>${c(e.level)}</b> — `:""}العدد: <b>${o.length}</b></div>`,cols:[{h:"ر.ت",w:"3.5%"},{h:"الاسم الكامل باللغة العربية",cls:"r"},{h:"الاسم الكامل باللغة الفرنسية",w:"13%",cls:"sm"},{h:"الجنس",w:"4.5%",cls:"sm"},{h:"تاريخ الازدياد",w:"7.5%",cls:"sm"},{h:"مكان الازدياد",w:"10%",cls:"sm"},{h:"رقم التسجيل",w:"5.5%",cls:"sm"},{h:"تاريخ الإلتحاق",w:"7.5%",cls:"sm"},{h:"أخر مستوى دراسي",w:"8%",cls:"sm"},{h:"الموسم الدراسي",w:"7.5%",cls:"sm"},{h:"تاريخ المغادرة أو الانقطاع",w:"8%",cls:"sm"}].concat(k()?[]:[{h:"الوحدة المدرسية",w:"8%",cls:"sm"}],[{h:"رقم الحالة المدنية",w:"6%",cls:"sm"}]),rows:d,sign:a,minRows:8})}window.pageCertDoc=function(t,e){he(),z(DB),e=e||{};const a=e.kind||"cert";if(a!=="cert"){const n=[["students","لائحة التلاميذ"],["issuedReg","سجل الشواهد المدرسية المسلمة"]];MK.docPage(t,{title:a==="students"?"لائحة التلاميذ":"سجل الشواهد المدرسية المسلمة",icon:"🎓",modes:!1,state:{kind:a,unit:e.unit||"",level:e.level||"",year:e.year||"",city:S().city||"",date:R(),title:"لائحة التلاميذ المنقطعين وغير الملتحقين"},back:()=>go("certs",{tab:a==="students"?"students":"issued"}),form:(s,m,u)=>{const f=Array.from(new Set(v().students.map(i=>i.unit).filter(Boolean))),b=Array.from(new Set(v().students.map(i=>i.level).filter(Boolean))).sort(ce),E=Array.from(new Set(v().issued.map(i=>String(i.year)))).sort().reverse();s.innerHTML=`<div class="sec-t">الوثيقة</div><div class="fld"><select class="inp" id="rK">${n.map(([i,g])=>`<option value="${i}" ${i===a?"selected":""}>${g}</option>`).join("")}</select></div>
+            ${a==="students"?`<div class="fld"><label>العنوان</label><input class="inp" id="rTi" value="${c(m.title)}"></div>
+              ${k()?"":`<div class="fld"><label>الوحدة المدرسية</label><select class="inp" id="rU"><option value="">الكل</option>${f.map(i=>`<option ${i===m.unit?"selected":""}>${c(i)}</option>`).join("")}</select></div>`}
+              <div class="fld"><label>المستوى</label><select class="inp" id="rL"><option value="">الكل</option>${b.map(i=>`<option ${i===m.level?"selected":""}>${c(i)}</option>`).join("")}</select></div>`:`<div class="fld"><label>السنة</label><select class="inp" id="rY"><option value="">كل السنوات</option>${E.map(i=>`<option ${i===String(m.year)?"selected":""}>${i}</option>`).join("")}</select></div>`}
+            <div class="sec-t">التحرير</div><div class="fgrid"><div class="fld"><label>حرر ب</label><input class="inp" id="rC" value="${c(m.city)}"></div>
+            <div class="fld"><label>في</label><input class="inp" type="date" id="rD" value="${c(m.date)}"></div></div>`,$("#rK",s).onchange=i=>go("certDoc",{kind:i.target.value});const h=(i,g,I)=>{const L=$(i,s);L&&(L[I||"onchange"]=N=>{m[g]=N.target.value,u()})};h("#rTi","title","oninput"),h("#rU","unit"),h("#rL","level"),h("#rY","year"),h("#rC","city","oninput"),h("#rD","date")},build:s=>({page:"a4l",pages:Re(S(),s)}),fname:()=>a==="students"?"لائحة_التلاميذ":"سجل_الشواهد_المسلمة"});return}const o=e.issuedId?v().issued.find(n=>n.id===e.issuedId):null,d=o?{mode:e.mode||void 0,studentId:o.studentId,issuedId:o.id,kind:o.kind||"left",date:o.date,city:o.city||S().city||"",purpose:o.purpose||v().purpose,no:o.no,year:o.year,showUnit:!!o.showUnit,sy:o.sy||"",model:o.model||"classic",showNo:!!o.showNo,showReg:!!o.showReg,showLeave:!!o.showLeave,showLvNo:o.showLvNo!==!1,showFather:o.showFather!==!1}:{studentId:e.studentId||"",issuedId:"",kind:"",date:R(),city:S().city||"",purpose:v().purpose,no:"",year:"",showUnit:!1,sy:"",model:v().model||"attest",showNo:!!v().showNo,showReg:!!v().showReg,showLeave:!!v().showLeave,showLvNo:v().showLvNo!==!1,showFather:v().showFather!==!1},r=n=>n.issuedId&&!j(n.studentId)?(v().issued.find(s=>s.id===n.issuedId)||{}).snap||{}:j(n.studentId)||{},l=n=>{if(n.issuedId)return{no:n.no,year:n.year};const s=+(n.date||R()).slice(0,4);return{no:n.no&&+n.noYear===s?n.no:J(s),year:s}};MK.docPage(t,{title:"شهادة مدرسية",icon:"🎓",modes:!0,state:d,saveLabel:"حفظ في السجل",back:()=>go("certs",{tab:o?"issued":"students"}),form:(n,s,m)=>{const u=r(s);if(s.kind||(s.kind=u.status==="current"?"current":"left"),n.innerHTML=`<div class="sec-t">التلميذ(ة)</div>
+          ${s.issuedId?`<div class="emp-chip">${ic("cap",'style="width:22px;height:22px;color:var(--pri)"')}<div><b>${c(u.name||"")}</b><br>شهادة رقم ${c(C({no:s.no,year:s.year}))} — مسجلة بتاريخ ${Y(s.date)}</div></div>`:`<div class="fld"><div class="picker" id="cpk"><div class="search">${ic("search")}<input class="inp" id="cpq" placeholder="ابحث بالاسم أو رقم التسجيل..." autocomplete="off"></div><div class="list"></div></div><div id="cchip"></div></div>`}
+          <div class="btn-row" style="margin:4px 0 6px">${s.issuedId?"":`<button class="btn sm" id="cNewSt">${ic("plus")} تلميذ(ة) جديد(ة)</button>`}<button class="btn sm" id="cEdSt">${ic("edit")} تعديل معطيات التلميذ(ة)</button></div>
           <div class="fgrid">
             <div class="fld"><label>الجنس <span class="muted" style="font-weight:400">(أبيه / أبيها)</span></label><select class="inp" id="cG"><option value=""></option><option>ذكر</option><option>أنثى</option></select><span class="hint" id="cGh"></span></div>
             <div class="fld"><label id="cFl">اسم الأب (من أبيه / أبيها)</label><input class="inp" id="cF" placeholder="يكتب يدويا إن لم يكن في اللائحة"></div>
           </div>
-          <label class="chk" id="cFsh" style="${st.model === 'attest' ? 'display:none' : ''}"><input type="checkbox" data-o="showFather" ${st.showFather !== false ? 'checked' : ''}> إظهار «من أبيه / من أبيها» في النموذج المختصر</label>
+          <label class="chk" id="cFsh" style="${s.model==="attest"?"display:none":""}"><input type="checkbox" data-o="showFather" ${s.showFather!==!1?"checked":""}> إظهار «من أبيه / من أبيها» في النموذج المختصر</label>
           <div class="sec-t">الشهادة</div>
-          <div class="fld"><label>النموذج</label><select class="inp" id="cM"><option value="attest" ${st.model === 'attest' ? 'selected' : ''}>نموذج المؤسسة: «أنا الموقع(ة) أسفله... أشهد بأن» (A4)</option><option value="classic" ${st.model !== 'attest' ? 'selected' : ''}>النموذج المختصر (نسختان A5)</option></select></div>
-          <div class="fld"><label>الوضعية</label><select class="inp" id="cK">${Object.entries(KIND).map(([k, t]) => `<option value="${k}" ${st.kind === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-          <div class="fld" id="cSyF" style="${st.kind === 'current' ? '' : 'display:none'}"><label>الموسم الدراسي الحالي</label><input class="inp" id="cSy" list="cSyL" value="${esc(st.sy || MK.curSy())}"><datalist id="cSyL">${YEARS.slice(0, 5).map(o => `<option value="${o}">`).join('')}</datalist></div>
+          <div class="fld"><label>النموذج</label><select class="inp" id="cM"><option value="attest" ${s.model==="attest"?"selected":""}>نموذج المؤسسة: «أنا الموقع(ة) أسفله... أشهد بأن» (A4)</option><option value="classic" ${s.model!=="attest"?"selected":""}>النموذج المختصر (نسختان A5)</option></select></div>
+          <div class="fld"><label>الوضعية</label><select class="inp" id="cK">${Object.entries(re).map(([i,g])=>`<option value="${i}" ${s.kind===i?"selected":""}>${g}</option>`).join("")}</select></div>
+          <div class="fld" id="cSyF" style="${s.kind==="current"?"":"display:none"}"><label>الموسم الدراسي الحالي</label><input class="inp" id="cSy" list="cSyL" value="${c(s.sy||MK.curSy())}"><datalist id="cSyL">${de.slice(0,5).map(i=>`<option value="${i}">`).join("")}</datalist></div>
           <div class="fgrid">
-            <div class="fld"><label>الرقم</label><input class="inp" id="cNo" type="number" min="1" value="${esc(noFor(st).no)}" ${st.issuedId ? 'disabled' : ''}><span class="hint">يُعطى تلقائيا عند الطباعة (${String(noFor(st).year)})</span></div>
-            <div class="fld"><label>التاريخ</label><input class="inp" type="date" id="cD" value="${esc(st.date)}"></div>
-            <div class="fld"><label>حرر ب</label><input class="inp" id="cC" value="${esc(st.city)}"></div>
-            <div class="fld"><label>الغرض</label><input class="inp" id="cP" value="${esc(st.purpose)}"></div>
+            <div class="fld"><label>الرقم</label><input class="inp" id="cNo" type="number" min="1" value="${c(l(s).no)}" ${s.issuedId?"disabled":""}><span class="hint">يُعطى تلقائيا عند الطباعة (${String(l(s).year)})</span></div>
+            <div class="fld"><label>التاريخ</label><input class="inp" type="date" id="cD" value="${c(s.date)}"></div>
+            <div class="fld"><label>حرر ب</label><input class="inp" id="cC" value="${c(s.city)}"></div>
+            <div class="fld"><label>الغرض</label><input class="inp" id="cP" value="${c(s.purpose)}"></div>
           </div>
-          ${SECC() ? '' : `<label class="chk"><input type="checkbox" id="cU" ${st.showUnit ? 'checked' : ''}> إظهار الوحدة المدرسية في الشهادة</label>`}
-          <div id="cAopt" style="${st.model === 'attest' ? '' : 'display:none'}">
-            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showLvNo" ${st.showLvNo !== false ? 'checked' : ''}> رقم المستوى بين قوسين، مثال: ${esc(lvExample())}</label>
-            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showNo" ${st.showNo ? 'checked' : ''}> إظهار رقم الشهادة تحت العنوان</label>
-            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showReg" ${st.showReg ? 'checked' : ''}> إظهار رقم التسجيل</label>
-            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showLeave" ${st.showLeave ? 'checked' : ''}> إظهار تاريخ المغادرة</label>
+          ${k()?"":`<label class="chk"><input type="checkbox" id="cU" ${s.showUnit?"checked":""}> إظهار الوحدة المدرسية في الشهادة</label>`}
+          <div id="cAopt" style="${s.model==="attest"?"":"display:none"}">
+            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showLvNo" ${s.showLvNo!==!1?"checked":""}> رقم المستوى بين قوسين، مثال: ${c(ye())}</label>
+            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showNo" ${s.showNo?"checked":""}> إظهار رقم الشهادة تحت العنوان</label>
+            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showReg" ${s.showReg?"checked":""}> إظهار رقم التسجيل</label>
+            <label class="chk" style="margin-top:6px"><input type="checkbox" data-o="showLeave" ${s.showLeave?"checked":""}> إظهار تاريخ المغادرة</label>
           </div>
-          <p class="muted" style="font-size:12px;line-height:1.7;margin-top:12px">تُسجل الشهادة في «سجل الشواهد المسلمة» برقمها عند الطباعة أو الحفظ PDF.</p>`;
-        // pupil picker
-        if (!st.issuedId) {
-          const pk = $('#cpq', box), wrap = $('#cpk', box), list = $('.list', wrap);
-          let items = [], hl = 0;
-          const chip = () => {
-            const x = stById(st.studentId);
-            $('#cchip', box).innerHTML = x ? `<div class="emp-chip">${ic('cap', 'style="width:22px;height:22px;color:var(--pri)"')}<div><b>${esc(x.name)}</b><br>${esc(lvFull(x))}${x.regNo ? ' — رقم التسجيل: ' + esc(x.regNo) : ''}${x.unit && !SECC() ? ' — ' + esc(x.unit) : ''}</div></div>` : '';
-            pk.value = x ? x.name : '';
-          };
-          const drawList = () => {
-            const qq = key(pk.value);
-            items = sortedStudents().filter(x => !qq || key(x.name + ' ' + (x.regNo || '')).includes(qq)).slice(0, 60);
-            hl = Math.min(hl, Math.max(0, items.length - 1));
-            list.innerHTML = items.length ? items.map((x, i) => `<div class="it ${i === hl ? 'hl' : ''}" data-i="${i}"><span>${esc(x.name)}</span><small>${esc(lvFull(x))} ${esc(x.regNo || '')}</small></div>`).join('') : '<div class="it muted">لا توجد نتائج — أضف التلميذ(ة) أولا</div>';
-            $$('.it[data-i]', list).forEach(d => d.onmousedown = ev => { ev.preventDefault(); pick(items[+d.dataset.i]); });
-          };
-          const pick = x => { st.studentId = x.id; st.kind = x.status === 'current' ? 'current' : 'left'; wrap.classList.remove('open'); pk.blur(); chip(); $('#cK', box).value = st.kind; $('#cSyF', box).style.display = st.kind === 'current' ? '' : 'none'; if (st.__sync) st.__sync(); refresh(); };
-          pk.onfocus = () => { pk.select(); hl = 0; drawList(); wrap.classList.add('open'); };
-          pk.oninput = () => { hl = 0; drawList(); wrap.classList.add('open'); };
-          pk.onblur = () => setTimeout(() => { wrap.classList.remove('open'); chip(); }, 120);
-          pk.onkeydown = ev => {
-            if (ev.key === 'ArrowDown') { hl = Math.min(hl + 1, items.length - 1); drawList(); ev.preventDefault(); }
-            if (ev.key === 'ArrowUp') { hl = Math.max(hl - 1, 0); drawList(); ev.preventDefault(); }
-            if (ev.key === 'Enter' && items[hl]) { pick(items[hl]); ev.preventDefault(); }
-          };
-          chip();
-          if (!st.studentId) setTimeout(() => pk.focus(), 60);
-          $('#cNewSt', box).onclick = () => studentForm(null, () => { const last = CD().students[CD().students.length - 1]; if (last) pick(last); });
-        }
-        const target = () => stById(st.studentId) || (st.issuedId ? ((CD().issued.find(r => r.id === st.issuedId) || {}).snap || null) : null);
-        const syncSt = () => {
-          const x = target() || {};
-          const sug = !x.gender && x.name && window.Agent && Agent.genderOfName ? ({ M: 'ذكر', F: 'أنثى' }[Agent.genderOfName(x.name)] || '') : '';
-          st.gender = x.gender || sug;
-          $('#cG', box).value = st.gender; $('#cF', box).value = x.father || '';
-          $('#cGh', box).textContent = sug ? 'مقترح حسب الاسم — تأكد منه' : (!x.gender && x.name ? 'غير محدد: تكتب الصيغة (ة) / (ا)' : '');
-          $('#cFl', box).textContent = `اسم الأب (${st.gender === 'أنثى' ? 'من أبيها' : st.gender === 'ذكر' ? 'من أبيه' : 'من أبيه / أبيها'})`;
-        };
-        const saveSt = (k, val) => {
-          const x = target(); if (!x) { toast('اختر التلميذ(ة) أولا', true); return; }
-          x[k] = val;
-          if (st.issuedId) { const r = CD().issued.find(y => y.id === st.issuedId); if (r && r.snap && r.snap !== x) r.snap[k] = val; }
-          persist(); refresh();
-        };
-        $('#cG', box).onchange = e => { saveSt('gender', e.target.value); syncSt(); };
-        $('#cF', box).oninput = e => { const x = target(); if (x) { x.father = e.target.value.trim(); persist(); refresh(); } };
-        $('#cF', box).onchange = e => saveSt('father', e.target.value.trim());
-        st.__sync = syncSt; syncSt();
-        $('#cEdSt', box).onclick = () => { const x = stById(st.studentId); if (!x) return toast('اختر التلميذ(ة) أولا', true); studentForm(x, () => { syncSt(); refresh(); }); };
-        $('#cK', box).onchange = e => { st.kind = e.target.value; $('#cSyF', box).style.display = st.kind === 'current' ? '' : 'none'; refresh(); };
-        $('#cSy', box).oninput = e => { st.sy = e.target.value; refresh(); };
-        $('#cNo', box).oninput = e => { st.no = +e.target.value || ''; st.noYear = +(st.date || today()).slice(0, 4); refresh(); };
-        $('#cD', box).onchange = e => { st.date = e.target.value || today(); if (!st.issuedId) { const n = noFor(st); $('#cNo', box).value = n.no; $('.hint', $('#cNo', box).parentElement).textContent = `يُعطى تلقائيا عند الطباعة (${n.year})`; } refresh(); };
-        $('#cC', box).oninput = e => { st.city = e.target.value; refresh(); };
-        $('#cP', box).oninput = e => { st.purpose = e.target.value; refresh(); };
-        if ($('#cU', box)) $('#cU', box).onchange = e => { st.showUnit = e.target.checked; refresh(); };
-        const modeSeg = () => { const m = $('#mkMode'); if (m) m.style.display = st.model === 'attest' ? 'none' : ''; };
-        $('#cM', box).onchange = e => { st.model = e.target.value; CD().model = st.model; persist(); $('#cAopt', box).style.display = st.model === 'attest' ? '' : 'none'; $('#cFsh', box).style.display = st.model === 'attest' ? 'none' : ''; modeSeg(); refresh(); };
-        $$('[data-o]', box).forEach(el => el.onchange = () => { st[el.dataset.o] = el.checked; CD()[el.dataset.o] = el.checked; persist(); refresh(); });
-        setTimeout(modeSeg, 0);
-      },
-      build: st => {
-        const s = S(), x = stud(st);
-        const n = noFor(st);
-        st.noText = certNo(n);
-        if (st.model === 'attest') return { page: 'a4', pages: [certAttest(s, x, st)] };
-        return { page: 'two', pages: [() => certCopy(s, x, st)] };
-      },
-      validate: st => { if (!st.studentId && !st.issuedId) { toast('المرجو اختيار التلميذ(ة)', true); return false; } return true; },
-      beforeOutput: async st => { saveIssued(st); return true; },
-      onSave: async st => { saveIssued(st); toast('تم الحفظ في سجل الشواهد المسلمة: رقم ' + certNo({ no: st.no, year: st.year })); },
-      fname: st => 'شهادة_مدرسية_' + (stud(st).name || '')
-    });
-    function saveIssued(st) {
-      const x = stud(st);
-      if (!x.gender && st.gender && stById(st.studentId)) { stById(st.studentId).gender = st.gender; }
-      const now = new Date().toISOString();
-      if (st.issuedId) {
-        const r = CD().issued.find(y => y.id === st.issuedId);
-        if (r) Object.assign(r, { date: st.date, city: st.city, purpose: st.purpose, kind: st.kind, showUnit: st.showUnit, model: st.model, showNo: st.showNo, showReg: st.showReg, showLeave: st.showLeave, showLvNo: st.showLvNo, showFather: st.showFather, sy: st.kind === 'current' ? st.sy || MK.schoolYear(st.date) : '', snap: stById(st.studentId) ? snapOf(x) : r.snap, updated: now });
-      } else {
-        const n = noFor(st);
-        if (CD().issued.some(r => +r.year === n.year && +r.no === +n.no)) { n.no = nextNo(n.year); }
-        const r = { id: uid('ce'), studentId: st.studentId, no: n.no, year: n.year, date: st.date, city: st.city, purpose: st.purpose, kind: st.kind, showUnit: st.showUnit, model: st.model, showNo: st.showNo, showReg: st.showReg, showLeave: st.showLeave, showLvNo: st.showLvNo, showFather: st.showFather,
-          sy: st.kind === 'current' ? st.sy || MK.schoolYear(st.date) : '', snap: snapOf(x), created: now };
-        CD().issued.push(r);
-        Object.assign(st, { issuedId: r.id, no: r.no, year: r.year });
-        // reopen as a saved certificate (the pupil can no longer be changed for this number)
-        setTimeout(() => { if (current === 'certDoc') go('certDoc', { kind: 'cert', issuedId: r.id, mode: st.mode }); }, 0);
-      }
-      persist();
-    }
-  };
-})();
+          <p class="muted" style="font-size:12px;line-height:1.7;margin-top:12px">تُسجل الشهادة في «سجل الشواهد المسلمة» برقمها عند الطباعة أو الحفظ PDF.</p>`,!s.issuedId){const i=$("#cpq",n),g=$("#cpk",n),I=$(".list",g);let L=[],N=0;const ae=()=>{const w=j(s.studentId);$("#cchip",n).innerHTML=w?`<div class="emp-chip">${ic("cap",'style="width:22px;height:22px;color:var(--pri)"')}<div><b>${c(w.name)}</b><br>${c(A(w))}${w.regNo?" — رقم التسجيل: "+c(w.regNo):""}${w.unit&&!k()?" — "+c(w.unit):""}</div></div>`:"",i.value=w?w.name:""},H=()=>{const w=F(i.value);L=q().filter(T=>!w||F(T.name+" "+(T.regNo||"")).includes(w)).slice(0,60),N=Math.min(N,Math.max(0,L.length-1)),I.innerHTML=L.length?L.map((T,G)=>`<div class="it ${G===N?"hl":""}" data-i="${G}"><span>${c(T.name)}</span><small>${c(A(T))} ${c(T.regNo||"")}</small></div>`).join(""):'<div class="it muted">لا توجد نتائج — أضف التلميذ(ة) أولا</div>',$$(".it[data-i]",I).forEach(T=>T.onmousedown=G=>{G.preventDefault(),ie(L[+T.dataset.i])})},ie=w=>{s.studentId=w.id,s.kind=w.status==="current"?"current":"left",g.classList.remove("open"),i.blur(),ae(),$("#cK",n).value=s.kind,$("#cSyF",n).style.display=s.kind==="current"?"":"none",s.__sync&&s.__sync(),m()};i.onfocus=()=>{i.select(),N=0,H(),g.classList.add("open")},i.oninput=()=>{N=0,H(),g.classList.add("open")},i.onblur=()=>setTimeout(()=>{g.classList.remove("open"),ae()},120),i.onkeydown=w=>{w.key==="ArrowDown"&&(N=Math.min(N+1,L.length-1),H(),w.preventDefault()),w.key==="ArrowUp"&&(N=Math.max(N-1,0),H(),w.preventDefault()),w.key==="Enter"&&L[N]&&(ie(L[N]),w.preventDefault())},ae(),s.studentId||setTimeout(()=>i.focus(),60),$("#cNewSt",n).onclick=()=>U(null,()=>{const w=v().students[v().students.length-1];w&&ie(w)})}const f=()=>j(s.studentId)||s.issuedId&&(v().issued.find(i=>i.id===s.issuedId)||{}).snap||null,b=()=>{const i=f()||{},g=!i.gender&&i.name&&window.Agent&&Agent.genderOfName&&{M:"ذكر",F:"أنثى"}[Agent.genderOfName(i.name)]||"";s.gender=i.gender||g,$("#cG",n).value=s.gender,$("#cF",n).value=i.father||"",$("#cGh",n).textContent=g?"مقترح حسب الاسم — تأكد منه":!i.gender&&i.name?"غير محدد: تكتب الصيغة (ة) / (ا)":"",$("#cFl",n).textContent=`اسم الأب (${s.gender==="أنثى"?"من أبيها":s.gender==="ذكر"?"من أبيه":"من أبيه / أبيها"})`},E=(i,g)=>{const I=f();if(!I){toast("اختر التلميذ(ة) أولا",!0);return}if(I[i]=g,s.issuedId){const L=v().issued.find(N=>N.id===s.issuedId);L&&L.snap&&L.snap!==I&&(L.snap[i]=g)}persist(),m()};$("#cG",n).onchange=i=>{E("gender",i.target.value),b()},$("#cF",n).oninput=i=>{const g=f();g&&(g.father=i.target.value.trim(),persist(),m())},$("#cF",n).onchange=i=>E("father",i.target.value.trim()),s.__sync=b,b(),$("#cEdSt",n).onclick=()=>{const i=j(s.studentId);if(!i)return toast("اختر التلميذ(ة) أولا",!0);U(i,()=>{b(),m()})},$("#cK",n).onchange=i=>{s.kind=i.target.value,$("#cSyF",n).style.display=s.kind==="current"?"":"none",m()},$("#cSy",n).oninput=i=>{s.sy=i.target.value,m()},$("#cNo",n).oninput=i=>{s.no=+i.target.value||"",s.noYear=+(s.date||R()).slice(0,4),m()},$("#cD",n).onchange=i=>{if(s.date=i.target.value||R(),!s.issuedId){const g=l(s);$("#cNo",n).value=g.no,$(".hint",$("#cNo",n).parentElement).textContent=`يُعطى تلقائيا عند الطباعة (${g.year})`}m()},$("#cC",n).oninput=i=>{s.city=i.target.value,m()},$("#cP",n).oninput=i=>{s.purpose=i.target.value,m()},$("#cU",n)&&($("#cU",n).onchange=i=>{s.showUnit=i.target.checked,m()});const h=()=>{const i=$("#mkMode");i&&(i.style.display=s.model==="attest"?"none":"")};$("#cM",n).onchange=i=>{s.model=i.target.value,v().model=s.model,persist(),$("#cAopt",n).style.display=s.model==="attest"?"":"none",$("#cFsh",n).style.display=s.model==="attest"?"none":"",h(),m()},$$("[data-o]",n).forEach(i=>i.onchange=()=>{s[i.dataset.o]=i.checked,v()[i.dataset.o]=i.checked,persist(),m()}),setTimeout(h,0)},build:n=>{const s=S(),m=r(n),u=l(n);return n.noText=C(u),n.model==="attest"?{page:"a4",pages:[Ye(s,m,n)]}:{page:"two",pages:[()=>Te(s,m,n)]}},validate:n=>!n.studentId&&!n.issuedId?(toast("المرجو اختيار التلميذ(ة)",!0),!1):!0,beforeOutput:async n=>(p(n),!0),onSave:async n=>{p(n),toast("تم الحفظ في سجل الشواهد المسلمة: رقم "+C({no:n.no,year:n.year}))},fname:n=>"شهادة_مدرسية_"+(r(n).name||"")});function p(n){const s=r(n);!s.gender&&n.gender&&j(n.studentId)&&(j(n.studentId).gender=n.gender);const m=new Date().toISOString();if(n.issuedId){const u=v().issued.find(f=>f.id===n.issuedId);u&&Object.assign(u,{date:n.date,city:n.city,purpose:n.purpose,kind:n.kind,showUnit:n.showUnit,model:n.model,showNo:n.showNo,showReg:n.showReg,showLeave:n.showLeave,showLvNo:n.showLvNo,showFather:n.showFather,sy:n.kind==="current"?n.sy||MK.schoolYear(n.date):"",snap:j(n.studentId)?se(s):u.snap,updated:m})}else{const u=l(n);v().issued.some(b=>+b.year===u.year&&+b.no==+u.no)&&(u.no=J(u.year));const f={id:uid("ce"),studentId:n.studentId,no:u.no,year:u.year,date:n.date,city:n.city,purpose:n.purpose,kind:n.kind,showUnit:n.showUnit,model:n.model,showNo:n.showNo,showReg:n.showReg,showLeave:n.showLeave,showLvNo:n.showLvNo,showFather:n.showFather,sy:n.kind==="current"?n.sy||MK.schoolYear(n.date):"",snap:se(s),created:m};v().issued.push(f),Object.assign(n,{issuedId:f.id,no:f.no,year:f.year}),setTimeout(()=>{current==="certDoc"&&go("certDoc",{kind:"cert",issuedId:f.id,mode:n.mode})},0)}persist()}}})();

@@ -1,614 +1,123 @@
-'use strict';
-/* التهاني والتقديرات — شواهد تقدير وتهاني وشكر بتصاميم زخرفية (صفحة أفقية A4 بإطار وترويسة المؤسسة كاملة العرض)
-   - شواهد تقدير الأساتذة والأطر (المشاركة / المساهمة / المجهودات المتميزة / الإشراف) + شهادة شكر جماعية
-   - التهاني: الأعياد الدينية، اليوم العالمي للمدرس
-   - شواهد التفوق: المراتب الثلاث الأولى بكل قسم (+ لائحة المتفوقين)
-   - الشكر والتقدير: رئيس جمعية الآباء، رئيس المجلس الجماعي، جمعية مدنية، شريك أو متعاون */
-(function () {
-  const Dx = window.Docs;
-  const { esc } = Dx;
-  const { SB, tr, thr, tbl } = window.K;
-
-  function migrate(db) {
-    const k = db.kudos = db.kudos || {};
-    k.years = k.years && typeof k.years === 'object' ? k.years : {};
-  }
-  const gridDef = (k, l, cols, o) => Object.assign({ k, l, t: 'grid', cols, widths: cols.map(() => '1fr') }, o || {});
-  const KD = () => { migrate(DB); return DB.kudos; };
-  const store = sy => { const y = KD().years; return y[sy] || (y[sy] = {}); };
-
-  /* ---------------- colour themes ---------------- */
-  const TH = {
-    navy: { n: 'أزرق ملكي وذهبي', m: '#16325f', a: '#b8892b', l: '#e8edf8', p: '#fffdf6', g1: '#f0d68a', g2: '#b8892b', g3: '#8a621a' },
-    emerald: { n: 'أخضر زمردي وذهبي', m: '#0b5d46', a: '#b9922f', l: '#e2f1ea', p: '#fffdf5', g1: '#efd588', g2: '#b9922f', g3: '#86651a' },
-    plum: { n: 'بنفسجي وذهبي', m: '#4a2a6e', a: '#c39a33', l: '#efe8f7', p: '#fffcf7', g1: '#f1d78d', g2: '#c39a33', g3: '#8d6a1c' },
-    burgundy: { n: 'عنابي وذهبي', m: '#7b1f2e', a: '#b8892b', l: '#f7e6e8', p: '#fffcf6', g1: '#efd186', g2: '#b8892b', g3: '#85601b' },
-    teal: { n: 'أخضر مزرق', m: '#0f6670', a: '#c8923a', l: '#e0f1f2', p: '#fffdf8', g1: '#f2d99a', g2: '#c8923a', g3: '#8e6320' },
-    ocean: { n: 'أزرق سماوي وفضي', m: '#1b5a96', a: '#7d97b8', l: '#e5eef9', p: '#fdfeff', g1: '#dfe8f3', g2: '#8ea6c4', g3: '#5d7798' },
-    amber: { n: 'عنبري دافئ', m: '#86480a', a: '#d09a24', l: '#fbefd6', p: '#fffaf0', g1: '#f6dc96', g2: '#d09a24', g3: '#946616' },
-    gold: { n: 'ذهبي (المرتبة الأولى)', m: '#7d5a0e', a: '#d1a22b', l: '#fbf2d3', p: '#fffbee', g1: '#fbe7a1', g2: '#d1a22b', g3: '#94700f' },
-    silver: { n: 'فضي (المرتبة الثانية)', m: '#46515d', a: '#98a5b2', l: '#eceff3', p: '#fcfdfe', g1: '#eef1f5', g2: '#a3afbb', g3: '#6b7784' },
-    bronze: { n: 'برونزي (المرتبة الثالثة)', m: '#74431f', a: '#c0803f', l: '#f6e8da', p: '#fffaf4', g1: '#efc496', g2: '#c0803f', g3: '#8a5426' }
-  };
-  const themeOpts = auto => (auto ? [['auto', 'تلقائي حسب السياق']] : []).concat(Object.keys(TH).map(k => [k, TH[k].n])).concat([['custom', 'ألوان مخصصة (اختر أدناه)']]);
-  const thOf = k => TH[k] || TH.navy;
-
-  /* ---------------- ornaments (SVG, mm units) ---------------- */
-  let seq = 0;
-  const f1 = n => (+n).toFixed(2);
-  const starPts = (cx, cy, R, r, n, rot) => {
-    const pts = [];
-    for (let i = 0; i < n * 2; i++) {
-      const a = (rot || 0) * Math.PI / 180 + i * Math.PI / n - Math.PI / 2, rr = i % 2 ? r : R;
-      pts.push(f1(cx + rr * Math.cos(a)) + ',' + f1(cy + rr * Math.sin(a)));
-    }
-    return pts.join(' ');
-  };
-  function frame(th, W, H) {
-    const u = 'kd' + (++seq);
-    const { m, a, l, p } = th;
-    const corner = (tf) => `<g transform="${tf}">
-      <path d="M4 4H24A20 20 0 0 1 4 24Z" fill="${l}" stroke="url(#${u}g)" stroke-width=".6"/>
-      <path d="M4 4H19A15 15 0 0 1 4 19Z" fill="none" stroke="${a}" stroke-width=".35"/>
-      <path d="M4 4H14A10 10 0 0 1 4 14Z" fill="none" stroke="${m}" stroke-width=".25" opacity=".6"/>
-      <polygon points="${starPts(11.6, 11.6, 5.4, 2.4, 8, 22.5)}" fill="url(#${u}g)" stroke="${m}" stroke-width=".28"/>
-      <circle cx="11.6" cy="11.6" r="1.15" fill="${p}" stroke="${m}" stroke-width=".2"/></g>`;
-    const mid = tf => `<g transform="${tf}">
-      <path d="M-13 0L0-3.6 13 0 0 3.6Z" fill="url(#${u}g)" stroke="${m}" stroke-width=".25"/>
-      <path d="M-7.5 0L0-1.9 7.5 0 0 1.9Z" fill="${p}"/><circle r=".85" fill="${m}"/>
-      <circle cx="-18" r="1.15" fill="${a}"/><circle cx="18" r="1.15" fill="${a}"/>
-      <circle cx="-23" r=".7" fill="${m}"/><circle cx="23" r=".7" fill="${m}"/></g>`;
-    return `<svg class="kd-svg" viewBox="0 0 ${W} ${H}" width="${W}mm" height="${H}mm" xmlns="http://www.w3.org/2000/svg">
+"use strict";(function(){const P=window.Docs,{esc:h}=P,{SB:At,tr:lt,thr:le,tbl:Lt}=window.K;function N(e){const t=e.kudos=e.kudos||{};t.years=t.years&&typeof t.years=="object"?t.years:{}}const x=(e,t,r,l)=>Object.assign({k:e,l:t,t:"grid",cols:r,widths:r.map(()=>"1fr")},l||{}),st=()=>(N(DB),DB.kudos),ot=e=>{const t=st().years;return t[e]||(t[e]={})},D={navy:{n:"أزرق ملكي وذهبي",m:"#16325f",a:"#b8892b",l:"#e8edf8",p:"#fffdf6",g1:"#f0d68a",g2:"#b8892b",g3:"#8a621a"},emerald:{n:"أخضر زمردي وذهبي",m:"#0b5d46",a:"#b9922f",l:"#e2f1ea",p:"#fffdf5",g1:"#efd588",g2:"#b9922f",g3:"#86651a"},plum:{n:"بنفسجي وذهبي",m:"#4a2a6e",a:"#c39a33",l:"#efe8f7",p:"#fffcf7",g1:"#f1d78d",g2:"#c39a33",g3:"#8d6a1c"},burgundy:{n:"عنابي وذهبي",m:"#7b1f2e",a:"#b8892b",l:"#f7e6e8",p:"#fffcf6",g1:"#efd186",g2:"#b8892b",g3:"#85601b"},teal:{n:"أخضر مزرق",m:"#0f6670",a:"#c8923a",l:"#e0f1f2",p:"#fffdf8",g1:"#f2d99a",g2:"#c8923a",g3:"#8e6320"},ocean:{n:"أزرق سماوي وفضي",m:"#1b5a96",a:"#7d97b8",l:"#e5eef9",p:"#fdfeff",g1:"#dfe8f3",g2:"#8ea6c4",g3:"#5d7798"},amber:{n:"عنبري دافئ",m:"#86480a",a:"#d09a24",l:"#fbefd6",p:"#fffaf0",g1:"#f6dc96",g2:"#d09a24",g3:"#946616"},gold:{n:"ذهبي (المرتبة الأولى)",m:"#7d5a0e",a:"#d1a22b",l:"#fbf2d3",p:"#fffbee",g1:"#fbe7a1",g2:"#d1a22b",g3:"#94700f"},silver:{n:"فضي (المرتبة الثانية)",m:"#46515d",a:"#98a5b2",l:"#eceff3",p:"#fcfdfe",g1:"#eef1f5",g2:"#a3afbb",g3:"#6b7784"},bronze:{n:"برونزي (المرتبة الثالثة)",m:"#74431f",a:"#c0803f",l:"#f6e8da",p:"#fffaf4",g1:"#efc496",g2:"#c0803f",g3:"#8a5426"}},_t=e=>(e?[["auto","تلقائي حسب السياق"]]:[]).concat(Object.keys(D).map(t=>[t,D[t].n])).concat([["custom","ألوان مخصصة (اختر أدناه)"]]),Ot=e=>D[e]||D.navy;let y=0;const f=e=>(+e).toFixed(2),g=(e,t,r,l,s,i)=>{const o=[];for(let a=0;a<s*2;a++){const n=(i||0)*Math.PI/180+a*Math.PI/s-Math.PI/2,c=a%2?l:r;o.push(f(e+c*Math.cos(n))+","+f(t+c*Math.sin(n)))}return o.join(" ")};function Zt(e,t,r){const l="kd"+ ++y,{m:s,a:i,l:o,p:a}=e,n=$=>`<g transform="${$}">
+      <path d="M4 4H24A20 20 0 0 1 4 24Z" fill="${o}" stroke="url(#${l}g)" stroke-width=".6"/>
+      <path d="M4 4H19A15 15 0 0 1 4 19Z" fill="none" stroke="${i}" stroke-width=".35"/>
+      <path d="M4 4H14A10 10 0 0 1 4 14Z" fill="none" stroke="${s}" stroke-width=".25" opacity=".6"/>
+      <polygon points="${g(11.6,11.6,5.4,2.4,8,22.5)}" fill="url(#${l}g)" stroke="${s}" stroke-width=".28"/>
+      <circle cx="11.6" cy="11.6" r="1.15" fill="${a}" stroke="${s}" stroke-width=".2"/></g>`,c=$=>`<g transform="${$}">
+      <path d="M-13 0L0-3.6 13 0 0 3.6Z" fill="url(#${l}g)" stroke="${s}" stroke-width=".25"/>
+      <path d="M-7.5 0L0-1.9 7.5 0 0 1.9Z" fill="${a}"/><circle r=".85" fill="${s}"/>
+      <circle cx="-18" r="1.15" fill="${i}"/><circle cx="18" r="1.15" fill="${i}"/>
+      <circle cx="-23" r=".7" fill="${s}"/><circle cx="23" r=".7" fill="${s}"/></g>`;return`<svg class="kd-svg" viewBox="0 0 ${t} ${r}" width="${t}mm" height="${r}mm" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${th.g1}"/><stop offset=".5" stop-color="${th.g2}"/><stop offset="1" stop-color="${th.g3}"/></linearGradient>
-        <pattern id="${u}p" width="12" height="12" patternUnits="userSpaceOnUse">
-          <g fill="none" stroke="${m}" stroke-width=".22" opacity=".26"><rect x="2.6" y="2.6" width="6.8" height="6.8"/><rect x="2.6" y="2.6" width="6.8" height="6.8" transform="rotate(45 6 6)"/></g>
-          <g fill="${a}" opacity=".55"><circle cx="0" cy="0" r=".55"/><circle cx="12" cy="0" r=".55"/><circle cx="0" cy="12" r=".55"/><circle cx="12" cy="12" r=".55"/></g>
+        <linearGradient id="${l}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${e.g1}"/><stop offset=".5" stop-color="${e.g2}"/><stop offset="1" stop-color="${e.g3}"/></linearGradient>
+        <pattern id="${l}p" width="12" height="12" patternUnits="userSpaceOnUse">
+          <g fill="none" stroke="${s}" stroke-width=".22" opacity=".26"><rect x="2.6" y="2.6" width="6.8" height="6.8"/><rect x="2.6" y="2.6" width="6.8" height="6.8" transform="rotate(45 6 6)"/></g>
+          <g fill="${i}" opacity=".55"><circle cx="0" cy="0" r=".55"/><circle cx="12" cy="0" r=".55"/><circle cx="0" cy="12" r=".55"/><circle cx="12" cy="12" r=".55"/></g>
         </pattern>
-        <radialGradient id="${u}r" cx=".5" cy=".5" r=".62"><stop offset="0" stop-color="${p}" stop-opacity="1"/><stop offset=".6" stop-color="${p}" stop-opacity=".95"/><stop offset="1" stop-color="${p}" stop-opacity=".25"/></radialGradient>
+        <radialGradient id="${l}r" cx=".5" cy=".5" r=".62"><stop offset="0" stop-color="${a}" stop-opacity="1"/><stop offset=".6" stop-color="${a}" stop-opacity=".95"/><stop offset="1" stop-color="${a}" stop-opacity=".25"/></radialGradient>
       </defs>
-      <rect width="${W}" height="${H}" fill="${p}"/>
-      <rect x="9" y="9" width="${W - 18}" height="${H - 18}" fill="url(#${u}p)"/>
-      <rect x="9" y="9" width="${W - 18}" height="${H - 18}" fill="url(#${u}r)"/>
-      <g fill="none" stroke="${m}" opacity=".07" stroke-width=".5"><polygon points="${starPts(W / 2, H / 2 + 12, 78, 64, 16, 0)}"/><circle cx="${W / 2}" cy="${H / 2 + 12}" r="48"/><circle cx="${W / 2}" cy="${H / 2 + 12}" r="44"/></g>
-      <rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="url(#${u}g)" stroke-width="2.4"/>
-      <rect x="6.5" y="6.5" width="${W - 13}" height="${H - 13}" fill="none" stroke="${m}" stroke-width=".5"/>
-      <rect x="8" y="8" width="${W - 16}" height="${H - 16}" fill="none" stroke="${a}" stroke-width=".9" stroke-dasharray=".01 2.2" stroke-linecap="round"/>
-      <rect x="9.6" y="9.6" width="${W - 19.2}" height="${H - 19.2}" fill="none" stroke="url(#${u}g)" stroke-width=".6"/>
-      ${corner('')}${corner(`translate(${W} 0) scale(-1 1)`)}${corner(`translate(0 ${H}) scale(1 -1)`)}${corner(`translate(${W} ${H}) scale(-1 -1)`)}
-      ${mid(`translate(${f1(W / 2)} 4)`)}${mid(`translate(${f1(W / 2)} ${H - 4})`)}${mid(`translate(4 ${f1(H / 2)}) rotate(90)`)}${mid(`translate(${W - 4} ${f1(H / 2)}) rotate(90)`)}
-    </svg>`;
-  }
-  /* ---------------- 1.9.2: more frames (each one in every colour theme) ---------------- */
-  const svgOpen = (W, H, defs) => `<svg class="kd-svg" viewBox="0 0 ${W} ${H}" width="${W}mm" height="${H}mm" xmlns="http://www.w3.org/2000/svg"><defs>${defs || ''}</defs>`;
-  const goldGrad = (u, th) => `<linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${th.g1}"/><stop offset=".5" stop-color="${th.g2}"/><stop offset="1" stop-color="${th.g3}"/></linearGradient>`;
-  const four = (W, H, g) => g('') + g(`translate(${W} 0) scale(-1 1)`) + g(`translate(0 ${H}) scale(1 -1)`) + g(`translate(${W} ${H}) scale(-1 -1)`);
-  // 1) royal: heavy double gilt border with scroll corners and a crest on top
-  function frameRoyal(th, W, H) {
-    const u = 'kr' + (++seq), { m, a, l, p } = th;
-    const scroll = tf => `<g transform="${tf}" fill="none" stroke-linecap="round">
-      <path d="M7 34C7 18 18 7 34 7" stroke="url(#${u}g)" stroke-width="1.6"/>
-      <path d="M12 30C12 20 20 12 30 12" stroke="${m}" stroke-width=".5"/>
-      <path d="M10 46C15 40 14 30 9 27M46 10C40 15 30 14 27 9" stroke="${a}" stroke-width=".8"/>
-      <path d="M16 16C22 22 27 24 33 23M16 16C22 22 24 27 23 33" stroke="url(#${u}g)" stroke-width="1"/>
-      <circle cx="16" cy="16" r="3.2" fill="url(#${u}g)" stroke="${m}" stroke-width=".3"/><circle cx="16" cy="16" r="1.2" fill="${p}"/>
-      <circle cx="35" cy="22.6" r="1.1" fill="${a}"/><circle cx="22.6" cy="35" r="1.1" fill="${a}"/></g>`;
-    const crest = (x, y, r) => `<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-30 0C-18 0-12-5 0-5S18 0 30 0C18 0 12 5 0 5S-18 0-30 0Z" fill="${l}" stroke="url(#${u}g)" stroke-width=".7"/>
-      <polygon points="${starPts(0, 0, 4.4, 1.9, 8, 22.5)}" fill="url(#${u}g)" stroke="${m}" stroke-width=".25"/><circle cx="-14" r="1" fill="${m}"/><circle cx="14" r="1" fill="${m}"/></g>`;
-    return svgOpen(W, H, goldGrad(u, th)) + `<rect width="${W}" height="${H}" fill="${p}"/>
-      <rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="none" stroke="${m}" stroke-width="3"/>
-      <rect x="8" y="8" width="${W - 16}" height="${H - 16}" fill="none" stroke="url(#${u}g)" stroke-width="1.8"/>
-      <rect x="10.6" y="10.6" width="${W - 21.2}" height="${H - 21.2}" fill="none" stroke="${m}" stroke-width=".4"/>
-      <rect x="12" y="12" width="${W - 24}" height="${H - 24}" fill="none" stroke="${a}" stroke-width=".3" stroke-dasharray="2 1.2"/>
-      <g opacity=".08" fill="none" stroke="${m}" stroke-width=".6"><polygon points="${starPts(W / 2, H / 2 + 14, 60, 50, 12, 0)}"/><circle cx="${W / 2}" cy="${H / 2 + 14}" r="40"/></g>
-      ${four(W, H, scroll)}${crest(W / 2, 6.5, 0)}${crest(W / 2, H - 6.5, 0)}${crest(6.5, H / 2, 90)}${crest(W - 6.5, H / 2, 90)}</svg>`;
-  }
-  // 2) zellige: a band of Moroccan eight-pointed stars all around
-  function frameZellige(th, W, H) {
-    const u = 'kz' + (++seq), { m, a, l, p } = th, T = 9;
-    const tile = `<pattern id="${u}t" width="${T}" height="${T}" patternUnits="userSpaceOnUse"><rect width="${T}" height="${T}" fill="${l}"/>
-      <polygon points="${starPts(T / 2, T / 2, 4.1, 2.6, 8, 22.5)}" fill="${m}"/><polygon points="${starPts(T / 2, T / 2, 2.6, 1.5, 8, 0)}" fill="${a}"/><circle cx="${T / 2}" cy="${T / 2}" r=".8" fill="${p}"/>
-      <circle cx="0" cy="0" r="1.2" fill="${a}"/><circle cx="${T}" cy="0" r="1.2" fill="${a}"/><circle cx="0" cy="${T}" r="1.2" fill="${a}"/><circle cx="${T}" cy="${T}" r="1.2" fill="${a}"/></pattern>`;
-    return svgOpen(W, H, goldGrad(u, th) + tile) + `<rect width="${W}" height="${H}" fill="${p}"/>
-      <path d="M4 4H${W - 4}V${H - 4}H4Z M13 13V${H - 13}H${W - 13}V13Z" fill="url(#${u}t)" fill-rule="evenodd"/>
-      <rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${m}" stroke-width="1.2"/>
-      <rect x="13" y="13" width="${W - 26}" height="${H - 26}" fill="none" stroke="url(#${u}g)" stroke-width="1.4"/>
-      <rect x="14.6" y="14.6" width="${W - 29.2}" height="${H - 29.2}" fill="none" stroke="${m}" stroke-width=".35"/>
-      ${four(W, H, tf => `<g transform="${tf}"><rect x="2" y="2" width="15" height="15" fill="${m}"/><polygon points="${starPts(9.5, 9.5, 6.4, 3.2, 8, 22.5)}" fill="url(#${u}g)"/><circle cx="9.5" cy="9.5" r="1.6" fill="${p}"/></g>`)}
-      <g opacity=".07" fill="none" stroke="${m}" stroke-width=".6"><polygon points="${starPts(W / 2, H / 2 + 14, 70, 52, 8, 22.5)}"/><polygon points="${starPts(W / 2, H / 2 + 14, 52, 38, 8, 0)}"/></g></svg>`;
-  }
-  // 3) laurel: fine double border and two golden laurel branches rising on both sides
-  function frameLaurel(th, W, H) {
-    const u = 'kl' + (++seq), { m, a, p } = th;
-    const branch = (flip) => {
-      let g = '';
-      const pts = []; for (let i = 0; i <= 16; i++) { const t = i / 16; pts.push([9.5 + 3 * Math.sin(t * Math.PI), H - 16 - t * (H * .62)]); }
-      g += `<path d="M${pts.map(q => q.map(f1).join(' ')).join('L')}" fill="none" stroke="url(#${u}g)" stroke-width=".9"/>`;
-      pts.forEach((q, i) => { if (!i) return; const r = i % 2 ? 1 : -1; g += `<ellipse cx="${f1(q[0] + r * 3.2)}" cy="${f1(q[1])}" rx="3.6" ry="1.35" transform="rotate(${r * -35 - 90} ${f1(q[0] + r * 3.2)} ${f1(q[1])})" fill="url(#${u}g)" stroke="${m}" stroke-width=".15"/>`; });
-      return `<g transform="${flip ? `translate(${W} 0) scale(-1 1)` : ''}">${g}</g>`;
-    };
-    return svgOpen(W, H, goldGrad(u, th)) + `<rect width="${W}" height="${H}" fill="${p}"/>
-      <rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="url(#${u}g)" stroke-width="2.2"/>
-      <rect x="7" y="7" width="${W - 14}" height="${H - 14}" fill="none" stroke="${m}" stroke-width=".5"/>
-      <rect x="8.2" y="8.2" width="${W - 16.4}" height="${H - 16.4}" fill="none" stroke="${a}" stroke-width=".3"/>
-      ${branch(false)}${branch(true)}
-      <g transform="translate(${W / 2} ${H - 7.6})"><path d="M-22 0H22" stroke="url(#${u}g)" stroke-width="1"/><polygon points="${starPts(0, 0, 4, 1.7, 5, 0)}" fill="url(#${u}g)" stroke="${m}" stroke-width=".2"/></g>
-      <g opacity=".05" fill="${m}"><polygon points="${starPts(W / 2, H / 2 + 14, 62, 26, 5, 0)}"/></g></svg>`;
-  }
-  // 4) arch: the inner panel under a Moroccan horseshoe arch, spandrels filled with a light pattern
-  function frameArch(th, W, H) {
-    const u = 'ka' + (++seq), { m, a, l, p } = th;
-    const x0 = 12, x1 = W - 12, y0 = 12, y1 = H - 12, top = 40, cx = W / 2;
-    const arch = `M${x0} ${y1}V${top}Q${x0} ${y0 + 6} ${x0 + 30} ${y0 + 4}H${cx - 26}C${cx - 14} ${y0 + 4} ${cx - 8} ${y0 - 2} ${cx} ${y0 - 4}C${cx + 8} ${y0 - 2} ${cx + 14} ${y0 + 4} ${cx + 26} ${y0 + 4}H${x1 - 30}Q${x1} ${y0 + 6} ${x1} ${top}V${y1}Z`;
-    const pat = `<pattern id="${u}p" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${l}"/><path d="M4 0L8 4 4 8 0 4Z" fill="none" stroke="${a}" stroke-width=".4"/><circle cx="4" cy="4" r=".7" fill="${m}"/></pattern>`;
-    return svgOpen(W, H, goldGrad(u, th) + pat) + `<rect width="${W}" height="${H}" fill="url(#${u}p)"/>
-      <path d="${arch}" fill="${p}" stroke="url(#${u}g)" stroke-width="2"/>
-      <path d="${arch}" fill="none" stroke="${m}" stroke-width=".5" transform="translate(${cx} ${H / 2}) scale(.985) translate(${-cx} ${-H / 2})"/>
-      <rect x="3" y="3" width="${W - 6}" height="${H - 6}" fill="none" stroke="${m}" stroke-width="2"/>
-      <rect x="5.2" y="5.2" width="${W - 10.4}" height="${H - 10.4}" fill="none" stroke="url(#${u}g)" stroke-width=".9"/>
-      <g transform="translate(${cx} ${y0 - 5})"><circle r="3.4" fill="url(#${u}g)" stroke="${m}" stroke-width=".3"/><polygon points="${starPts(0, 0, 2.4, 1, 5, 0)}" fill="${m}"/></g></svg>`;
-  }
-  // 5) ribbons: modern certificate with diagonal ribbons in two corners
-  function frameRibbon(th, W, H) {
-    const u = 'kb' + (++seq), { m, a, l, p } = th;
-    const band = tf => `<g transform="${tf}"><path d="M0 0H70L0 70Z" fill="${m}"/><path d="M76 0H86L0 86V76Z" fill="url(#${u}g)"/><path d="M92 0H95L0 95V92Z" fill="${a}"/><path d="M0 0H44L0 44Z" fill="${l}" opacity=".18"/></g>`;
-    return svgOpen(W, H, goldGrad(u, th)) + `<rect width="${W}" height="${H}" fill="${p}"/>
-      ${band('')}${band(`translate(${W} ${H}) scale(-1 -1)`)}
-      <rect x="6" y="6" width="${W - 12}" height="${H - 12}" fill="none" stroke="url(#${u}g)" stroke-width="1.2"/>
-      <rect x="8.4" y="8.4" width="${W - 16.8}" height="${H - 16.8}" fill="none" stroke="${m}" stroke-width=".4"/>
-      <g opacity=".07"><circle cx="${W / 2}" cy="${H / 2 + 14}" r="55" fill="none" stroke="${m}" stroke-width="6"/></g></svg>`;
-  }
-  // 6) guilloche: interlaced waves around the page, like a diploma
-  function frameGuilloche(th, W, H) {
-    const u = 'kg' + (++seq), { m, a, p } = th;
-    const wave = (ph, amp, col, sw) => {
-      const pts = [], per = [[8, 8, W - 8, 8], [W - 8, 8, W - 8, H - 8], [W - 8, H - 8, 8, H - 8], [8, H - 8, 8, 8]];
-      per.forEach(([xa, ya, xb, yb]) => { const L = Math.hypot(xb - xa, yb - ya), n = Math.round(L / 2), nx = -(yb - ya) / L, ny = (xb - xa) / L;
-        for (let i = 0; i <= n; i++) { const t = i / n, w = amp * Math.sin(t * L / 6 * Math.PI + ph); pts.push([xa + (xb - xa) * t + nx * w, ya + (yb - ya) * t + ny * w]); } });
-      return `<path d="M${pts.map(q => q.map(f1).join(' ')).join('L')}Z" fill="none" stroke="${col}" stroke-width="${sw}"/>`;
-    };
-    let w = ''; for (let k = 0; k < 6; k++) w += wave(k * Math.PI / 3, 3.2, k % 2 ? m : a, k % 2 ? .28 : .35);
-    return svgOpen(W, H, goldGrad(u, th)) + `<rect width="${W}" height="${H}" fill="${p}"/>${w}
-      <rect x="3" y="3" width="${W - 6}" height="${H - 6}" fill="none" stroke="${m}" stroke-width="1.1"/>
-      <rect x="13" y="13" width="${W - 26}" height="${H - 26}" fill="none" stroke="url(#${u}g)" stroke-width="1.1"/>
-      ${four(W, H, tf => `<g transform="${tf}"><circle cx="8" cy="8" r="5.4" fill="${p}" stroke="url(#${u}g)" stroke-width="1"/><polygon points="${starPts(8, 8, 4.2, 1.8, 6, 0)}" fill="${m}"/></g>`)}</svg>`;
-  }
-  const FRAMES = { classic: ['الإطار الكلاسيكي (زخرفة هندسية)', frame], royal: ['ملكي: إطار مذهب مزدوج بزخارف ملتوية', frameRoyal], zellige: ['زليج مغربي: شريط نجوم ثمانية', frameZellige],
-    laurel: ['أغصان الغار الذهبية (للتفوق)', frameLaurel], arch: ['قوس مغربي بزخرفة', frameArch], ribbon: ['عصري: أشرطة مائلة', frameRibbon], guilloche: ['شهادة رسمية: تموجات متشابكة', frameGuilloche] };
-  /* ---------------- 1.9.2: 90 generated frames (10 borders × 9 corner ornaments), all colour themes ---------------- */
-  const BORDERS = [
-    ['خط مزدوج رفيع', (u, th, W, H) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="none" stroke="${th.m}" stroke-width="1.2"/><rect x="8" y="8" width="${W - 16}" height="${H - 16}" fill="none" stroke="url(#${u}g)" stroke-width=".7"/>`],
-    ['ذهبي عريض', (u, th, W, H) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="none" stroke="url(#${u}g)" stroke-width="3.4"/><rect x="8.4" y="8.4" width="${W - 16.8}" height="${H - 16.8}" fill="none" stroke="${th.m}" stroke-width=".6"/>`],
-    ['منقط', (u, th, W, H) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="none" stroke="${th.m}" stroke-width=".8"/><rect x="8.5" y="8.5" width="${W - 17}" height="${H - 17}" fill="none" stroke="${th.a}" stroke-width="1.6" stroke-dasharray=".01 3" stroke-linecap="round"/>`],
-    ['متقطع', (u, th, W, H) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="none" stroke="url(#${u}g)" stroke-width="1.6"/><rect x="8.5" y="8.5" width="${W - 17}" height="${H - 17}" fill="none" stroke="${th.m}" stroke-width=".8" stroke-dasharray="4 2.2"/>`],
-    ['ثلاثي', (u, th, W, H) => `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${th.m}" stroke-width="2"/><rect x="7.2" y="7.2" width="${W - 14.4}" height="${H - 14.4}" fill="none" stroke="url(#${u}g)" stroke-width="1.2"/><rect x="9.6" y="9.6" width="${W - 19.2}" height="${H - 19.2}" fill="none" stroke="${th.m}" stroke-width=".4"/>`],
-    ['زوايا مستديرة', (u, th, W, H) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="13" fill="none" stroke="${th.m}" stroke-width="1.6"/><rect x="8.4" y="8.4" width="${W - 16.8}" height="${H - 16.8}" rx="10" fill="none" stroke="url(#${u}g)" stroke-width="1.1"/>`],
-    ['حواف مسننة', (u, th, W, H) => { let c = ''; const put = (x, y) => { c += `<circle cx="${f1(x)}" cy="${f1(y)}" r="1.7" fill="url(#${u}g)"/>`; }; for (let x = 12; x <= W - 12; x += 5) { put(x, 6.5); put(x, H - 6.5); } for (let y = 12; y <= H - 12; y += 5) { put(6.5, y); put(W - 6.5, y); } return `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${th.m}" stroke-width=".9"/><rect x="9.5" y="9.5" width="${W - 19}" height="${H - 19}" fill="none" stroke="${th.m}" stroke-width=".5"/>${c}`; }],
-    ['زوايا مقطوعة', (u, th, W, H) => { const k = 15, o = (d) => `M${d + k} ${d}H${W - d - k}L${W - d} ${d + k}V${H - d - k}L${W - d - k} ${H - d}H${d + k}L${d} ${H - d - k}V${d + k}Z`; return `<path d="${o(5)}" fill="none" stroke="${th.m}" stroke-width="1.8"/><path d="${o(8.5)}" fill="none" stroke="url(#${u}g)" stroke-width="1.1"/>`; }],
-    ['شريط مربعات', (u, th, W, H) => { let c = ''; const put = (x, y) => { c += `<rect x="${f1(x - 1.5)}" y="${f1(y - 1.5)}" width="3" height="3" transform="rotate(45 ${f1(x)} ${f1(y)})" fill="${th.m}"/>`; }; for (let x = 14; x <= W - 14; x += 6.5) { put(x, 7); put(x, H - 7); } for (let y = 14; y <= H - 14; y += 6.5) { put(7, y); put(W - 7, y); } return `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="url(#${u}g)" stroke-width="1.4"/><rect x="10" y="10" width="${W - 20}" height="${H - 20}" fill="none" stroke="${th.a}" stroke-width=".6"/>${c}`; }],
-    ['متعرج', (u, th, W, H) => { const z = (d, a) => { let p = `M${d} ${d}`; for (let x = d; x <= W - d; x += 4) p += `L${x} ${d + (((x - d) / 4) % 2 ? a : 0)}`; for (let y = d; y <= H - d; y += 4) p += `L${W - d - (((y - d) / 4) % 2 ? a : 0)} ${y}`; for (let x = W - d; x >= d; x -= 4) p += `L${x} ${H - d - (((W - d - x) / 4) % 2 ? a : 0)}`; for (let y = H - d; y >= d; y -= 4) p += `L${d + (((H - d - y) / 4) % 2 ? a : 0)} ${y}`; return p + 'Z'; }; return `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${th.m}" stroke-width="1.4"/><path d="${z(8, 2.2)}" fill="none" stroke="url(#${u}g)" stroke-width=".7"/><rect x="13" y="13" width="${W - 26}" height="${H - 26}" fill="none" stroke="${th.m}" stroke-width=".4"/>`; }]
-  ];
-  const CORNERS = [
-    ['نجمة ثمانية', (u, th) => `<polygon points="${starPts(14, 14, 11, 5, 8, 22.5)}" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".4"/><circle cx="14" cy="14" r="2.2" fill="${th.p}" stroke="${th.m}" stroke-width=".3"/>`],
-    ['وردة', (u, th) => { let c = ''; for (let i = 0; i < 8; i++) { const a = i * 45; c += `<ellipse cx="14" cy="8.2" rx="2.6" ry="5.2" transform="rotate(${a} 14 14)" fill="${i % 2 ? th.l : 'url(#' + u + 'g)'}" stroke="${th.m}" stroke-width=".3"/>`; } return c + `<circle cx="14" cy="14" r="2.4" fill="${th.m}"/>`; }],
-    ['دوائر متداخلة', (u, th) => `<circle cx="14" cy="14" r="11" fill="${th.l}" stroke="url(#${u}g)" stroke-width="1"/><circle cx="14" cy="14" r="7.4" fill="none" stroke="${th.m}" stroke-width=".6"/><circle cx="14" cy="14" r="3.6" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".3"/>`],
-    ['لولب أرابيسك', (u, th) => `<path d="M6 6C6 20 12 26 26 26M6 6C20 6 26 12 26 26" fill="none" stroke="url(#${u}g)" stroke-width="1.5" stroke-linecap="round"/><path d="M9 9C9 17 13 21 21 21M9 9C17 9 21 13 21 21" fill="none" stroke="${th.m}" stroke-width=".6"/><circle cx="9" cy="9" r="2.6" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".3"/>`],
-    ['معين متداخل', (u, th) => `<path d="M14 2L26 14 14 26 2 14Z" fill="${th.l}" stroke="url(#${u}g)" stroke-width="1.2"/><path d="M14 7L21 14 14 21 7 14Z" fill="${th.m}"/><path d="M14 10.4L17.6 14 14 17.6 10.4 14Z" fill="url(#${u}g)"/>`],
-    ['هلال ونجمة', (u, th) => `<circle cx="13" cy="14" r="9" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".4"/><circle cx="16" cy="12.6" r="8" fill="${th.p}"/><polygon points="${starPts(20, 13.4, 4.2, 1.8, 5, 0)}" fill="${th.m}"/>`],
-    ['أوراق', (u, th) => { let c = ''; for (let i = 0; i < 5; i++) { c += `<path d="M5 5Q${12 + i * 3} ${6 + i * 1} ${22 + i * 1.4} ${9 + i * 4.2}Q${12 + i * 1} ${14 + i * 3} 5 5Z" transform="rotate(${-8 + i * 4} 5 5)" fill="${i % 2 ? th.l : 'url(#' + u + 'g)'}" stroke="${th.m}" stroke-width=".3"/>`; } return c + `<circle cx="5.5" cy="5.5" r="2" fill="${th.m}"/>`; }],
-    ['زهرة رباعية', (u, th) => `<g fill="url(#${u}g)" stroke="${th.m}" stroke-width=".35"><circle cx="14" cy="7.4" r="5.2"/><circle cx="14" cy="20.6" r="5.2"/><circle cx="7.4" cy="14" r="5.2"/><circle cx="20.6" cy="14" r="5.2"/></g><circle cx="14" cy="14" r="4.4" fill="${th.p}" stroke="${th.m}" stroke-width=".4"/><circle cx="14" cy="14" r="1.6" fill="${th.m}"/>`],
-    ['مربعات متدرجة', (u, th) => `<rect x="3" y="3" width="24" height="24" fill="${th.m}"/><rect x="6.5" y="6.5" width="17" height="17" fill="url(#${u}g)"/><rect x="10.5" y="10.5" width="9" height="9" fill="${th.p}" stroke="${th.m}" stroke-width=".4"/><rect x="13" y="13" width="4" height="4" fill="${th.m}"/>`]
-  ];
-  const BGS = ['', (u, th, W, H) => `<pattern id="${u}b" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r=".5" fill="${th.a}" opacity=".5"/></pattern><rect x="9" y="9" width="${W - 18}" height="${H - 18}" fill="url(#${u}b)"/>`, (u, th, W, H) => `<pattern id="${u}b" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 5L5 0 10 5 5 10Z" fill="none" stroke="${th.m}" stroke-width=".2" opacity=".35"/></pattern><rect x="9" y="9" width="${W - 18}" height="${H - 18}" fill="url(#${u}b)"/>`];
-  const genFrame = (bi, ci) => (th, W, H) => {
-    const u = 'kx' + (++seq), { p } = th;
-    const mids = (bi + ci) % 2 ? `<g transform="translate(${W / 2} 6.4)"><path d="M-9 0L0-2.6 9 0 0 2.6Z" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".3"/></g><g transform="translate(${W / 2} ${H - 6.4})"><path d="M-9 0L0-2.6 9 0 0 2.6Z" fill="url(#${u}g)" stroke="${th.m}" stroke-width=".3"/></g>` : '';
-    const bg = BGS[(bi + 2 * ci) % 3];
-    return svgOpen(W, H, goldGrad(u, th)) + `<rect width="${W}" height="${H}" fill="${p}"/>${bg ? bg(u, th, W, H) : ''}${BORDERS[bi][1](u, th, W, H)}`
-      + four(W, H, tf => `<g transform="${tf} translate(4 4)">${CORNERS[ci][1](u, th)}</g>`) + mids + '</svg>';
-  };
-  for (let bi = 0; bi < BORDERS.length; bi++) for (let ci = 0; ci < CORNERS.length; ci++) FRAMES['g' + bi + ci] = [`${BORDERS[bi][0]} + ${CORNERS[ci][0]}`, genFrame(bi, ci)];
-
-  /* ---------------- 1.9.2: surface shape (cuts the whole certificate) and custom colours ---------------- */
-  const SHAPES = { rect: ['مستطيل (الافتراضي)', null],
-    round: ['زوايا مستديرة', (W, H) => { const r = 16; return `M${r} 0H${W - r}A${r} ${r} 0 0 1 ${W} ${r}V${H - r}A${r} ${r} 0 0 1 ${W - r} ${H}H${r}A${r} ${r} 0 0 1 0 ${H - r}V${r}A${r} ${r} 0 0 1 ${r} 0Z`; }],
-    round2: ['زوايا مستديرة كبيرة', (W, H) => { const r = 34; return `M${r} 0H${W - r}A${r} ${r} 0 0 1 ${W} ${r}V${H - r}A${r} ${r} 0 0 1 ${W - r} ${H}H${r}A${r} ${r} 0 0 1 0 ${H - r}V${r}A${r} ${r} 0 0 1 ${r} 0Z`; }],
-    cut: ['زوايا مقطوعة', (W, H) => { const k = 18; return `M${k} 0H${W - k}L${W} ${k}V${H - k}L${W - k} ${H}H${k}L0 ${H - k}V${k}Z`; }],
-    scoop: ['زوايا مقعرة (تذكرة)', (W, H) => { const r = 14; return `M${r} 0H${W - r}A${r} ${r} 0 0 0 ${W} ${r}V${H - r}A${r} ${r} 0 0 0 ${W - r} ${H}H${r}A${r} ${r} 0 0 0 0 ${H - r}V${r}A${r} ${r} 0 0 0 ${r} 0Z`; }],
-    arch: ['قوس علوي', (W, H) => { const r = 60; return `M0 ${H}V${r}Q0 0 ${r} 0H${W - r}Q${W} 0 ${W} ${r}V${H}Z`; }],
-    ogee: ['قوس مغربي (حدوة)', (W, H) => `M0 ${H}V46Q0 14 38 12H${W / 2 - 40}C${W / 2 - 18} 12 ${W / 2 - 10} 0 ${W / 2} 0C${W / 2 + 10} 0 ${W / 2 + 18} 12 ${W / 2 + 40} 12H${W - 38}Q${W} 14 ${W} 46V${H}Z`],
-    oval: ['شبه بيضاوي', (W, H) => { const r = 52; return `M${r} 0H${W - r}A${r} ${H / 2} 0 0 1 ${W - r} ${H}H${r}A${r} ${H / 2} 0 0 1 ${r} 0Z`; }] };
-  const shapeOpts = () => Object.keys(SHAPES).map(k => [k, SHAPES[k][0]]);
-  function applyShape(svg, shape, th) {
-    const d = SHAPES[shape] && SHAPES[shape][1];
-    if (!d) return svg;
-    const m = /^(<svg[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"[^>]*>)([\s\S]*)<\/svg>$/.exec(svg);
-    if (!m) return svg;
-    const W = +m[2], H = +m[3], u = 'ks' + (++seq), path = d(W, H);
-    return `${m[1]}<defs><clipPath id="${u}"><path d="${path}"/></clipPath></defs><g clip-path="url(#${u})">${m[4]}</g><path d="${path}" fill="none" stroke="${th.m}" stroke-width="1.6"/></svg>`;
-  }
-  const shade = (hex, k) => { const n = parseInt(String(hex).replace('#', ''), 16) || 0, c = i => Math.max(0, Math.min(255, Math.round(((n >> i) & 255) * k))); return '#' + [16, 8, 0].map(i => c(i).toString(16).padStart(2, '0')).join(''); };
-  const mix = (hex, t) => { const n = parseInt(String(hex).replace('#', ''), 16) || 0, c = i => Math.round(((n >> i) & 255) * (1 - t) + 255 * t); return '#' + [16, 8, 0].map(i => c(i).toString(16).padStart(2, '0')).join(''); };
-  const okHex = v => /^#[0-9a-f]{6}$/i.test(String(v || ''));
-  const customTh = c => { const m = okHex(c.cMain) ? c.cMain : '#16325f', a = okHex(c.cAcc) ? c.cAcc : '#b8892b', p = okHex(c.cPaper) ? c.cPaper : '#fffdf6'; return { n: 'مخصص', m, a, p, l: mix(m, .88), g1: mix(a, .45), g2: a, g3: shade(a, .72) }; };
-  /* fonts installed on the computer (read once from the main process; falls back to a short list) */
-  let FONTS = ['MAJT', 'MAJ', 'Amiri', 'NSA'];
-  if (window.api && window.api.fontsList) window.api.fontsList().then(l => { if (Array.isArray(l) && l.length) FONTS = Array.from(new Set(FONTS.concat(l))); }).catch(() => {});
-  const fontOpts = () => [['', 'الخط الافتراضي للشهادة']].concat(FONTS.map(f => [f, f]));
-  const frameOpts = () => [['auto', 'تلقائي حسب نوع الشهادة'], ['mix', 'إطار مختلف لكل شهادة']].concat(Object.keys(FRAMES).map((k, i) => [k, (i < 7 ? '' : (i - 6) + '. ') + FRAMES[k][0]]));
-  const FKEYS = Object.keys(FRAMES);
-  const frameAuto = c => (c.rank ? 'laurel' : c.crescent ? 'arch' : /اليوم العالمي/.test(c.title || '') ? 'ribbon' : /شكر/.test(c.title || '') ? 'zellige' : 'royal');
-  const divider = (th, w, crescent) => {
-    const c = crescent
-      ? `<circle cx="60" cy="4" r="3.1" fill="${th.a}"/><circle cx="61.3" cy="3.4" r="2.7" fill="${th.p}"/><polygon points="${starPts(64.4, 3.2, 1.35, .55, 5, 0)}" fill="${th.a}"/>`
-      : `<path d="M60 .4L64.2 4 60 7.6 55.8 4Z" fill="${th.a}"/><path d="M60 2L62.4 4 60 6 57.6 4Z" fill="${th.p}"/>`;
-    return `<svg class="kd-div" viewBox="0 0 120 8" width="${w}mm" height="${f1(w / 15)}mm" xmlns="http://www.w3.org/2000/svg">
-      <line x1="2" y1="4" x2="49" y2="4" stroke="${th.a}" stroke-width=".55"/><line x1="71" y1="4" x2="118" y2="4" stroke="${th.a}" stroke-width=".55"/>
-      <circle cx="51.5" cy="4" r="1.1" fill="${th.m}"/><circle cx="68.5" cy="4" r="1.1" fill="${th.m}"/><circle cx="46" cy="4" r=".7" fill="${th.a}"/><circle cx="74" cy="4" r=".7" fill="${th.a}"/>${c}</svg>`;
-  };
-  const medal = (th, rank) => {
-    const u = 'kdm' + (++seq);
-    return `<svg class="kd-medal" viewBox="0 0 40 54" width="21mm" height="28.4mm" xmlns="http://www.w3.org/2000/svg">
-      <defs><linearGradient id="${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${th.g1}"/><stop offset=".5" stop-color="${th.g2}"/><stop offset="1" stop-color="${th.g3}"/></linearGradient></defs>
-      <path d="M10 28L3 53 13 47.5 19 53 22 31Z" fill="${th.m}"/><path d="M30 28L37 53 27 47.5 21 53 18 31Z" fill="${th.a}"/>
-      <polygon points="${starPts(20, 19, 18.6, 16.6, 22, 0)}" fill="url(#${u})" stroke="${th.m}" stroke-width=".4"/>
-      <circle cx="20" cy="19" r="14.2" fill="${th.m}"/><circle cx="20" cy="19" r="12.4" fill="none" stroke="url(#${u})" stroke-width=".7"/>
-      <text x="20" y="25.8" text-anchor="middle" font-family="MAJT, Amiri, serif" font-weight="700" font-size="19" fill="${th.g1}">${esc(String(rank))}</text></svg>`;
-  };
-
-  /* ---------------- certificate page ---------------- */
-  const titleSize = t => { const n = String(t || '').length; return n <= 12 ? 46 : n <= 20 ? 40 : n <= 28 ? 33 : 27; };
-  const nameSize = t => { const n = String(t || '').length; return n <= 22 ? 34 : n <= 32 ? 29 : n <= 44 ? 24 : 20; };
-  const sg = (label, name) => (label || name ? `<div class="kd-sg"><div class="l">${esc(label || '')}</div>${name ? `<div class="n">${esc(name)}</div>` : ''}<div class="sp"></div></div>` : '<div class="kd-sg"></div>');
-  function card(s, c) {
-    const th = c.theme === 'custom' ? customTh(c) : thOf(c.theme);
-    const fam = c.font ? `font-family:'${String(c.font).replace(/['"<>;]/g, '')}','MAJT','Amiri',serif;` : '';
-    const lines = (c.lines || []).map(l => `<p>${esc(l)}</p>`).join('');
-    const city = c.city || s.city || '..........';
-    const dateLine = c.noDate ? '' : `حرر ب${esc(city)} في ${c.date ? esc(K.ldate(c.date)) : '..........'}`;
-    const mid = c.rank ? medal(th, c.rank) : '<div class="kd-seal"><span>الختم</span></div>';
-    return `<div class="kd" style="--m:${th.m};--a:${th.a};--l:${th.l};--p:${th.p};${fam}">
-      <div class="kd-bgw docx-bg">${applyShape((FRAMES[c.frame] || FRAMES.classic)[1](th, 297, 209.5), c.shape, th)}</div>
+      <rect width="${t}" height="${r}" fill="${a}"/>
+      <rect x="9" y="9" width="${t-18}" height="${r-18}" fill="url(#${l}p)"/>
+      <rect x="9" y="9" width="${t-18}" height="${r-18}" fill="url(#${l}r)"/>
+      <g fill="none" stroke="${s}" opacity=".07" stroke-width=".5"><polygon points="${g(t/2,r/2+12,78,64,16,0)}"/><circle cx="${t/2}" cy="${r/2+12}" r="48"/><circle cx="${t/2}" cy="${r/2+12}" r="44"/></g>
+      <rect x="4" y="4" width="${t-8}" height="${r-8}" fill="none" stroke="url(#${l}g)" stroke-width="2.4"/>
+      <rect x="6.5" y="6.5" width="${t-13}" height="${r-13}" fill="none" stroke="${s}" stroke-width=".5"/>
+      <rect x="8" y="8" width="${t-16}" height="${r-16}" fill="none" stroke="${i}" stroke-width=".9" stroke-dasharray=".01 2.2" stroke-linecap="round"/>
+      <rect x="9.6" y="9.6" width="${t-19.2}" height="${r-19.2}" fill="none" stroke="url(#${l}g)" stroke-width=".6"/>
+      ${n("")}${n(`translate(${t} 0) scale(-1 1)`)}${n(`translate(0 ${r}) scale(1 -1)`)}${n(`translate(${t} ${r}) scale(-1 -1)`)}
+      ${c(`translate(${f(t/2)} 4)`)}${c(`translate(${f(t/2)} ${r-4})`)}${c(`translate(4 ${f(r/2)}) rotate(90)`)}${c(`translate(${t-4} ${f(r/2)}) rotate(90)`)}
+    </svg>`}const b=(e,t,r)=>`<svg class="kd-svg" viewBox="0 0 ${e} ${t}" width="${e}mm" height="${t}mm" xmlns="http://www.w3.org/2000/svg"><defs>${r||""}</defs>`,v=(e,t)=>`<linearGradient id="${e}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${t.g1}"/><stop offset=".5" stop-color="${t.g2}"/><stop offset="1" stop-color="${t.g3}"/></linearGradient>`,B=(e,t,r)=>r("")+r(`translate(${e} 0) scale(-1 1)`)+r(`translate(0 ${t}) scale(1 -1)`)+r(`translate(${e} ${t}) scale(-1 -1)`);function Et(e,t,r){const l="kr"+ ++y,{m:s,a:i,l:o,p:a}=e,n=$=>`<g transform="${$}" fill="none" stroke-linecap="round">
+      <path d="M7 34C7 18 18 7 34 7" stroke="url(#${l}g)" stroke-width="1.6"/>
+      <path d="M12 30C12 20 20 12 30 12" stroke="${s}" stroke-width=".5"/>
+      <path d="M10 46C15 40 14 30 9 27M46 10C40 15 30 14 27 9" stroke="${i}" stroke-width=".8"/>
+      <path d="M16 16C22 22 27 24 33 23M16 16C22 22 24 27 23 33" stroke="url(#${l}g)" stroke-width="1"/>
+      <circle cx="16" cy="16" r="3.2" fill="url(#${l}g)" stroke="${s}" stroke-width=".3"/><circle cx="16" cy="16" r="1.2" fill="${a}"/>
+      <circle cx="35" cy="22.6" r="1.1" fill="${i}"/><circle cx="22.6" cy="35" r="1.1" fill="${i}"/></g>`,c=($,d,p)=>`<g transform="translate(${$} ${d}) rotate(${p})"><path d="M-30 0C-18 0-12-5 0-5S18 0 30 0C18 0 12 5 0 5S-18 0-30 0Z" fill="${o}" stroke="url(#${l}g)" stroke-width=".7"/>
+      <polygon points="${g(0,0,4.4,1.9,8,22.5)}" fill="url(#${l}g)" stroke="${s}" stroke-width=".25"/><circle cx="-14" r="1" fill="${s}"/><circle cx="14" r="1" fill="${s}"/></g>`;return b(t,r,v(l,e))+`<rect width="${t}" height="${r}" fill="${a}"/>
+      <rect x="5" y="5" width="${t-10}" height="${r-10}" fill="none" stroke="${s}" stroke-width="3"/>
+      <rect x="8" y="8" width="${t-16}" height="${r-16}" fill="none" stroke="url(#${l}g)" stroke-width="1.8"/>
+      <rect x="10.6" y="10.6" width="${t-21.2}" height="${r-21.2}" fill="none" stroke="${s}" stroke-width=".4"/>
+      <rect x="12" y="12" width="${t-24}" height="${r-24}" fill="none" stroke="${i}" stroke-width=".3" stroke-dasharray="2 1.2"/>
+      <g opacity=".08" fill="none" stroke="${s}" stroke-width=".6"><polygon points="${g(t/2,r/2+14,60,50,12,0)}"/><circle cx="${t/2}" cy="${r/2+14}" r="40"/></g>
+      ${B(t,r,n)}${c(t/2,6.5,0)}${c(t/2,r-6.5,0)}${c(6.5,r/2,90)}${c(t-6.5,r/2,90)}</svg>`}function jt(e,t,r){const l="kz"+ ++y,{m:s,a:i,l:o,p:a}=e,n=9,c=`<pattern id="${l}t" width="${n}" height="${n}" patternUnits="userSpaceOnUse"><rect width="${n}" height="${n}" fill="${o}"/>
+      <polygon points="${g(n/2,n/2,4.1,2.6,8,22.5)}" fill="${s}"/><polygon points="${g(n/2,n/2,2.6,1.5,8,0)}" fill="${i}"/><circle cx="${n/2}" cy="${n/2}" r=".8" fill="${a}"/>
+      <circle cx="0" cy="0" r="1.2" fill="${i}"/><circle cx="${n}" cy="0" r="1.2" fill="${i}"/><circle cx="0" cy="${n}" r="1.2" fill="${i}"/><circle cx="${n}" cy="${n}" r="1.2" fill="${i}"/></pattern>`;return b(t,r,v(l,e)+c)+`<rect width="${t}" height="${r}" fill="${a}"/>
+      <path d="M4 4H${t-4}V${r-4}H4Z M13 13V${r-13}H${t-13}V13Z" fill="url(#${l}t)" fill-rule="evenodd"/>
+      <rect x="4" y="4" width="${t-8}" height="${r-8}" fill="none" stroke="${s}" stroke-width="1.2"/>
+      <rect x="13" y="13" width="${t-26}" height="${r-26}" fill="none" stroke="url(#${l}g)" stroke-width="1.4"/>
+      <rect x="14.6" y="14.6" width="${t-29.2}" height="${r-29.2}" fill="none" stroke="${s}" stroke-width=".35"/>
+      ${B(t,r,$=>`<g transform="${$}"><rect x="2" y="2" width="15" height="15" fill="${s}"/><polygon points="${g(9.5,9.5,6.4,3.2,8,22.5)}" fill="url(#${l}g)"/><circle cx="9.5" cy="9.5" r="1.6" fill="${a}"/></g>`)}
+      <g opacity=".07" fill="none" stroke="${s}" stroke-width=".6"><polygon points="${g(t/2,r/2+14,70,52,8,22.5)}"/><polygon points="${g(t/2,r/2+14,52,38,8,0)}"/></g></svg>`}function Kt(e,t,r){const l="kl"+ ++y,{m:s,a:i,p:o}=e,a=n=>{let c="";const $=[];for(let d=0;d<=16;d++){const p=d/16;$.push([9.5+3*Math.sin(p*Math.PI),r-16-p*(r*.62)])}return c+=`<path d="M${$.map(d=>d.map(f).join(" ")).join("L")}" fill="none" stroke="url(#${l}g)" stroke-width=".9"/>`,$.forEach((d,p)=>{if(!p)return;const m=p%2?1:-1;c+=`<ellipse cx="${f(d[0]+m*3.2)}" cy="${f(d[1])}" rx="3.6" ry="1.35" transform="rotate(${m*-35-90} ${f(d[0]+m*3.2)} ${f(d[1])})" fill="url(#${l}g)" stroke="${s}" stroke-width=".15"/>`}),`<g transform="${n?`translate(${t} 0) scale(-1 1)`:""}">${c}</g>`};return b(t,r,v(l,e))+`<rect width="${t}" height="${r}" fill="${o}"/>
+      <rect x="4" y="4" width="${t-8}" height="${r-8}" fill="none" stroke="url(#${l}g)" stroke-width="2.2"/>
+      <rect x="7" y="7" width="${t-14}" height="${r-14}" fill="none" stroke="${s}" stroke-width=".5"/>
+      <rect x="8.2" y="8.2" width="${t-16.4}" height="${r-16.4}" fill="none" stroke="${i}" stroke-width=".3"/>
+      ${a(!1)}${a(!0)}
+      <g transform="translate(${t/2} ${r-7.6})"><path d="M-22 0H22" stroke="url(#${l}g)" stroke-width="1"/><polygon points="${g(0,0,4,1.7,5,0)}" fill="url(#${l}g)" stroke="${s}" stroke-width=".2"/></g>
+      <g opacity=".05" fill="${s}"><polygon points="${g(t/2,r/2+14,62,26,5,0)}"/></g></svg>`}function Ct(e,t,r){const l="ka"+ ++y,{m:s,a:i,l:o,p:a}=e,n=12,c=t-12,$=12,d=r-12,p=40,m=t/2,C=`M${n} ${d}V${p}Q${n} ${$+6} ${n+30} ${$+4}H${m-26}C${m-14} ${$+4} ${m-8} ${$-2} ${m} ${$-4}C${m+8} ${$-2} ${m+14} ${$+4} ${m+26} ${$+4}H${c-30}Q${c} ${$+6} ${c} ${p}V${d}Z`,k=`<pattern id="${l}p" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${o}"/><path d="M4 0L8 4 4 8 0 4Z" fill="none" stroke="${i}" stroke-width=".4"/><circle cx="4" cy="4" r=".7" fill="${s}"/></pattern>`;return b(t,r,v(l,e)+k)+`<rect width="${t}" height="${r}" fill="url(#${l}p)"/>
+      <path d="${C}" fill="${a}" stroke="url(#${l}g)" stroke-width="2"/>
+      <path d="${C}" fill="none" stroke="${s}" stroke-width=".5" transform="translate(${m} ${r/2}) scale(.985) translate(${-m} ${-r/2})"/>
+      <rect x="3" y="3" width="${t-6}" height="${r-6}" fill="none" stroke="${s}" stroke-width="2"/>
+      <rect x="5.2" y="5.2" width="${t-10.4}" height="${r-10.4}" fill="none" stroke="url(#${l}g)" stroke-width=".9"/>
+      <g transform="translate(${m} ${$-5})"><circle r="3.4" fill="url(#${l}g)" stroke="${s}" stroke-width=".3"/><polygon points="${g(0,0,2.4,1,5,0)}" fill="${s}"/></g></svg>`}function Pt(e,t,r){const l="kb"+ ++y,{m:s,a:i,l:o,p:a}=e,n=c=>`<g transform="${c}"><path d="M0 0H70L0 70Z" fill="${s}"/><path d="M76 0H86L0 86V76Z" fill="url(#${l}g)"/><path d="M92 0H95L0 95V92Z" fill="${i}"/><path d="M0 0H44L0 44Z" fill="${o}" opacity=".18"/></g>`;return b(t,r,v(l,e))+`<rect width="${t}" height="${r}" fill="${a}"/>
+      ${n("")}${n(`translate(${t} ${r}) scale(-1 -1)`)}
+      <rect x="6" y="6" width="${t-12}" height="${r-12}" fill="none" stroke="url(#${l}g)" stroke-width="1.2"/>
+      <rect x="8.4" y="8.4" width="${t-16.8}" height="${r-16.8}" fill="none" stroke="${s}" stroke-width=".4"/>
+      <g opacity=".07"><circle cx="${t/2}" cy="${r/2+14}" r="55" fill="none" stroke="${s}" stroke-width="6"/></g></svg>`}function Dt(e,t,r){const l="kg"+ ++y,{m:s,a:i,p:o}=e,a=(c,$,d,p)=>{const m=[];return[[8,8,t-8,8],[t-8,8,t-8,r-8],[t-8,r-8,8,r-8],[8,r-8,8,8]].forEach(([k,S,W,tt])=>{const G=Math.hypot(W-k,tt-S),Mt=Math.round(G/2),ee=-(tt-S)/G,re=(W-k)/G;for(let et=0;et<=Mt;et++){const rt=et/Mt,St=$*Math.sin(rt*G/6*Math.PI+c);m.push([k+(W-k)*rt+ee*St,S+(tt-S)*rt+re*St])}}),`<path d="M${m.map(k=>k.map(f).join(" ")).join("L")}Z" fill="none" stroke="${d}" stroke-width="${p}"/>`};let n="";for(let c=0;c<6;c++)n+=a(c*Math.PI/3,3.2,c%2?s:i,c%2?.28:.35);return b(t,r,v(l,e))+`<rect width="${t}" height="${r}" fill="${o}"/>${n}
+      <rect x="3" y="3" width="${t-6}" height="${r-6}" fill="none" stroke="${s}" stroke-width="1.1"/>
+      <rect x="13" y="13" width="${t-26}" height="${r-26}" fill="none" stroke="url(#${l}g)" stroke-width="1.1"/>
+      ${B(t,r,c=>`<g transform="${c}"><circle cx="8" cy="8" r="5.4" fill="${o}" stroke="url(#${l}g)" stroke-width="1"/><polygon points="${g(8,8,4.2,1.8,6,0)}" fill="${s}"/></g>`)}</svg>`}const M={classic:["الإطار الكلاسيكي (زخرفة هندسية)",Zt],royal:["ملكي: إطار مذهب مزدوج بزخارف ملتوية",Et],zellige:["زليج مغربي: شريط نجوم ثمانية",jt],laurel:["أغصان الغار الذهبية (للتفوق)",Kt],arch:["قوس مغربي بزخرفة",Ct],ribbon:["عصري: أشرطة مائلة",Pt],guilloche:["شهادة رسمية: تموجات متشابكة",Dt]},U=[["خط مزدوج رفيع",(e,t,r,l)=>`<rect x="5" y="5" width="${r-10}" height="${l-10}" fill="none" stroke="${t.m}" stroke-width="1.2"/><rect x="8" y="8" width="${r-16}" height="${l-16}" fill="none" stroke="url(#${e}g)" stroke-width=".7"/>`],["ذهبي عريض",(e,t,r,l)=>`<rect x="5" y="5" width="${r-10}" height="${l-10}" fill="none" stroke="url(#${e}g)" stroke-width="3.4"/><rect x="8.4" y="8.4" width="${r-16.8}" height="${l-16.8}" fill="none" stroke="${t.m}" stroke-width=".6"/>`],["منقط",(e,t,r,l)=>`<rect x="5" y="5" width="${r-10}" height="${l-10}" fill="none" stroke="${t.m}" stroke-width=".8"/><rect x="8.5" y="8.5" width="${r-17}" height="${l-17}" fill="none" stroke="${t.a}" stroke-width="1.6" stroke-dasharray=".01 3" stroke-linecap="round"/>`],["متقطع",(e,t,r,l)=>`<rect x="5" y="5" width="${r-10}" height="${l-10}" fill="none" stroke="url(#${e}g)" stroke-width="1.6"/><rect x="8.5" y="8.5" width="${r-17}" height="${l-17}" fill="none" stroke="${t.m}" stroke-width=".8" stroke-dasharray="4 2.2"/>`],["ثلاثي",(e,t,r,l)=>`<rect x="4" y="4" width="${r-8}" height="${l-8}" fill="none" stroke="${t.m}" stroke-width="2"/><rect x="7.2" y="7.2" width="${r-14.4}" height="${l-14.4}" fill="none" stroke="url(#${e}g)" stroke-width="1.2"/><rect x="9.6" y="9.6" width="${r-19.2}" height="${l-19.2}" fill="none" stroke="${t.m}" stroke-width=".4"/>`],["زوايا مستديرة",(e,t,r,l)=>`<rect x="5" y="5" width="${r-10}" height="${l-10}" rx="13" fill="none" stroke="${t.m}" stroke-width="1.6"/><rect x="8.4" y="8.4" width="${r-16.8}" height="${l-16.8}" rx="10" fill="none" stroke="url(#${e}g)" stroke-width="1.1"/>`],["حواف مسننة",(e,t,r,l)=>{let s="";const i=(o,a)=>{s+=`<circle cx="${f(o)}" cy="${f(a)}" r="1.7" fill="url(#${e}g)"/>`};for(let o=12;o<=r-12;o+=5)i(o,6.5),i(o,l-6.5);for(let o=12;o<=l-12;o+=5)i(6.5,o),i(r-6.5,o);return`<rect x="4" y="4" width="${r-8}" height="${l-8}" fill="none" stroke="${t.m}" stroke-width=".9"/><rect x="9.5" y="9.5" width="${r-19}" height="${l-19}" fill="none" stroke="${t.m}" stroke-width=".5"/>${s}`}],["زوايا مقطوعة",(e,t,r,l)=>{const i=o=>`M${o+15} ${o}H${r-o-15}L${r-o} ${o+15}V${l-o-15}L${r-o-15} ${l-o}H${o+15}L${o} ${l-o-15}V${o+15}Z`;return`<path d="${i(5)}" fill="none" stroke="${t.m}" stroke-width="1.8"/><path d="${i(8.5)}" fill="none" stroke="url(#${e}g)" stroke-width="1.1"/>`}],["شريط مربعات",(e,t,r,l)=>{let s="";const i=(o,a)=>{s+=`<rect x="${f(o-1.5)}" y="${f(a-1.5)}" width="3" height="3" transform="rotate(45 ${f(o)} ${f(a)})" fill="${t.m}"/>`};for(let o=14;o<=r-14;o+=6.5)i(o,7),i(o,l-7);for(let o=14;o<=l-14;o+=6.5)i(7,o),i(r-7,o);return`<rect x="4" y="4" width="${r-8}" height="${l-8}" fill="none" stroke="url(#${e}g)" stroke-width="1.4"/><rect x="10" y="10" width="${r-20}" height="${l-20}" fill="none" stroke="${t.a}" stroke-width=".6"/>${s}`}],["متعرج",(e,t,r,l)=>{const s=(i,o)=>{let a=`M${i} ${i}`;for(let n=i;n<=r-i;n+=4)a+=`L${n} ${i+((n-i)/4%2?o:0)}`;for(let n=i;n<=l-i;n+=4)a+=`L${r-i-((n-i)/4%2?o:0)} ${n}`;for(let n=r-i;n>=i;n-=4)a+=`L${n} ${l-i-((r-i-n)/4%2?o:0)}`;for(let n=l-i;n>=i;n-=4)a+=`L${i+((l-i-n)/4%2?o:0)} ${n}`;return a+"Z"};return`<rect x="4" y="4" width="${r-8}" height="${l-8}" fill="none" stroke="${t.m}" stroke-width="1.4"/><path d="${s(8,2.2)}" fill="none" stroke="url(#${e}g)" stroke-width=".7"/><rect x="13" y="13" width="${r-26}" height="${l-26}" fill="none" stroke="${t.m}" stroke-width=".4"/>`}]],Q=[["نجمة ثمانية",(e,t)=>`<polygon points="${g(14,14,11,5,8,22.5)}" fill="url(#${e}g)" stroke="${t.m}" stroke-width=".4"/><circle cx="14" cy="14" r="2.2" fill="${t.p}" stroke="${t.m}" stroke-width=".3"/>`],["وردة",(e,t)=>{let r="";for(let l=0;l<8;l++){const s=l*45;r+=`<ellipse cx="14" cy="8.2" rx="2.6" ry="5.2" transform="rotate(${s} 14 14)" fill="${l%2?t.l:"url(#"+e+"g)"}" stroke="${t.m}" stroke-width=".3"/>`}return r+`<circle cx="14" cy="14" r="2.4" fill="${t.m}"/>`}],["دوائر متداخلة",(e,t)=>`<circle cx="14" cy="14" r="11" fill="${t.l}" stroke="url(#${e}g)" stroke-width="1"/><circle cx="14" cy="14" r="7.4" fill="none" stroke="${t.m}" stroke-width=".6"/><circle cx="14" cy="14" r="3.6" fill="url(#${e}g)" stroke="${t.m}" stroke-width=".3"/>`],["لولب أرابيسك",(e,t)=>`<path d="M6 6C6 20 12 26 26 26M6 6C20 6 26 12 26 26" fill="none" stroke="url(#${e}g)" stroke-width="1.5" stroke-linecap="round"/><path d="M9 9C9 17 13 21 21 21M9 9C17 9 21 13 21 21" fill="none" stroke="${t.m}" stroke-width=".6"/><circle cx="9" cy="9" r="2.6" fill="url(#${e}g)" stroke="${t.m}" stroke-width=".3"/>`],["معين متداخل",(e,t)=>`<path d="M14 2L26 14 14 26 2 14Z" fill="${t.l}" stroke="url(#${e}g)" stroke-width="1.2"/><path d="M14 7L21 14 14 21 7 14Z" fill="${t.m}"/><path d="M14 10.4L17.6 14 14 17.6 10.4 14Z" fill="url(#${e}g)"/>`],["هلال ونجمة",(e,t)=>`<circle cx="13" cy="14" r="9" fill="url(#${e}g)" stroke="${t.m}" stroke-width=".4"/><circle cx="16" cy="12.6" r="8" fill="${t.p}"/><polygon points="${g(20,13.4,4.2,1.8,5,0)}" fill="${t.m}"/>`],["أوراق",(e,t)=>{let r="";for(let l=0;l<5;l++)r+=`<path d="M5 5Q${12+l*3} ${6+l*1} ${22+l*1.4} ${9+l*4.2}Q${12+l*1} ${14+l*3} 5 5Z" transform="rotate(${-8+l*4} 5 5)" fill="${l%2?t.l:"url(#"+e+"g)"}" stroke="${t.m}" stroke-width=".3"/>`;return r+`<circle cx="5.5" cy="5.5" r="2" fill="${t.m}"/>`}],["زهرة رباعية",(e,t)=>`<g fill="url(#${e}g)" stroke="${t.m}" stroke-width=".35"><circle cx="14" cy="7.4" r="5.2"/><circle cx="14" cy="20.6" r="5.2"/><circle cx="7.4" cy="14" r="5.2"/><circle cx="20.6" cy="14" r="5.2"/></g><circle cx="14" cy="14" r="4.4" fill="${t.p}" stroke="${t.m}" stroke-width=".4"/><circle cx="14" cy="14" r="1.6" fill="${t.m}"/>`],["مربعات متدرجة",(e,t)=>`<rect x="3" y="3" width="24" height="24" fill="${t.m}"/><rect x="6.5" y="6.5" width="17" height="17" fill="url(#${e}g)"/><rect x="10.5" y="10.5" width="9" height="9" fill="${t.p}" stroke="${t.m}" stroke-width=".4"/><rect x="13" y="13" width="4" height="4" fill="${t.m}"/>`]],Vt=["",(e,t,r,l)=>`<pattern id="${e}b" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r=".5" fill="${t.a}" opacity=".5"/></pattern><rect x="9" y="9" width="${r-18}" height="${l-18}" fill="url(#${e}b)"/>`,(e,t,r,l)=>`<pattern id="${e}b" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 5L5 0 10 5 5 10Z" fill="none" stroke="${t.m}" stroke-width=".2" opacity=".35"/></pattern><rect x="9" y="9" width="${r-18}" height="${l-18}" fill="url(#${e}b)"/>`],zt=(e,t)=>(r,l,s)=>{const i="kx"+ ++y,{p:o}=r,a=(e+t)%2?`<g transform="translate(${l/2} 6.4)"><path d="M-9 0L0-2.6 9 0 0 2.6Z" fill="url(#${i}g)" stroke="${r.m}" stroke-width=".3"/></g><g transform="translate(${l/2} ${s-6.4})"><path d="M-9 0L0-2.6 9 0 0 2.6Z" fill="url(#${i}g)" stroke="${r.m}" stroke-width=".3"/></g>`:"",n=Vt[(e+2*t)%3];return b(l,s,v(i,r))+`<rect width="${l}" height="${s}" fill="${o}"/>${n?n(i,r,l,s):""}${U[e][1](i,r,l,s)}`+B(l,s,c=>`<g transform="${c} translate(4 4)">${Q[t][1](i,r)}</g>`)+a+"</svg>"};for(let e=0;e<U.length;e++)for(let t=0;t<Q.length;t++)M["g"+e+t]=[`${U[e][0]} + ${Q[t][0]}`,zt(e,t)];const F={rect:["مستطيل (الافتراضي)",null],round:["زوايا مستديرة",(e,t)=>`M16 0H${e-16}A16 16 0 0 1 ${e} 16V${t-16}A16 16 0 0 1 ${e-16} ${t}H16A16 16 0 0 1 0 ${t-16}V16A16 16 0 0 1 16 0Z`],round2:["زوايا مستديرة كبيرة",(e,t)=>`M34 0H${e-34}A34 34 0 0 1 ${e} 34V${t-34}A34 34 0 0 1 ${e-34} ${t}H34A34 34 0 0 1 0 ${t-34}V34A34 34 0 0 1 34 0Z`],cut:["زوايا مقطوعة",(e,t)=>`M18 0H${e-18}L${e} 18V${t-18}L${e-18} ${t}H18L0 ${t-18}V18Z`],scoop:["زوايا مقعرة (تذكرة)",(e,t)=>`M14 0H${e-14}A14 14 0 0 0 ${e} 14V${t-14}A14 14 0 0 0 ${e-14} ${t}H14A14 14 0 0 0 0 ${t-14}V14A14 14 0 0 0 14 0Z`],arch:["قوس علوي",(e,t)=>`M0 ${t}V60Q0 0 60 0H${e-60}Q${e} 0 ${e} 60V${t}Z`],ogee:["قوس مغربي (حدوة)",(e,t)=>`M0 ${t}V46Q0 14 38 12H${e/2-40}C${e/2-18} 12 ${e/2-10} 0 ${e/2} 0C${e/2+10} 0 ${e/2+18} 12 ${e/2+40} 12H${e-38}Q${e} 14 ${e} 46V${t}Z`],oval:["شبه بيضاوي",(e,t)=>`M52 0H${e-52}A52 ${t/2} 0 0 1 ${e-52} ${t}H52A52 ${t/2} 0 0 1 52 0Z`]},Nt=()=>Object.keys(F).map(e=>[e,F[e][0]]);function Bt(e,t,r){const l=F[t]&&F[t][1];if(!l)return e;const s=/^(<svg[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"[^>]*>)([\s\S]*)<\/svg>$/.exec(e);if(!s)return e;const i=+s[2],o=+s[3],a="ks"+ ++y,n=l(i,o);return`${s[1]}<defs><clipPath id="${a}"><path d="${n}"/></clipPath></defs><g clip-path="url(#${a})">${s[4]}</g><path d="${n}" fill="none" stroke="${r.m}" stroke-width="1.6"/></svg>`}const Ft=(e,t)=>{const r=parseInt(String(e).replace("#",""),16)||0,l=s=>Math.max(0,Math.min(255,Math.round((r>>s&255)*t)));return"#"+[16,8,0].map(s=>l(s).toString(16).padStart(2,"0")).join("")},it=(e,t)=>{const r=parseInt(String(e).replace("#",""),16)||0,l=s=>Math.round((r>>s&255)*(1-t)+255*t);return"#"+[16,8,0].map(s=>l(s).toString(16).padStart(2,"0")).join("")},J=e=>/^#[0-9a-f]{6}$/i.test(String(e||"")),Rt=e=>{const t=J(e.cMain)?e.cMain:"#16325f",r=J(e.cAcc)?e.cAcc:"#b8892b",l=J(e.cPaper)?e.cPaper:"#fffdf6";return{n:"مخصص",m:t,a:r,p:l,l:it(t,.88),g1:it(r,.45),g2:r,g3:Ft(r,.72)}};let X=["MAJT","MAJ","Amiri","NSA"];window.api&&window.api.fontsList&&window.api.fontsList().then(e=>{Array.isArray(e)&&e.length&&(X=Array.from(new Set(X.concat(e))))}).catch(()=>{});const Tt=()=>[["","الخط الافتراضي للشهادة"]].concat(X.map(e=>[e,e])),It=()=>[["auto","تلقائي حسب نوع الشهادة"],["mix","إطار مختلف لكل شهادة"]].concat(Object.keys(M).map((e,t)=>[e,(t<7?"":t-6+". ")+M[e][0]])),nt=Object.keys(M),Gt=e=>e.rank?"laurel":e.crescent?"arch":/اليوم العالمي/.test(e.title||"")?"ribbon":/شكر/.test(e.title||"")?"zellige":"royal",Ut=(e,t,r)=>{const l=r?`<circle cx="60" cy="4" r="3.1" fill="${e.a}"/><circle cx="61.3" cy="3.4" r="2.7" fill="${e.p}"/><polygon points="${g(64.4,3.2,1.35,.55,5,0)}" fill="${e.a}"/>`:`<path d="M60 .4L64.2 4 60 7.6 55.8 4Z" fill="${e.a}"/><path d="M60 2L62.4 4 60 6 57.6 4Z" fill="${e.p}"/>`;return`<svg class="kd-div" viewBox="0 0 120 8" width="${t}mm" height="${f(t/15)}mm" xmlns="http://www.w3.org/2000/svg">
+      <line x1="2" y1="4" x2="49" y2="4" stroke="${e.a}" stroke-width=".55"/><line x1="71" y1="4" x2="118" y2="4" stroke="${e.a}" stroke-width=".55"/>
+      <circle cx="51.5" cy="4" r="1.1" fill="${e.m}"/><circle cx="68.5" cy="4" r="1.1" fill="${e.m}"/><circle cx="46" cy="4" r=".7" fill="${e.a}"/><circle cx="74" cy="4" r=".7" fill="${e.a}"/>${l}</svg>`},Qt=(e,t)=>{const r="kdm"+ ++y;return`<svg class="kd-medal" viewBox="0 0 40 54" width="21mm" height="28.4mm" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="${r}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${e.g1}"/><stop offset=".5" stop-color="${e.g2}"/><stop offset="1" stop-color="${e.g3}"/></linearGradient></defs>
+      <path d="M10 28L3 53 13 47.5 19 53 22 31Z" fill="${e.m}"/><path d="M30 28L37 53 27 47.5 21 53 18 31Z" fill="${e.a}"/>
+      <polygon points="${g(20,19,18.6,16.6,22,0)}" fill="url(#${r})" stroke="${e.m}" stroke-width=".4"/>
+      <circle cx="20" cy="19" r="14.2" fill="${e.m}"/><circle cx="20" cy="19" r="12.4" fill="none" stroke="url(#${r})" stroke-width=".7"/>
+      <text x="20" y="25.8" text-anchor="middle" font-family="MAJT, Amiri, serif" font-weight="700" font-size="19" fill="${e.g1}">${h(String(t))}</text></svg>`},Jt=e=>{const t=String(e||"").length;return t<=12?46:t<=20?40:t<=28?33:27},Xt=e=>{const t=String(e||"").length;return t<=22?34:t<=32?29:t<=44?24:20},at=(e,t)=>e||t?`<div class="kd-sg"><div class="l">${h(e||"")}</div>${t?`<div class="n">${h(t)}</div>`:""}<div class="sp"></div></div>`:'<div class="kd-sg"></div>';function Yt(e,t){const r=t.theme==="custom"?Rt(t):Ot(t.theme),l=t.font?`font-family:'${String(t.font).replace(/['"<>;]/g,"")}','MAJT','Amiri',serif;`:"",s=(t.lines||[]).map(n=>`<p>${h(n)}</p>`).join(""),i=t.city||e.city||"..........",o=t.noDate?"":`حرر ب${h(i)} في ${t.date?h(K.ldate(t.date)):".........."}`,a=t.rank?Qt(r,t.rank):'<div class="kd-seal"><span>الختم</span></div>';return`<div class="kd" style="--m:${r.m};--a:${r.a};--l:${r.l};--p:${r.p};${l}">
+      <div class="kd-bgw docx-bg">${Bt((M[t.frame]||M.classic)[1](r,297,209.5),t.shape,r)}</div>
       <div class="kd-in docx-gaps">
-        <div class="kd-hdr">${Dx.header(s)}</div>
-        <div class="kd-title" style="font-size:${titleSize(c.title)}pt">${esc(c.title)}</div>
-        ${c.sub ? `<div class="kd-sub">${esc(c.sub)}</div>` : ''}
-        ${divider(th, 86, c.crescent)}
-        ${c.pre ? `<div class="kd-pre">${esc(c.pre)}</div>` : ''}
-        ${c.namesHtml || (c.name ? `<div class="kd-name" style="font-size:${nameSize(c.name)}pt">${esc(c.name)}</div>` : '')}
-        ${c.role ? `<div class="kd-role">${esc(c.role)}</div>` : ''}
-        <div class="kd-body">${lines}</div>
-        ${dateLine ? `<div class="kd-date">${dateLine}</div>` : ''}
-        <div class="kd-sign">${sg(c.sr, c.srn)}${mid}${sg(c.sl, c.sln)}</div>
-      </div></div>`;
-  }
-
-  /* ---------------- text helpers ---------------- */
-  // «{{token}}» → value; tokens whose name starts with o_ vanish when empty, the others show dots
-  const fillK = (str, ctx) => String(str == null ? '' : str).replace(/\{\{(\w+)\}\}/g, (m, k) => {
-    const v = ctx[k];
-    if (v != null && v !== '') return v;
-    return /^o_/.test(k) ? '' : '..........';
-  }).replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+([،.؛])/g, '$1');
-  const linesOf = (str, ctx) => fillK(str, ctx).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  const isFem = t => /(ة|ات)$|السيدة|الأستاذة|المربية|\(ة\)/.test(String(t || '')) && !/\(ة\)/.test(String(t || ''));
-  const gctx = (title) => {
-    const t = String(title || '');
-    if (/\(ة\)|\(/.test(t) || !t) return { h: 'ه(ا)', lah: 'له/لها', hu: 'هو/هي' };
-    return /ة$/.test(t.trim()) ? { h: 'ها', lah: 'لها', hu: 'هي' } : { h: 'ه', lah: 'له', hu: 'هو' };
-  };
-  const titleOf = (name, dflt) => {
-    const e = K.E.byName(name);
-    if (!e) return dflt || 'الأستاذ(ة)';
-    const f = e.sex === 'F', c = K.E.cat(e);
-    if (c === 'admin' || c === 'other') return f ? 'السيدة' : 'السيد';
-    if (c === 'preschool') return f ? 'المربية' : 'المربي';
-    return f ? 'الأستاذة' : 'الأستاذ';
-  };
-  const ltr = x => (x == null || x === '' ? '' : '\u2066' + x + '\u2069');
-  const base = (s, sy, extra) => Object.assign(K.tokens(), { sy: ltr(MK.syDash(sy)) }, extra || {});
-
-  /* common fields: theme, date, city, signatures */
-  const commonInit = (s, o) => Object.assign({ theme: 'auto', frame: 'auto', shape: 'rect', font: '', cMain: '#16325f', cAcc: '#b8892b', cPaper: '#fffdf6', date: Dx.todayIso(), city: s.city || '', sl: 'رئيس المؤسسة', sln: s.director || '', sr: '', srn: '' }, o || {});
-  const commonDefs = autoTheme => [
-    { sec: 'التصميم والتوقيعات' },
-    { k: 'frame', l: 'شكل الإطار', t: 'select', opts: frameOpts(), half: true },
-    { k: 'theme', l: 'لون الشهادة وزخرفتها', t: 'select', opts: themeOpts(autoTheme), half: true },
-    { k: 'shape', l: 'شكل سطح الشهادة', t: 'select', opts: shapeOpts, half: true },
-    { k: 'font', l: 'الخط (من خطوط حاسوبك)', t: 'select', opts: fontOpts, half: true },
-    { k: 'cMain', l: 'اللون الأساسي (للألوان المخصصة)', t: 'color', half: true }, { k: 'cAcc', l: 'لون الزخرفة / الذهبي', t: 'color', half: true }, { k: 'cPaper', l: 'لون الورق', t: 'color', half: true },
-    { k: 'date', l: 'تاريخ التحرير', t: 'date', half: true },
-    { k: 'city', l: 'مكان التحرير', half: true }, { k: 'sln', l: 'اسم الموقّع الأيسر', half: true },
-    { k: 'sl', l: 'صفة الموقّع الأيسر', half: true }, { k: 'sr', l: 'صفة الموقّع الأيمن (اختياري)', half: true },
-    { k: 'srn', l: 'اسم الموقّع الأيمن', half: true }
-  ];
-  const themeFor = (f, auto) => (f.theme && f.theme !== 'auto' ? f.theme : auto);
-  const txtDef = (note) => ({ k: 'text', l: 'نص الشهادة', t: 'area', rows: 5, hint: note || 'اتركه فارغا لاستعمال النص الجاهز، أو اضغط «إدراج النص الجاهز» ثم عدّله كما تشاء. يمكنك استعمال {{name}} {{activity}} {{school}} {{date}}.' });
-  const tplBtn = '<button type="button" class="btn sm" data-act="tpl">إدراج النص الجاهز للتعديل</button>';
-  const pageOf = (s, f, cards) => ({ page: 'a4l', title: '', pages: cards.map((c, i) => card(s, Object.assign({}, c, { shape: f.shape, font: f.font, cMain: f.cMain, cAcc: f.cAcc, cPaper: f.cPaper,
-    frame: !f.frame || f.frame === 'auto' ? frameAuto(c) : f.frame === 'mix' ? FKEYS[(i + 1) % FKEYS.length] : f.frame }))) });
-
-  const DOCS_ = [];
-  const add = d => { DOCS_.push(d); return d; };
-  const emps = () => sortedEmps();
-
-  /* ===================== A — شواهد تقدير الأساتذة ===================== */
-  const OCC = [
-    ['part', 'المشاركة في نشاط'], ['contrib', 'المساهمة في نشاط'], ['effort', 'المجهودات المتميزة في إنجاح نشاط'], ['sup', 'التأطير والإشراف على نشاط'], ['year', 'العطاء المتميز خلال الموسم الدراسي']
-  ];
-  const OCC_TXT = {
-    part: 'اعترافا بمشاركة {{title}} {{name}}{{o_role}} الفاعلة والمتميزة في {{activity}}{{o_date}} المنظم بمؤسسة {{school}}،\nوتنويها بروح المسؤولية والالتزام التي أبان عنها خدمة للتلميذات والتلاميذ،\nتتقدم إدارة المؤسسة بأسمى عبارات الشكر والتقدير، متمنية {{lah}} مزيدا من العطاء والتألق.',
-    contrib: 'تقديرا للمساهمة القيمة التي قدمها {{title}} {{name}}{{o_role}} في {{activity}}{{o_date}} بمؤسسة {{school}}،\nولما أبان عنه من حس تربوي وروح تعاون عالية ساهمت في نجاح هذا النشاط،\nتتقدم إدارة المؤسسة بجزيل الشكر والعرفان، متمنية {{lah}} دوام التوفيق والنجاح.',
-    effort: 'نظرا للمجهودات الجبارة والمتميزة التي بذلها {{title}} {{name}}{{o_role}} في إنجاح {{activity}}{{o_date}} بمؤسسة {{school}}،\nوإسهامه المتواصل في إشعاع المؤسسة وخدمة المتعلمين،\nتتقدم إدارة المؤسسة بخالص الشكر والامتنان، وتشيد بعطاءاته النبيلة.',
-    sup: 'عرفانا بالتأطير المحكم والإشراف المتميز الذي أبان عنه {{title}} {{name}}{{o_role}} في {{activity}}{{o_date}} بمؤسسة {{school}}،\nوتثمينا لجهوده في مواكبة التلميذات والتلاميذ وتأطيرهم،\nتتقدم إدارة المؤسسة بأصدق عبارات الشكر والتقدير، متمنية {{lah}} المزيد من التألق.',
-    year: 'تقديرا للعطاء المتميز والالتزام المهني الرفيع اللذين أبان عنهما {{title}} {{name}}{{o_role}} طيلة الموسم الدراسي {{sy}} بمؤسسة {{school}}،\nوإسهامه الفعال في الارتقاء بجودة التعلمات وفي مختلف الأنشطة التربوية،\nتتقدم إدارة المؤسسة بخالص الشكر والتقدير، وتتمنى {{lah}} دوام النجاح والعطاء.'
-  };
-  const empRowFill = r => { const e = K.E.byName(r[0]); if (!e) return null; return [r[0], r[1] || titleOf(r[0]), r[2] || '']; };
-  add({
-    k: 'kd_teacher', t: 'شهادة تقدير للأستاذ(ة) — المشاركة والمساهمة في نشاط', grp: 't', d: 'شهادة فاخرة لكل أستاذ(ة) بمناسبة المشاركة في نشاط أو المساهمة فيه أو المجهود المتميز في إنجاحه.', auto: 'لائحة الأساتذة والأطر (الاسم والصفة بحسب الجنس)', page: 'a4l',
-    init: s => commonInit(s, { occ: 'part', activity: '', adate: '', text: '', rows: [['', '', '']] }),
-    defs: f => [{ sec: 'الشهادة' }, { k: 'occ', l: 'مناسبة التقدير', t: 'select', opts: OCC, half: true }, { k: 'activity', l: 'اسم النشاط', half: true, ph: 'مثال: الاحتفال باليوم الوطني للمدرسة المغربية' },
-      { k: 'adate', l: 'تاريخ النشاط', t: 'date', half: true }, { t: 'html', half: true, html: `<label>&nbsp;</label><button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة</button>` },
-      gridDef('rows', 'الأساتذة المكرَّمون (شهادة لكل سطر)', ['الاسم الكامل', 'الصفة', 'الدور في النشاط (اختياري)'], { widths: ['1.7fr', '.8fr', '1.5fr'], list: ['k2Emps', null, null], fill: empRowFill }),
-      txtDef(), { t: 'html', html: tplBtn }].concat(commonDefs(false)),
-    act: {
-      all: (f, sy, c) => { f.rows = K.E.teachers().map(e => [fullName(e), titleOf(fullName(e)), '']); c.save('rows'); },
-      tpl: (f, sy, c) => { f.text = OCC_TXT[f.occ] || ''; c.save('text'); }
-    },
-    build: (s, f, sy) => {
-      const rows = (f.rows || []).filter(r => String(r[0] || '').trim());
-      const list = rows.length ? rows : [['..........', 'الأستاذ(ة)', '']];
-      const occTitle = { part: 'شهادة تقدير', contrib: 'شهادة تقدير', effort: 'شهادة شكر وتقدير', sup: 'شهادة شكر وتقدير', year: 'شهادة تقدير وعرفان' }[f.occ] || 'شهادة تقدير';
-      return pageOf(s, f, list.map(r => {
-        const title = r[1] || titleOf(r[0]);
-        const ctx = base(s, sy, Object.assign({ title, name: r[0], activity: f.activity, o_role: r[2] ? ` (${r[2]})` : '', o_date: f.adate ? ` بتاريخ ${K.ldate(f.adate)}` : '' }, gctx(title)));
-        return { theme: themeFor(f, 'navy'), title: occTitle, pre: 'تتشرف إدارة مؤسسة ' + (s.school || '..........') + ' بمنح هذه الشهادة إلى', name: `${title} ${r[0]}`.trim(), lines: linesOf(f.text || OCC_TXT[f.occ], ctx), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn };
-      }));
-    }
-  });
-
-  add({
-    k: 'kd_team', t: 'شهادة شكر وتقدير جماعية لفريق عمل', grp: 't', d: 'شهادة واحدة تضم أسماء الأساتذة والأطر المساهمين في إنجاح نشاط معيّن.', auto: 'لائحة الأساتذة والأطر', page: 'a4l',
-    init: s => commonInit(s, { activity: '', adate: '', text: '', names: [['']] }),
-    defs: () => [{ sec: 'الشهادة' }, { k: 'activity', l: 'اسم النشاط', half: true }, { k: 'adate', l: 'تاريخ النشاط', t: 'date', half: true },
-      { t: 'html', html: `<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة والأطر</button>` },
-      gridDef('names', 'أسماء المكرَّمين', ['الاسم الكامل'], { widths: ['1fr'], list: ['k2Emps'] }),
-      { k: 'text', l: 'نص الشهادة', t: 'area', rows: 4, hint: 'اتركه فارغا لاستعمال النص الجاهز.' }].concat(commonDefs(false)),
-    act: { all: (f, sy, c) => { f.names = emps().filter(e => ['admin', 'teacher', 'assigned', 'preschool'].includes(K.E.cat(e))).map(e => [fullName(e)]); c.save('names'); } },
-    build: (s, f, sy) => {
-      const names = (f.names || []).map(r => String(r[0] || '').trim()).filter(Boolean);
-      const fs = names.length > 24 ? 12 : names.length > 14 ? 14.5 : 17;
-      const namesHtml = `<div class="kd-names" style="font-size:${fs}pt">${(names.length ? names : ['..........', '..........', '..........']).map(n => `<span>${esc(n)}</span>`).join('<i></i>')}</div>`;
-      const ctx = base(s, sy, { activity: f.activity, o_date: f.adate ? ` بتاريخ ${K.ldate(f.adate)}` : '' });
-      const txt = f.text || 'تقديرا للمجهودات المتميزة والروح الجماعية العالية التي أبان عنها الفريق في إنجاح {{activity}}{{o_date}} بمؤسسة {{school}}،\nتتقدم إدارة المؤسسة بأسمى عبارات الشكر والعرفان، متمنية للجميع دوام التألق والنجاح.';
-      return pageOf(s, f, [{ theme: themeFor(f, 'navy'), title: 'شهادة شكر وتقدير', pre: 'تتقدم إدارة المؤسسة بالشكر الجزيل والتقدير الخالص إلى السيدات والسادة', namesHtml, lines: linesOf(txt, ctx), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn }]);
-    }
-  });
-
-  /* ===================== B — التهاني ===================== */
-  const FEAST = {
-    ramadan: { n: 'حلول شهر رمضان الأبرك', title: 'رمضان كريم', theme: 'plum', cres: true, txt: 'بمناسبة حلول شهر رمضان الأبرك{{o_hy}}، أعاده الله علينا وعليكم باليمن والإيمان والسلامة والإسلام،\nوتقبل الله منا ومنكم الصيام والقيام وصالح الأعمال،\nوكل عام وأنتم بخير.' },
-    fitr: { n: 'عيد الفطر المبارك', title: 'عيد فطر مبارك', theme: 'emerald', cres: true, txt: 'بمناسبة حلول عيد الفطر المبارك{{o_hy}}، أعاده الله علينا وعليكم باليمن والخير والبركات،\nوتقبل الله منا ومنكم صالح الأعمال،\nوكل عام وأنتم بألف خير.' },
-    adha: { n: 'عيد الأضحى المبارك', title: 'عيد أضحى مبارك', theme: 'burgundy', cres: true, txt: 'بمناسبة حلول عيد الأضحى المبارك{{o_hy}}، أعاده الله علينا وعليكم بالصحة والسعادة والمسرات،\nوتقبل الله منا ومنكم صالح الأعمال،\nوكل عام وأنتم بألف خير.' },
-    hijri: { n: 'رأس السنة الهجرية', title: 'سنة هجرية سعيدة', theme: 'teal', cres: true, txt: 'بمناسبة حلول السنة الهجرية الجديدة{{o_hy}}، أعادها الله علينا وعليكم بالخير واليمن والبركات،\nوجعلها سنة عطاء وتوفيق وصلاح للأحوال،\nوكل عام وأنتم بخير.' },
-    mawlid: { n: 'ذكرى المولد النبوي الشريف', title: 'المولد النبوي الشريف', theme: 'emerald', cres: true, txt: 'بمناسبة ذكرى المولد النبوي الشريف{{o_hy}}، أعادها الله علينا وعليكم بالخير والبركات،\nوجعلها ذكرى تجمعنا على الهدى والمحبة وصلاح الأحوال،\nوكل عام وأنتم بخير.' }
-  };
-  const toLabel = 'السادة الأساتذة والأطر الإدارية والتربوية والعاملين بالمؤسسة';
-  add({
-    k: 'kd_feast', t: 'تهنئة بمناسبة الأعياد الدينية', grp: 'f', d: 'بطاقة تهنئة بعيد الفطر أو الأضحى أو رمضان أو رأس السنة الهجرية أو المولد النبوي.', auto: 'اسم المؤسسة والتوقيع', page: 'a4l',
-    init: s => commonInit(s, { feast: 'fitr', hy: '', to: toLabel, text: '', names: [['']] }),
-    defs: () => [{ sec: 'التهنئة' }, { k: 'feast', l: 'المناسبة', t: 'select', opts: Object.keys(FEAST).map(k => [k, FEAST[k].n]), half: true }, { k: 'hy', l: 'السنة الهجرية (اختياري)', half: true, ph: 'مثال: 1448 هـ' },
-      { k: 'to', l: 'الموجهة إلى', ph: toLabel },
-      { note: 'لإصدار بطاقة شخصية لكل فرد أدخل الأسماء في الجدول التالي (يُصدر سطر = بطاقة)، وإن تركته فارغا تُصدر بطاقة عامة واحدة.' },
-      gridDef('names', 'أسماء المهنَّئين (اختياري)', ['الاسم الكامل', 'الصفة'], { widths: ['1.7fr', '.8fr'], list: ['k2Emps', null], fill: r => (K.E.byName(r[0]) ? [r[0], r[1] || titleOf(r[0])] : null) }),
-      { t: 'html', html: `<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة والأطر</button> ${tplBtn}` },
-      txtDef('اتركه فارغا لاستعمال النص الجاهز.')].concat(commonDefs(true)),
-    act: {
-      all: (f, sy, c) => { f.names = emps().filter(e => ['admin', 'teacher', 'assigned', 'preschool'].includes(K.E.cat(e))).map(e => [fullName(e), titleOf(fullName(e))]); c.save('names'); },
-      tpl: (f, sy, c) => { f.text = (FEAST[f.feast] || FEAST.fitr).txt; c.save('text'); }
-    },
-    build: (s, f, sy) => {
-      const F = FEAST[f.feast] || FEAST.fitr;
-      const names = (f.names || []).filter(r => String(r[0] || '').trim());
-      const mk = (to) => {
-        const ctx = base(s, sy, { o_hy: f.hy ? ' ' + f.hy : '' });
-        return { theme: themeFor(f, F.theme), crescent: F.cres, title: F.title, pre: `تتقدم إدارة مؤسسة ${s.school || '..........'} بأحر التهاني وأطيب التبريكات إلى`, name: to, lines: linesOf(f.text || F.txt, ctx), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn };
-      };
-      return pageOf(s, f, names.length ? names.map(r => mk(`${r[1] || titleOf(r[0])} ${r[0]}`.trim())) : [mk(f.to || toLabel)]);
-    }
-  });
-
-  const TD_TXT = 'بمناسبة اليوم العالمي للمدرس (5 أكتوبر{{o_year}})، نرفع أسمى عبارات الشكر والعرفان والتقدير،\nعلى رسالتكم النبيلة وعطائكم المتواصل في بناء الأجيال وصناعة المستقبل،\nوكل عام وأنتم منارة للعلم والمعرفة وقدوة في الإخلاص والعطاء.';
-  add({
-    k: 'kd_teacherday', t: 'تهنئة بمناسبة اليوم العالمي للمدرس', grp: 'f', d: 'بطاقة تهنئة عامة أو شخصية لكل أستاذ(ة) بمناسبة اليوم العالمي للمدرس (5 أكتوبر).', auto: 'لائحة الأساتذة والأطر', page: 'a4l',
-    init: s => commonInit(s, { to: 'السيدات والسادة الأساتذة', text: '', names: [['']], theme: 'auto', date: `${MK.syStart(MK.curSy())}-10-05` }),
-    defs: () => [{ sec: 'التهنئة' }, { k: 'to', l: 'الموجهة إلى (بطاقة عامة)', ph: 'السيدات والسادة الأساتذة' },
-      { note: 'للبطاقات الشخصية أدخل الأسماء في الجدول (سطر = بطاقة)، وإن تركته فارغا تُصدر بطاقة عامة واحدة.' },
-      gridDef('names', 'أسماء الأساتذة (اختياري)', ['الاسم الكامل', 'الصفة'], { widths: ['1.7fr', '.8fr'], list: ['k2Emps', null], fill: r => (K.E.byName(r[0]) ? [r[0], r[1] || titleOf(r[0])] : null) }),
-      { t: 'html', html: `<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة</button> ${tplBtn}` },
-      txtDef('اتركه فارغا لاستعمال النص الجاهز.')].concat(commonDefs(true)),
-    act: {
-      all: (f, sy, c) => { f.names = K.E.teachers().map(e => [fullName(e), titleOf(fullName(e))]); c.save('names'); },
-      tpl: (f, sy, c) => { f.text = TD_TXT; c.save('text'); }
-    },
-    build: (s, f, sy) => {
-      const names = (f.names || []).filter(r => String(r[0] || '').trim());
-      const yr = /^(\d{4})/.test(f.date || '') ? RegExp.$1 : '';
-      const mk = to => ({ theme: themeFor(f, 'amber'), title: 'اليوم العالمي للمدرس', sub: 'تحية إجلال وتقدير لحَمَلة رسالة العلم', pre: `تتقدم إدارة مؤسسة ${s.school || '..........'} بأحر التهاني إلى`, name: to, lines: linesOf(f.text || TD_TXT, base(s, sy, { o_year: yr ? ' ' + yr : '' })), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn });
-      return pageOf(s, f, names.length ? names.map(r => mk(`${r[1] || titleOf(r[0])} ${r[0]}`.trim())) : [mk(f.to || 'السيدات والسادة الأساتذة')]);
-    }
-  });
-
-  /* ===================== C — شواهد التفوق ===================== */
-  const fullP = p => `${p.last || ''} ${p.first || ''}`.trim();
-  const ORD = { 1: 'الأولى', 2: 'الثانية', 3: 'الثالثة' };
-  const PERIODS = ['الدورة الأولى', 'الدورة الثانية', 'السنة الدراسية'];
-  const pupilsOf = sy => (window.Pupils ? Pupils.current(sy) : []);
-  const pupilByName = (sy, name) => { const k = String(name || '').trim(); return k ? pupilsOf(sy).find(p => fullP(p) === k) : null; };
-  const EX_TXT = 'نظير تفوق{{h}} الدراسي واحتلال{{h}} المرتبة {{ord}} بقسم {{class}}{{o_avg}} برسم {{period}} من الموسم الدراسي {{sy}}،\nوتشجيعا {{lah}} على مواصلة الجد والاجتهاد، مع أطيب تمنياتنا {{lah}} بدوام التألق والنجاح.';
-  const classRows = sy => {
-    const lists = window.Pupils ? Pupils.Y(sy).lists : [];
-    const out = [];
-    lists.forEach(l => { for (let r = 1; r <= 3; r++) out.push([l.cls, String(r), '', '', l.unit || '']); });
-    return out;
-  };
-  add({
-    k: 'kd_excel', t: 'شواهد التفوق — الثلاثة الأوائل بكل قسم', grp: 'p', d: 'شهادة تفوق لكل تلميذ(ة) احتل المرتبة الأولى أو الثانية أو الثالثة بقسمه، بوسام ولون خاص بكل مرتبة (ذهبي/فضي/برونزي).', auto: 'لوائح التلاميذ المستوردة (الأقسام والأسماء والجنس)', page: 'a4l',
-    init: (s, sy) => commonInit(s, { period: PERIODS[0], text: '', rows: [['', '1', '', '', '']], sr: 'الأستاذ(ة) المسؤول(ة) عن القسم' }),
-    defs: (f, sy) => [{ sec: 'الشواهد' }, { k: 'period', l: 'الفترة', t: 'select', opts: PERIODS },
-      { t: 'html', html: `<button type="button" class="btn sm" data-act="gen">${'توليد 3 أسطر لكل قسم من اللوائح المستوردة'}</button> ${tplBtn}` },
-      { note: 'اكتب اسم التلميذ(ة) (يقترح البرنامج الأسماء من اللوائح) فيُملأ القسم والوحدة تلقائيا، ثم أدخل المعدل. السطر الذي لا اسم فيه لا تُصدر له شهادة.' },
-      Object.assign(gridDef('rows', 'المتفوقون', ['القسم', 'الرتبة', 'الاسم الكامل', 'المعدل', 'الوحدة'], { widths: ['.9fr', '.45fr', '1.7fr', '.55fr', '1fr'], list: [null, null, 'kdPupils', null, 'k2Units'], fillCol: 2,
-        fill: r => { const p = pupilByName(sy, r[2]); if (!p) return null; return [p.cls || r[0], r[1], r[2], r[3], p.unit || r[4]]; } }), { dls: { kdPupils: () => pupilsOf(sy).map(fullP) } }),
-      txtDef('اتركه فارغا لاستعمال النص الجاهز.')].concat(commonDefs(true)),
-    act: {
-      gen: (f, sy, c) => { const r = classRows(sy); if (!r.length) return c.toast('لا توجد لوائح تلاميذ مستوردة لهذا الموسم', true); f.rows = r; c.save('rows'); },
-      tpl: (f, sy, c) => { f.text = EX_TXT; c.save('text'); }
-    },
-    build: (s, f, sy) => {
-      const rows = (f.rows || []).filter(r => String(r[2] || '').trim());
-      const list = rows.length ? rows : [['..........', '1', '..........', '', '']];
-      return pageOf(s, f, list.map(r => {
-        const rank = [1, 2, 3].includes(+r[1]) ? +r[1] : 1;
-        const p = pupilByName(sy, r[2]);
-        const noun = p ? (p.g === 'F' ? 'التلميذة' : 'التلميذ') : 'التلميذ(ة)';
-        const gc = gctx(p ? (p.g === 'F' ? 'x ة' : 'x') : '');
-        const ctx = base(s, sy, Object.assign({ ord: ORD[rank], class: ltr(r[0]), period: f.period, o_avg: String(r[3] || '').trim() ? ` بمعدل عام قدره ${ltr(String(r[3]).trim())}` : '' }, gc));
-        return { theme: themeFor(f, ['gold', 'silver', 'bronze'][rank - 1]), rank, title: 'شهادة تفوق', sub: `المرتبة ${ORD[rank]} — ${f.period}`, pre: `تمنح إدارة مؤسسة ${s.school || '..........'} هذه الشهادة إلى ${noun}`, name: r[2], role: `قسم ${r[0] || '..........'}${r[4] ? ' — ' + r[4] : ''}`, lines: linesOf(f.text || EX_TXT, ctx), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn };
-      }));
-    }
-  });
-
-  add({
-    k: 'kd_toplist', t: 'لائحة المتفوقين بالأقسام (الثلاثة الأوائل)', grp: 'p', d: 'جدول يضم المراتب الثلاث الأولى بكل قسم مع المعدلات، للنشر أو الأرشفة.', auto: 'شواهد التفوق المدخلة', page: 'a4l',
-    init: (s, sy) => ({ title: 'لائحة المتفوقين' }),
-    defs: () => [{ k: 'title', l: 'عنوان اللائحة' }, { note: 'تُملأ هذه اللائحة تلقائيا من جدول «شواهد التفوق»؛ أضف الأسماء والمعدلات هناك.' }],
-    build: (s, f, sy, st) => {
-      const ex = center().flds(DOCS().find(d => d.k === 'kd_excel'), sy);
-      const rows = (ex.rows || []).filter(r => String(r[2] || '').trim());
-      const classes = [];
-      rows.forEach(r => { const key = (r[4] ? r[4] + '|' : '') + r[0]; if (!classes.includes(key)) classes.push(key); });
-      const cell = (key, rk) => { const r = rows.find(x => ((x[4] ? x[4] + '|' : '') + x[0]) === key && +x[1] === rk); return r ? { t: `${r[2]}${String(r[3] || '').trim() ? ' (' + String(r[3]).trim() + ')' : ''}`, c: 'sm' } : { t: '' }; };
-      const head = `<tr><th class="d" style="width:7%">رقم</th><th class="d" style="width:16%">القسم</th><th class="d" style="width:25.6%">المرتبة الأولى</th><th class="d" style="width:25.6%">المرتبة الثانية</th><th class="d" style="width:25.6%">المرتبة الثالثة</th></tr>`;
-      const trs = classes.map((key, i) => tr([{ t: String(i + 1) }, { t: key.split('|').pop(), c: 'k' }, cell(key, 1), cell(key, 2), cell(key, 3)]));
-      for (let i = trs.length; i < 8; i++) trs.push(tr(['', '', '', '', ''].map(x => ({ t: x, st: 'height:8mm' }))));
-      return { title: f.title || 'لائحة المتفوقين', sub: `${ex.period || ''} — الموسم الدراسي ${MK.syDash(sy)}`, sign: SB.sign(s, { right: '', left: 'توقيع السيد رئيس المؤسسة' }), blocks: [tbl(head, trs, 'big')], page: 'a4l' };
-    }
-  });
-
-  /* ===================== D — الشكر والتقدير ===================== */
-  const thanks = o => add({
-    k: o.k, t: o.t, grp: 'k', d: o.d, auto: 'اسم المؤسسة والجماعة', page: 'a4l',
-    init: s => commonInit(s, Object.assign({ text: '', reason: o.reason }, o.init ? o.init(s) : {})),
-    defs: () => [{ sec: 'الشهادة' }].concat(o.fields).concat([{ k: 'reason', l: 'سبب الشكر والتقدير', t: 'area', rows: 2 }, txtDef('اتركه فارغا لاستعمال النص الجاهز. الرمز {{reason}} يُعوَّض بسبب الشكر أعلاه.'), { t: 'html', html: tplBtn }]).concat(commonDefs(false)),
-    act: { tpl: (f, sy, c) => { f.text = o.txt; c.save('text'); } },
-    build: (s, f, sy) => {
-      const nr = o.names(s, f);
-      const ctx = base(s, sy, { name: nr.name, org: nr.org || '', reason: f.reason, who: nr.role });
-      return pageOf(s, f, [{ theme: themeFor(f, o.theme), title: 'شهادة شكر وتقدير', sub: o.sub, pre: nr.pre || `تتقدم إدارة مؤسسة ${s.school || '..........'} بخالص الشكر وعظيم الامتنان إلى`, name: nr.name || '..........', role: nr.role, lines: linesOf(f.text || o.txt, ctx), date: f.date, city: f.city, sl: f.sl, sln: f.sln, sr: f.sr, srn: f.srn }]);
-    }
-  });
-  thanks({
-    k: 'kd_apel', t: 'شكر وتقدير — رئيس جمعية آباء وأولياء التلاميذ', theme: 'teal', sub: 'عرفانا بالشراكة التربوية البنّاءة', d: 'شهادة شكر لرئيس(ة) جمعية آباء وأولياء التلاميذ على دعمه ومساهمته.',
-    reason: 'دعمه المتواصل للمؤسسة ومواكبته لأنشطتها التربوية والاجتماعية',
-    fields: [{ k: 'person', l: 'اسم رئيس الجمعية', half: true }, { k: 'org', l: 'اسم الجمعية', half: true, ph: 'جمعية آباء وأولياء تلاميذ ...' }],
-    init: s => ({ org: 'جمعية آباء وأولياء تلاميذ ' + (s.school || ''), person: '' }),
-    txt: 'نظير {{reason}}،\nوتقديرا لروح المسؤولية والتعاون التي أبان عنها خدمة لمصلحة التلميذات والتلاميذ،\nجزاكم الله خيرا، وأدام التعاون المثمر بين الجمعية والمؤسسة.',
-    names: (s, f) => ({ name: f.person, role: `رئيس(ة) ${f.org || 'جمعية آباء وأولياء التلاميذ'}` })
-  });
-  thanks({
-    k: 'kd_commune', t: 'شكر وتقدير — رئيس المجلس الجماعي', theme: 'burgundy', sub: 'اعترافا بالتعاون المثمر مع المؤسسة', d: 'شهادة شكر لرئيس المجلس الجماعي على دعمه وتعاونه مع المؤسسة.',
-    reason: 'دعمه وتجاوبه المتواصل مع حاجيات المؤسسة وانخراطه في إنجاح مشاريعها',
-    fields: [{ k: 'person', l: 'اسم رئيس المجلس', half: true }, { k: 'org', l: 'الجماعة', half: true }],
-    init: s => ({ org: s.commune ? 'الجماعة ' + s.commune : '', person: '' }),
-    txt: 'نظير {{reason}}،\nوتثمينا لإسهاماته في تحسين ظروف التمدرس بالمؤسسة وخدمة التلميذات والتلاميذ،\nنعبر لكم عن خالص امتناننا، متمنين لكم دوام التوفيق في خدمة الساكنة.',
-    names: (s, f) => ({ name: f.person, role: `رئيس المجلس الجماعي${f.org ? ' ل' + f.org : ''}` })
-  });
-  thanks({
-    k: 'kd_assoc', t: 'شكر وتقدير — جمعية مدنية', theme: 'ocean', sub: 'تنويها بالشراكة وروح التطوع', d: 'شهادة شكر لجمعية مدنية شريكة ساهمت في أنشطة المؤسسة أو دعمها.',
-    reason: 'مساهمتها الفعالة في دعم أنشطة المؤسسة وإنجاح مبادراتها لفائدة التلميذات والتلاميذ',
-    fields: [{ k: 'person', l: 'اسم الجمعية' }, { k: 'rep', l: 'ممثلة في (رئيسها أو ممثلها)', half: true }],
-    init: () => ({ person: '', rep: '' }),
-    txt: 'نظير {{reason}}،\nوتقديرا لروح التطوع والعمل الجمعوي النبيل التي تحلت بها،\nنتقدم لها ولكافة أعضائها بجزيل الشكر، ونتطلع إلى مواصلة هذه الشراكة المثمرة.',
-    names: (s, f) => ({ name: f.person, role: f.rep ? `ممثلة في ${f.rep}` : '' })
-  });
-  thanks({
-    k: 'kd_thanks', t: 'شكر وتقدير — شريك أو متعاون (نموذج حر)', theme: 'navy', sub: 'عرفانا وامتنانا', d: 'شهادة شكر لأي شريك أو متعاون أو مؤسسة (سلطة محلية، مقاولة، متبرع، متطوع...).',
-    reason: 'مساهمته الطيبة في دعم المؤسسة ومواكبة أنشطتها',
-    fields: [{ k: 'person', l: 'الاسم (شخص أو هيأة)', half: true }, { k: 'role', l: 'الصفة', half: true, ph: 'مثال: مدير شركة ...' }],
-    init: () => ({ person: '', role: '' }),
-    txt: 'نظير {{reason}}،\nوتقديرا لما أبدى من حس تضامني وروح مسؤولية عالية،\nنتقدم بخالص الشكر وعظيم الامتنان، سائلين المولى أن يجزيه خير الجزاء.',
-    names: (s, f) => ({ name: f.person, role: f.role })
-  });
-
-  /* ===================== R — 1.9.4: طلب تشجيع موظف(ين) (مراسلة إلى المديرية الإقليمية) ===================== */
-  const encRows = rows => (rows || []).filter(r => String(r[0] || '').trim());
-  const pprOf = n => { const e = K.E.byName(n); return e ? (e.ppr || '') : ''; };
-  const encFill = r => { const e = K.E.byName(r[0]); return e ? [r[0], r[1] || e.ppr || ''] : null; };
-  const encTable = rows => `<table class="lt-t sb-t" style="width:78%;margin:2mm auto 3mm"><thead><tr><th class="d">${esc(rows.length > 1 || !rows.length ? 'اسم الأستاذ(ة) / الموظف(ة)' : 'الاسم الكامل')}</th><th class="d" style="width:32%">رقم التأجير</th></tr></thead><tbody>${rows.map(r => `<tr><td class="b">${esc(r[0])}</td><td class="b" dir="ltr">${esc(r[1] || pprOf(r[0]))}</td></tr>`).join('')}</tbody></table>`;
-  add({
-    k: 'kd_encourage', t: 'طلب تشجيع موظف(ة) أو مجموعة من الأطر', grp: 'r', page: 'a4',
-    d: 'مراسلة إلى السيد المدير الإقليمي (مصلحة الشؤون القانونية والتواصل والشراكة) لطلب تشجيع أستاذ(ة) أو موظف(ة)، أو مجموعة من الأطر في جدول بأسمائهم وأرقام تأجيرهم، مع جدول ثان اختياري.',
-    auto: 'الموظفون (الاسم ورقم التأجير)',
-    init: s => ({ mode: 'one', no: '', city: s.city || '', date: Dx.todayIso(), emp: '', ppr: '', reason: '', rows: [['', '']], reason2: '', rows2: [], text: '',
-      service: 'مصلحة الشؤون القانونية والتواصل والشراكة' }),
-    defs: f => [{ sec: 'المراسلة' }, { k: 'mode', l: 'نوع الطلب', t: 'select', half: true, opts: [['one', 'تشجيع موظف(ة) واحد(ة)'], ['group', 'تشجيع مجموعة من الأطر (جدول)']] },
-      { k: 'no', l: 'رقم الإرسال', half: true, dir: 'ltr', ph: '22/051' }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true },
-      { k: 'service', l: 'المصلحة المرسل إليها بالمديرية', ph: 'مصلحة الشؤون القانونية والتواصل والشراكة' },
-      { sec: f.mode === 'group' ? 'الأطر المعنيون' : 'الموظف(ة) المعني(ة)' }]
-      .concat(f.mode === 'group' ? [
-        gridDef('rows', 'الجدول الأول: الأطر المعنيون', ['الاسم الكامل', 'رقم التأجير'], { widths: ['1.6fr', '.8fr'], list: ['k2Emps', null], dirs: [null, 'ltr'], fill: encFill }),
-        { k: 'reason', l: 'سبب التشجيع (الجدول الأول)', t: 'area', rows: 3, ph: 'نظير مساهمتهم الفعالة في إنجاح عملية ... التي نظمها ... يوم ...' },
-        gridDef('rows2', 'الجدول الثاني (اختياري): أطر آخرون لسبب آخر', ['الاسم الكامل', 'رقم التأجير'], { widths: ['1.6fr', '.8fr'], list: ['k2Emps', null], dirs: [null, 'ltr'], fill: encFill }),
-        { k: 'reason2', l: 'سبب التشجيع (الجدول الثاني)', t: 'area', rows: 2, ph: 'نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة ...' }
-      ] : [
-        { k: 'emp', l: 'الموظف(ة)', list: 'k2Emps', half: true }, { k: 'ppr', l: 'رقم التأجير (يُملأ تلقائيا)', half: true, dir: 'ltr' },
-        { k: 'reason', l: 'سبب التشجيع', t: 'area', rows: 4, ph: 'بعد أن أبانت عن مستواها المتميز في التأطير والتنسيق وقامت بمجهودات عالية ... وذلك بمشاركتها في ...' }
-      ]).concat([{ k: 'text', l: 'نص المراسلة (اختياري: يعوض النص الجاهز)', t: 'area', rows: 3, hint: 'اتركه فارغا لاستعمال النص الجاهز المبني على الاسم والسبب.' }]),
-    build: (s, f) => {
-      if (!window.Letter) return { page: 'a4', blocks: [] };
-      const dir = String(s.directorate || '').replace(/^(?:ال)?مديرية\s+(?:ال)?إ?ا?قليمية\s*(?:ل|ب)?\s*/, '');
-      const reason = t => String(t || '').trim().replace(/[.،]+$/, '');
-      const to = ['إلى السيد: المدير الإقليمي للأكاديمية الجهوية للتربية والتكوين' + (Letter.myReg ? ' ' + esc(Letter.myReg(s) || '') : ''), 'بالمديرية الإقليمية ' + esc(dir || '..........'), esc(f.service || 'مصلحة الشؤون القانونية والتواصل والشراكة')];
-      let subject, body, extra = '';
-      if (f.mode === 'group') {
-        const R1 = encRows(f.rows), R2 = encRows(f.rows2);
-        subject = 'طلب تشجيع الأطر التربوية بالمؤسسة';
-        body = f.text ? esc(f.text).replace(/\n/g, '<br>') : `وبعد، يشرفني أن أطلب منكم تشجيع الأطر التربوية الآتية أسماؤها؛ وذلك ${esc(reason(f.reason) || 'نظير مساهمتها الفعالة في إنجاح أنشطة المؤسسة')}:`;
-        extra = encTable(R1.length ? R1 : [['', ''], ['', '']]);
-        if (R2.length) extra += `<p class="lt-body">كما يشرفني أن أطلب منكم أيضا تشجيع ${R2.length > 1 ? 'الأطر المشار إليهم' : 'الإطار المشار إليه'} في الجدول أسفله، ${esc(reason(f.reason2) || 'نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة')}.</p>` + encTable(R2);
-      } else {
-        const n = String(f.emp || '').trim(), ppr = f.ppr || pprOf(n), E0 = K.E.byName(n) || {}, sx = E0.sex || (/ة$/.test(String(E0.firstAr || n.split(' ')[0] || '')) ? 'F' : '');
-        const ti = E0.id && !E0.sex ? (sx === 'F' ? titleOf(n).replace(/^(الأستاذ|السيد|المربي)$/, '$1ة').replace('السيدة', 'السيدة') : titleOf(n).replace(/^الأستاذ$/, 'الأستاذ(ة)').replace(/^السيد$/, 'السيد(ة)')) : titleOf(n), fem = sx === 'F', unk = !sx;
-        const who = `${ti} ${n || '....................'}${ppr ? ` (رقم التأجير ${ppr})` : ''}`;
-        subject = `طلب تشجيع ${who}`;
-        body = f.text ? esc(f.text).replace(/\n/g, '<br>') : `وبعد، يشرفني أن أطلب منكم تشجيع ${esc(who)} وتحفيز${fem ? 'ها' : unk ? 'ه(ا)' : 'ه'} على مزيد من العطاء ${esc(reason(f.reason) || (fem ? 'بعد أن أبانت عن مستواها المتميز وقامت بمجهودات عالية' : unk ? 'بعد أن أبان(ت) عن مستواه(ا) المتميز وقام(ت) بمجهودات عالية' : 'بعد أن أبان عن مستواه المتميز وقام بمجهودات عالية'))}.`;
-      }
-      const B = Letter.blocks({ s, f: { no: f.no, city: f.city, date: f.date }, noSup: true, subject, to, body, extra: extra || undefined, close: 'وتقبلوا فائق التقدير. والسلام', sign: 'خاتم وتوقيع مدير المؤسسة' });
-      return { page: 'a4', pages: Letter.pages(s, B) };
-    }
-  });
-
-  /* ---------------- centre ---------------- */
-  const DOCS = () => DOCS_;
-  let C = null;
-  function center() {
-    if (C) return C;
-    C = K.center({
-      id: 'kudos', title: 'التهاني والتقديرات', icon: '🏅', route: 'kudosDoc', hubRoute: 'kudos', docLabel: 'الشهادة',
-      groups: [['t', 'شواهد تقدير الأساتذة والأطر', 'المشاركة والمساهمة والمجهودات المتميزة'], ['f', 'التهاني بالأعياد والمناسبات', 'الأعياد الدينية واليوم العالمي للمدرس'], ['p', 'شواهد التفوق للتلاميذ', 'الثلاثة الأوائل بكل قسم'], ['k', 'الشكر والتقدير للشركاء', 'جمعية الآباء، المجلس الجماعي، الجمعيات المدنية'], ['r', 'طلبات التشجيع', 'مراسلة المديرية الإقليمية لتشجيع موظف(ة) أو مجموعة من الأطر']],
-      docs: DOCS, store: sy => store(sy), years: () => Object.keys(KD().years),
-      // 1.9.4: free designer for greetings, thanks and certificates
-      hubButtons: () => `<button class="btn pri" data-go-flyers="congrats">🎨 المصمم الحر (تهاني وشواهد بتصميمك)</button>`,
-      intro: 'شواهد وبطاقات بتصميم زخرفي فاخر على ورق A4 أفقي، بترويسة المؤسسة كاملة العرض، وبألوان تناسب كل مناسبة. اختر الشهادة وعدّل الأسماء والنص، ثم اطبعها أو احفظها بصيغة PDF؛ كل اسم يُصدر شهادة مستقلة.'
-    });
-    return C;
-  }
-  window.Kudos = { migrate, store, docs: DOCS, center, TH, FRAMES };
-  window.pageKudos = (v, a) => { migrate(DB); center().hub(v, a); };
-  window.pageKudosDoc = (v, a) => { migrate(DB); center().doc(v, a); };
-
-  Dx.modCss += `
+        <div class="kd-hdr">${P.header(e)}</div>
+        <div class="kd-title" style="font-size:${Jt(t.title)}pt">${h(t.title)}</div>
+        ${t.sub?`<div class="kd-sub">${h(t.sub)}</div>`:""}
+        ${Ut(r,86,t.crescent)}
+        ${t.pre?`<div class="kd-pre">${h(t.pre)}</div>`:""}
+        ${t.namesHtml||(t.name?`<div class="kd-name" style="font-size:${Xt(t.name)}pt">${h(t.name)}</div>`:"")}
+        ${t.role?`<div class="kd-role">${h(t.role)}</div>`:""}
+        <div class="kd-body">${s}</div>
+        ${o?`<div class="kd-date">${o}</div>`:""}
+        <div class="kd-sign">${at(t.sr,t.srn)}${a}${at(t.sl,t.sln)}</div>
+      </div></div>`}const qt=(e,t)=>String(e??"").replace(/\{\{(\w+)\}\}/g,(r,l)=>{const s=t[l];return s!=null&&s!==""?s:/^o_/.test(l)?"":".........."}).replace(/[ \t]{2,}/g," ").replace(/[ \t]+([،.؛])/g,"$1"),A=(e,t)=>qt(e,t).split(/\r?\n/).map(r=>r.trim()).filter(Boolean),se=e=>/(ة|ات)$|السيدة|الأستاذة|المربية|\(ة\)/.test(String(e||""))&&!/\(ة\)/.test(String(e||"")),ct=e=>{const t=String(e||"");return/\(ة\)|\(/.test(t)||!t?{h:"ه(ا)",lah:"له/لها",hu:"هو/هي"}:/ة$/.test(t.trim())?{h:"ها",lah:"لها",hu:"هي"}:{h:"ه",lah:"له",hu:"هو"}},u=(e,t)=>{const r=K.E.byName(e);if(!r)return t||"الأستاذ(ة)";const l=r.sex==="F",s=K.E.cat(r);return s==="admin"||s==="other"?l?"السيدة":"السيد":s==="preschool"?l?"المربية":"المربي":l?"الأستاذة":"الأستاذ"},Y=e=>e==null||e===""?"":"⁦"+e+"⁩",L=(e,t,r)=>Object.assign(K.tokens(),{sy:Y(MK.syDash(t))},r||{}),_=(e,t)=>Object.assign({theme:"auto",frame:"auto",shape:"rect",font:"",cMain:"#16325f",cAcc:"#b8892b",cPaper:"#fffdf6",date:P.todayIso(),city:e.city||"",sl:"رئيس المؤسسة",sln:e.director||"",sr:"",srn:""},t||{}),O=e=>[{sec:"التصميم والتوقيعات"},{k:"frame",l:"شكل الإطار",t:"select",opts:It(),half:!0},{k:"theme",l:"لون الشهادة وزخرفتها",t:"select",opts:_t(e),half:!0},{k:"shape",l:"شكل سطح الشهادة",t:"select",opts:Nt,half:!0},{k:"font",l:"الخط (من خطوط حاسوبك)",t:"select",opts:Tt,half:!0},{k:"cMain",l:"اللون الأساسي (للألوان المخصصة)",t:"color",half:!0},{k:"cAcc",l:"لون الزخرفة / الذهبي",t:"color",half:!0},{k:"cPaper",l:"لون الورق",t:"color",half:!0},{k:"date",l:"تاريخ التحرير",t:"date",half:!0},{k:"city",l:"مكان التحرير",half:!0},{k:"sln",l:"اسم الموقّع الأيسر",half:!0},{k:"sl",l:"صفة الموقّع الأيسر",half:!0},{k:"sr",l:"صفة الموقّع الأيمن (اختياري)",half:!0},{k:"srn",l:"اسم الموقّع الأيمن",half:!0}],Z=(e,t)=>e.theme&&e.theme!=="auto"?e.theme:t,V=e=>({k:"text",l:"نص الشهادة",t:"area",rows:5,hint:e||"اتركه فارغا لاستعمال النص الجاهز، أو اضغط «إدراج النص الجاهز» ثم عدّله كما تشاء. يمكنك استعمال {{name}} {{activity}} {{school}} {{date}}."}),z='<button type="button" class="btn sm" data-act="tpl">إدراج النص الجاهز للتعديل</button>',E=(e,t,r)=>({page:"a4l",title:"",pages:r.map((l,s)=>Yt(e,Object.assign({},l,{shape:t.shape,font:t.font,cMain:t.cMain,cAcc:t.cAcc,cPaper:t.cPaper,frame:!t.frame||t.frame==="auto"?Gt(l):t.frame==="mix"?nt[(s+1)%nt.length]:t.frame})))}),$t=[],w=e=>($t.push(e),e),dt=()=>sortedEmps(),Ht=[["part","المشاركة في نشاط"],["contrib","المساهمة في نشاط"],["effort","المجهودات المتميزة في إنجاح نشاط"],["sup","التأطير والإشراف على نشاط"],["year","العطاء المتميز خلال الموسم الدراسي"]],ht={part:`اعترافا بمشاركة {{title}} {{name}}{{o_role}} الفاعلة والمتميزة في {{activity}}{{o_date}} المنظم بمؤسسة {{school}}،
+وتنويها بروح المسؤولية والالتزام التي أبان عنها خدمة للتلميذات والتلاميذ،
+تتقدم إدارة المؤسسة بأسمى عبارات الشكر والتقدير، متمنية {{lah}} مزيدا من العطاء والتألق.`,contrib:`تقديرا للمساهمة القيمة التي قدمها {{title}} {{name}}{{o_role}} في {{activity}}{{o_date}} بمؤسسة {{school}}،
+ولما أبان عنه من حس تربوي وروح تعاون عالية ساهمت في نجاح هذا النشاط،
+تتقدم إدارة المؤسسة بجزيل الشكر والعرفان، متمنية {{lah}} دوام التوفيق والنجاح.`,effort:`نظرا للمجهودات الجبارة والمتميزة التي بذلها {{title}} {{name}}{{o_role}} في إنجاح {{activity}}{{o_date}} بمؤسسة {{school}}،
+وإسهامه المتواصل في إشعاع المؤسسة وخدمة المتعلمين،
+تتقدم إدارة المؤسسة بخالص الشكر والامتنان، وتشيد بعطاءاته النبيلة.`,sup:`عرفانا بالتأطير المحكم والإشراف المتميز الذي أبان عنه {{title}} {{name}}{{o_role}} في {{activity}}{{o_date}} بمؤسسة {{school}}،
+وتثمينا لجهوده في مواكبة التلميذات والتلاميذ وتأطيرهم،
+تتقدم إدارة المؤسسة بأصدق عبارات الشكر والتقدير، متمنية {{lah}} المزيد من التألق.`,year:`تقديرا للعطاء المتميز والالتزام المهني الرفيع اللذين أبان عنهما {{title}} {{name}}{{o_role}} طيلة الموسم الدراسي {{sy}} بمؤسسة {{school}}،
+وإسهامه الفعال في الارتقاء بجودة التعلمات وفي مختلف الأنشطة التربوية،
+تتقدم إدارة المؤسسة بخالص الشكر والتقدير، وتتمنى {{lah}} دوام النجاح والعطاء.`},Wt=e=>K.E.byName(e[0])?[e[0],e[1]||u(e[0]),e[2]||""]:null;w({k:"kd_teacher",t:"شهادة تقدير للأستاذ(ة) — المشاركة والمساهمة في نشاط",grp:"t",d:"شهادة فاخرة لكل أستاذ(ة) بمناسبة المشاركة في نشاط أو المساهمة فيه أو المجهود المتميز في إنجاحه.",auto:"لائحة الأساتذة والأطر (الاسم والصفة بحسب الجنس)",page:"a4l",init:e=>_(e,{occ:"part",activity:"",adate:"",text:"",rows:[["","",""]]}),defs:e=>[{sec:"الشهادة"},{k:"occ",l:"مناسبة التقدير",t:"select",opts:Ht,half:!0},{k:"activity",l:"اسم النشاط",half:!0,ph:"مثال: الاحتفال باليوم الوطني للمدرسة المغربية"},{k:"adate",l:"تاريخ النشاط",t:"date",half:!0},{t:"html",half:!0,html:'<label>&nbsp;</label><button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة</button>'},x("rows","الأساتذة المكرَّمون (شهادة لكل سطر)",["الاسم الكامل","الصفة","الدور في النشاط (اختياري)"],{widths:["1.7fr",".8fr","1.5fr"],list:["k2Emps",null,null],fill:Wt}),V(),{t:"html",html:z}].concat(O(!1)),act:{all:(e,t,r)=>{e.rows=K.E.teachers().map(l=>[fullName(l),u(fullName(l)),""]),r.save("rows")},tpl:(e,t,r)=>{e.text=ht[e.occ]||"",r.save("text")}},build:(e,t,r)=>{const l=(t.rows||[]).filter(o=>String(o[0]||"").trim()),s=l.length?l:[["..........","الأستاذ(ة)",""]],i={part:"شهادة تقدير",contrib:"شهادة تقدير",effort:"شهادة شكر وتقدير",sup:"شهادة شكر وتقدير",year:"شهادة تقدير وعرفان"}[t.occ]||"شهادة تقدير";return E(e,t,s.map(o=>{const a=o[1]||u(o[0]),n=L(e,r,Object.assign({title:a,name:o[0],activity:t.activity,o_role:o[2]?` (${o[2]})`:"",o_date:t.adate?` بتاريخ ${K.ldate(t.adate)}`:""},ct(a)));return{theme:Z(t,"navy"),title:i,pre:"تتشرف إدارة مؤسسة "+(e.school||"..........")+" بمنح هذه الشهادة إلى",name:`${a} ${o[0]}`.trim(),lines:A(t.text||ht[t.occ],n),date:t.date,city:t.city,sl:t.sl,sln:t.sln,sr:t.sr,srn:t.srn}}))}}),w({k:"kd_team",t:"شهادة شكر وتقدير جماعية لفريق عمل",grp:"t",d:"شهادة واحدة تضم أسماء الأساتذة والأطر المساهمين في إنجاح نشاط معيّن.",auto:"لائحة الأساتذة والأطر",page:"a4l",init:e=>_(e,{activity:"",adate:"",text:"",names:[[""]]}),defs:()=>[{sec:"الشهادة"},{k:"activity",l:"اسم النشاط",half:!0},{k:"adate",l:"تاريخ النشاط",t:"date",half:!0},{t:"html",html:'<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة والأطر</button>'},x("names","أسماء المكرَّمين",["الاسم الكامل"],{widths:["1fr"],list:["k2Emps"]}),{k:"text",l:"نص الشهادة",t:"area",rows:4,hint:"اتركه فارغا لاستعمال النص الجاهز."}].concat(O(!1)),act:{all:(e,t,r)=>{e.names=dt().filter(l=>["admin","teacher","assigned","preschool"].includes(K.E.cat(l))).map(l=>[fullName(l)]),r.save("names")}},build:(e,t,r)=>{const l=(t.names||[]).map(n=>String(n[0]||"").trim()).filter(Boolean),i=`<div class="kd-names" style="font-size:${l.length>24?12:l.length>14?14.5:17}pt">${(l.length?l:["..........","..........",".........."]).map(n=>`<span>${h(n)}</span>`).join("<i></i>")}</div>`,o=L(e,r,{activity:t.activity,o_date:t.adate?` بتاريخ ${K.ldate(t.adate)}`:""}),a=t.text||`تقديرا للمجهودات المتميزة والروح الجماعية العالية التي أبان عنها الفريق في إنجاح {{activity}}{{o_date}} بمؤسسة {{school}}،
+تتقدم إدارة المؤسسة بأسمى عبارات الشكر والعرفان، متمنية للجميع دوام التألق والنجاح.`;return E(e,t,[{theme:Z(t,"navy"),title:"شهادة شكر وتقدير",pre:"تتقدم إدارة المؤسسة بالشكر الجزيل والتقدير الخالص إلى السيدات والسادة",namesHtml:i,lines:A(a,o),date:t.date,city:t.city,sl:t.sl,sln:t.sln,sr:t.sr,srn:t.srn}])}});const j={ramadan:{n:"حلول شهر رمضان الأبرك",title:"رمضان كريم",theme:"plum",cres:!0,txt:`بمناسبة حلول شهر رمضان الأبرك{{o_hy}}، أعاده الله علينا وعليكم باليمن والإيمان والسلامة والإسلام،
+وتقبل الله منا ومنكم الصيام والقيام وصالح الأعمال،
+وكل عام وأنتم بخير.`},fitr:{n:"عيد الفطر المبارك",title:"عيد فطر مبارك",theme:"emerald",cres:!0,txt:`بمناسبة حلول عيد الفطر المبارك{{o_hy}}، أعاده الله علينا وعليكم باليمن والخير والبركات،
+وتقبل الله منا ومنكم صالح الأعمال،
+وكل عام وأنتم بألف خير.`},adha:{n:"عيد الأضحى المبارك",title:"عيد أضحى مبارك",theme:"burgundy",cres:!0,txt:`بمناسبة حلول عيد الأضحى المبارك{{o_hy}}، أعاده الله علينا وعليكم بالصحة والسعادة والمسرات،
+وتقبل الله منا ومنكم صالح الأعمال،
+وكل عام وأنتم بألف خير.`},hijri:{n:"رأس السنة الهجرية",title:"سنة هجرية سعيدة",theme:"teal",cres:!0,txt:`بمناسبة حلول السنة الهجرية الجديدة{{o_hy}}، أعادها الله علينا وعليكم بالخير واليمن والبركات،
+وجعلها سنة عطاء وتوفيق وصلاح للأحوال،
+وكل عام وأنتم بخير.`},mawlid:{n:"ذكرى المولد النبوي الشريف",title:"المولد النبوي الشريف",theme:"emerald",cres:!0,txt:`بمناسبة ذكرى المولد النبوي الشريف{{o_hy}}، أعادها الله علينا وعليكم بالخير والبركات،
+وجعلها ذكرى تجمعنا على الهدى والمحبة وصلاح الأحوال،
+وكل عام وأنتم بخير.`}},q="السادة الأساتذة والأطر الإدارية والتربوية والعاملين بالمؤسسة";w({k:"kd_feast",t:"تهنئة بمناسبة الأعياد الدينية",grp:"f",d:"بطاقة تهنئة بعيد الفطر أو الأضحى أو رمضان أو رأس السنة الهجرية أو المولد النبوي.",auto:"اسم المؤسسة والتوقيع",page:"a4l",init:e=>_(e,{feast:"fitr",hy:"",to:q,text:"",names:[[""]]}),defs:()=>[{sec:"التهنئة"},{k:"feast",l:"المناسبة",t:"select",opts:Object.keys(j).map(e=>[e,j[e].n]),half:!0},{k:"hy",l:"السنة الهجرية (اختياري)",half:!0,ph:"مثال: 1448 هـ"},{k:"to",l:"الموجهة إلى",ph:q},{note:"لإصدار بطاقة شخصية لكل فرد أدخل الأسماء في الجدول التالي (يُصدر سطر = بطاقة)، وإن تركته فارغا تُصدر بطاقة عامة واحدة."},x("names","أسماء المهنَّئين (اختياري)",["الاسم الكامل","الصفة"],{widths:["1.7fr",".8fr"],list:["k2Emps",null],fill:e=>K.E.byName(e[0])?[e[0],e[1]||u(e[0])]:null}),{t:"html",html:`<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة والأطر</button> ${z}`},V("اتركه فارغا لاستعمال النص الجاهز.")].concat(O(!0)),act:{all:(e,t,r)=>{e.names=dt().filter(l=>["admin","teacher","assigned","preschool"].includes(K.E.cat(l))).map(l=>[fullName(l),u(fullName(l))]),r.save("names")},tpl:(e,t,r)=>{e.text=(j[e.feast]||j.fitr).txt,r.save("text")}},build:(e,t,r)=>{const l=j[t.feast]||j.fitr,s=(t.names||[]).filter(o=>String(o[0]||"").trim()),i=o=>{const a=L(e,r,{o_hy:t.hy?" "+t.hy:""});return{theme:Z(t,l.theme),crescent:l.cres,title:l.title,pre:`تتقدم إدارة مؤسسة ${e.school||".........."} بأحر التهاني وأطيب التبريكات إلى`,name:o,lines:A(t.text||l.txt,a),date:t.date,city:t.city,sl:t.sl,sln:t.sln,sr:t.sr,srn:t.srn}};return E(e,t,s.length?s.map(o=>i(`${o[1]||u(o[0])} ${o[0]}`.trim())):[i(t.to||q)])}});const mt=`بمناسبة اليوم العالمي للمدرس (5 أكتوبر{{o_year}})، نرفع أسمى عبارات الشكر والعرفان والتقدير،
+على رسالتكم النبيلة وعطائكم المتواصل في بناء الأجيال وصناعة المستقبل،
+وكل عام وأنتم منارة للعلم والمعرفة وقدوة في الإخلاص والعطاء.`;w({k:"kd_teacherday",t:"تهنئة بمناسبة اليوم العالمي للمدرس",grp:"f",d:"بطاقة تهنئة عامة أو شخصية لكل أستاذ(ة) بمناسبة اليوم العالمي للمدرس (5 أكتوبر).",auto:"لائحة الأساتذة والأطر",page:"a4l",init:e=>_(e,{to:"السيدات والسادة الأساتذة",text:"",names:[[""]],theme:"auto",date:`${MK.syStart(MK.curSy())}-10-05`}),defs:()=>[{sec:"التهنئة"},{k:"to",l:"الموجهة إلى (بطاقة عامة)",ph:"السيدات والسادة الأساتذة"},{note:"للبطاقات الشخصية أدخل الأسماء في الجدول (سطر = بطاقة)، وإن تركته فارغا تُصدر بطاقة عامة واحدة."},x("names","أسماء الأساتذة (اختياري)",["الاسم الكامل","الصفة"],{widths:["1.7fr",".8fr"],list:["k2Emps",null],fill:e=>K.E.byName(e[0])?[e[0],e[1]||u(e[0])]:null}),{t:"html",html:`<button type="button" class="btn sm" data-act="all">إضافة جميع الأساتذة</button> ${z}`},V("اتركه فارغا لاستعمال النص الجاهز.")].concat(O(!0)),act:{all:(e,t,r)=>{e.names=K.E.teachers().map(l=>[fullName(l),u(fullName(l))]),r.save("names")},tpl:(e,t,r)=>{e.text=mt,r.save("text")}},build:(e,t,r)=>{const l=(t.names||[]).filter(o=>String(o[0]||"").trim()),s=/^(\d{4})/.test(t.date||"")?RegExp.$1:"",i=o=>({theme:Z(t,"amber"),title:"اليوم العالمي للمدرس",sub:"تحية إجلال وتقدير لحَمَلة رسالة العلم",pre:`تتقدم إدارة مؤسسة ${e.school||".........."} بأحر التهاني إلى`,name:o,lines:A(t.text||mt,L(e,r,{o_year:s?" "+s:""})),date:t.date,city:t.city,sl:t.sl,sln:t.sln,sr:t.sr,srn:t.srn});return E(e,t,l.length?l.map(o=>i(`${o[1]||u(o[0])} ${o[0]}`.trim())):[i(t.to||"السيدات والسادة الأساتذة")])}});const pt=e=>`${e.last||""} ${e.first||""}`.trim(),ft={1:"الأولى",2:"الثانية",3:"الثالثة"},gt=["الدورة الأولى","الدورة الثانية","السنة الدراسية"],ut=e=>window.Pupils?Pupils.current(e):[],kt=(e,t)=>{const r=String(t||"").trim();return r?ut(e).find(l=>pt(l)===r):null},yt=`نظير تفوق{{h}} الدراسي واحتلال{{h}} المرتبة {{ord}} بقسم {{class}}{{o_avg}} برسم {{period}} من الموسم الدراسي {{sy}}،
+وتشجيعا {{lah}} على مواصلة الجد والاجتهاد، مع أطيب تمنياتنا {{lah}} بدوام التألق والنجاح.`,te=e=>{const t=window.Pupils?Pupils.Y(e).lists:[],r=[];return t.forEach(l=>{for(let s=1;s<=3;s++)r.push([l.cls,String(s),"","",l.unit||""])}),r};w({k:"kd_excel",t:"شواهد التفوق — الثلاثة الأوائل بكل قسم",grp:"p",d:"شهادة تفوق لكل تلميذ(ة) احتل المرتبة الأولى أو الثانية أو الثالثة بقسمه، بوسام ولون خاص بكل مرتبة (ذهبي/فضي/برونزي).",auto:"لوائح التلاميذ المستوردة (الأقسام والأسماء والجنس)",page:"a4l",init:(e,t)=>_(e,{period:gt[0],text:"",rows:[["","1","","",""]],sr:"الأستاذ(ة) المسؤول(ة) عن القسم"}),defs:(e,t)=>[{sec:"الشواهد"},{k:"period",l:"الفترة",t:"select",opts:gt},{t:"html",html:`<button type="button" class="btn sm" data-act="gen">توليد 3 أسطر لكل قسم من اللوائح المستوردة</button> ${z}`},{note:"اكتب اسم التلميذ(ة) (يقترح البرنامج الأسماء من اللوائح) فيُملأ القسم والوحدة تلقائيا، ثم أدخل المعدل. السطر الذي لا اسم فيه لا تُصدر له شهادة."},Object.assign(x("rows","المتفوقون",["القسم","الرتبة","الاسم الكامل","المعدل","الوحدة"],{widths:[".9fr",".45fr","1.7fr",".55fr","1fr"],list:[null,null,"kdPupils",null,"k2Units"],fillCol:2,fill:r=>{const l=kt(t,r[2]);return l?[l.cls||r[0],r[1],r[2],r[3],l.unit||r[4]]:null}}),{dls:{kdPupils:()=>ut(t).map(pt)}}),V("اتركه فارغا لاستعمال النص الجاهز.")].concat(O(!0)),act:{gen:(e,t,r)=>{const l=te(t);if(!l.length)return r.toast("لا توجد لوائح تلاميذ مستوردة لهذا الموسم",!0);e.rows=l,r.save("rows")},tpl:(e,t,r)=>{e.text=yt,r.save("text")}},build:(e,t,r)=>{const l=(t.rows||[]).filter(i=>String(i[2]||"").trim()),s=l.length?l:[["..........","1","..........","",""]];return E(e,t,s.map(i=>{const o=[1,2,3].includes(+i[1])?+i[1]:1,a=kt(r,i[2]),n=a?a.g==="F"?"التلميذة":"التلميذ":"التلميذ(ة)",c=ct(a?a.g==="F"?"x ة":"x":""),$=L(e,r,Object.assign({ord:ft[o],class:Y(i[0]),period:t.period,o_avg:String(i[3]||"").trim()?` بمعدل عام قدره ${Y(String(i[3]).trim())}`:""},c));return{theme:Z(t,["gold","silver","bronze"][o-1]),rank:o,title:"شهادة تفوق",sub:`المرتبة ${ft[o]} — ${t.period}`,pre:`تمنح إدارة مؤسسة ${e.school||".........."} هذه الشهادة إلى ${n}`,name:i[2],role:`قسم ${i[0]||".........."}${i[4]?" — "+i[4]:""}`,lines:A(t.text||yt,$),date:t.date,city:t.city,sl:t.sl,sln:t.sln,sr:t.sr,srn:t.srn}}))}}),w({k:"kd_toplist",t:"لائحة المتفوقين بالأقسام (الثلاثة الأوائل)",grp:"p",d:"جدول يضم المراتب الثلاث الأولى بكل قسم مع المعدلات، للنشر أو الأرشفة.",auto:"شواهد التفوق المدخلة",page:"a4l",init:(e,t)=>({title:"لائحة المتفوقين"}),defs:()=>[{k:"title",l:"عنوان اللائحة"},{note:"تُملأ هذه اللائحة تلقائيا من جدول «شواهد التفوق»؛ أضف الأسماء والمعدلات هناك."}],build:(e,t,r,l)=>{const s=I().flds(H().find($=>$.k==="kd_excel"),r),i=(s.rows||[]).filter($=>String($[2]||"").trim()),o=[];i.forEach($=>{const d=($[4]?$[4]+"|":"")+$[0];o.includes(d)||o.push(d)});const a=($,d)=>{const p=i.find(m=>(m[4]?m[4]+"|":"")+m[0]===$&&+m[1]===d);return p?{t:`${p[2]}${String(p[3]||"").trim()?" ("+String(p[3]).trim()+")":""}`,c:"sm"}:{t:""}},n='<tr><th class="d" style="width:7%">رقم</th><th class="d" style="width:16%">القسم</th><th class="d" style="width:25.6%">المرتبة الأولى</th><th class="d" style="width:25.6%">المرتبة الثانية</th><th class="d" style="width:25.6%">المرتبة الثالثة</th></tr>',c=o.map(($,d)=>lt([{t:String(d+1)},{t:$.split("|").pop(),c:"k"},a($,1),a($,2),a($,3)]));for(let $=c.length;$<8;$++)c.push(lt(["","","","",""].map(d=>({t:d,st:"height:8mm"}))));return{title:t.title||"لائحة المتفوقين",sub:`${s.period||""} — الموسم الدراسي ${MK.syDash(r)}`,sign:At.sign(e,{right:"",left:"توقيع السيد رئيس المؤسسة"}),blocks:[Lt(n,c,"big")],page:"a4l"}}});const R=e=>w({k:e.k,t:e.t,grp:"k",d:e.d,auto:"اسم المؤسسة والجماعة",page:"a4l",init:t=>_(t,Object.assign({text:"",reason:e.reason},e.init?e.init(t):{})),defs:()=>[{sec:"الشهادة"}].concat(e.fields).concat([{k:"reason",l:"سبب الشكر والتقدير",t:"area",rows:2},V("اتركه فارغا لاستعمال النص الجاهز. الرمز {{reason}} يُعوَّض بسبب الشكر أعلاه."),{t:"html",html:z}]).concat(O(!1)),act:{tpl:(t,r,l)=>{t.text=e.txt,l.save("text")}},build:(t,r,l)=>{const s=e.names(t,r),i=L(t,l,{name:s.name,org:s.org||"",reason:r.reason,who:s.role});return E(t,r,[{theme:Z(r,e.theme),title:"شهادة شكر وتقدير",sub:e.sub,pre:s.pre||`تتقدم إدارة مؤسسة ${t.school||".........."} بخالص الشكر وعظيم الامتنان إلى`,name:s.name||"..........",role:s.role,lines:A(r.text||e.txt,i),date:r.date,city:r.city,sl:r.sl,sln:r.sln,sr:r.sr,srn:r.srn}])}});R({k:"kd_apel",t:"شكر وتقدير — رئيس جمعية آباء وأولياء التلاميذ",theme:"teal",sub:"عرفانا بالشراكة التربوية البنّاءة",d:"شهادة شكر لرئيس(ة) جمعية آباء وأولياء التلاميذ على دعمه ومساهمته.",reason:"دعمه المتواصل للمؤسسة ومواكبته لأنشطتها التربوية والاجتماعية",fields:[{k:"person",l:"اسم رئيس الجمعية",half:!0},{k:"org",l:"اسم الجمعية",half:!0,ph:"جمعية آباء وأولياء تلاميذ ..."}],init:e=>({org:"جمعية آباء وأولياء تلاميذ "+(e.school||""),person:""}),txt:`نظير {{reason}}،
+وتقديرا لروح المسؤولية والتعاون التي أبان عنها خدمة لمصلحة التلميذات والتلاميذ،
+جزاكم الله خيرا، وأدام التعاون المثمر بين الجمعية والمؤسسة.`,names:(e,t)=>({name:t.person,role:`رئيس(ة) ${t.org||"جمعية آباء وأولياء التلاميذ"}`})}),R({k:"kd_commune",t:"شكر وتقدير — رئيس المجلس الجماعي",theme:"burgundy",sub:"اعترافا بالتعاون المثمر مع المؤسسة",d:"شهادة شكر لرئيس المجلس الجماعي على دعمه وتعاونه مع المؤسسة.",reason:"دعمه وتجاوبه المتواصل مع حاجيات المؤسسة وانخراطه في إنجاح مشاريعها",fields:[{k:"person",l:"اسم رئيس المجلس",half:!0},{k:"org",l:"الجماعة",half:!0}],init:e=>({org:e.commune?"الجماعة "+e.commune:"",person:""}),txt:`نظير {{reason}}،
+وتثمينا لإسهاماته في تحسين ظروف التمدرس بالمؤسسة وخدمة التلميذات والتلاميذ،
+نعبر لكم عن خالص امتناننا، متمنين لكم دوام التوفيق في خدمة الساكنة.`,names:(e,t)=>({name:t.person,role:`رئيس المجلس الجماعي${t.org?" ل"+t.org:""}`})}),R({k:"kd_assoc",t:"شكر وتقدير — جمعية مدنية",theme:"ocean",sub:"تنويها بالشراكة وروح التطوع",d:"شهادة شكر لجمعية مدنية شريكة ساهمت في أنشطة المؤسسة أو دعمها.",reason:"مساهمتها الفعالة في دعم أنشطة المؤسسة وإنجاح مبادراتها لفائدة التلميذات والتلاميذ",fields:[{k:"person",l:"اسم الجمعية"},{k:"rep",l:"ممثلة في (رئيسها أو ممثلها)",half:!0}],init:()=>({person:"",rep:""}),txt:`نظير {{reason}}،
+وتقديرا لروح التطوع والعمل الجمعوي النبيل التي تحلت بها،
+نتقدم لها ولكافة أعضائها بجزيل الشكر، ونتطلع إلى مواصلة هذه الشراكة المثمرة.`,names:(e,t)=>({name:t.person,role:t.rep?`ممثلة في ${t.rep}`:""})}),R({k:"kd_thanks",t:"شكر وتقدير — شريك أو متعاون (نموذج حر)",theme:"navy",sub:"عرفانا وامتنانا",d:"شهادة شكر لأي شريك أو متعاون أو مؤسسة (سلطة محلية، مقاولة، متبرع، متطوع...).",reason:"مساهمته الطيبة في دعم المؤسسة ومواكبة أنشطتها",fields:[{k:"person",l:"الاسم (شخص أو هيأة)",half:!0},{k:"role",l:"الصفة",half:!0,ph:"مثال: مدير شركة ..."}],init:()=>({person:"",role:""}),txt:`نظير {{reason}}،
+وتقديرا لما أبدى من حس تضامني وروح مسؤولية عالية،
+نتقدم بخالص الشكر وعظيم الامتنان، سائلين المولى أن يجزيه خير الجزاء.`,names:(e,t)=>({name:t.person,role:t.role})});const wt=e=>(e||[]).filter(t=>String(t[0]||"").trim()),xt=e=>{const t=K.E.byName(e);return t&&t.ppr||""},bt=e=>{const t=K.E.byName(e[0]);return t?[e[0],e[1]||t.ppr||""]:null},vt=e=>`<table class="lt-t sb-t" style="width:78%;margin:2mm auto 3mm"><thead><tr><th class="d">${h(e.length>1||!e.length?"اسم الأستاذ(ة) / الموظف(ة)":"الاسم الكامل")}</th><th class="d" style="width:32%">رقم التأجير</th></tr></thead><tbody>${e.map(t=>`<tr><td class="b">${h(t[0])}</td><td class="b" dir="ltr">${h(t[1]||xt(t[0]))}</td></tr>`).join("")}</tbody></table>`;w({k:"kd_encourage",t:"طلب تشجيع موظف(ة) أو مجموعة من الأطر",grp:"r",page:"a4",d:"مراسلة إلى السيد المدير الإقليمي (مصلحة الشؤون القانونية والتواصل والشراكة) لطلب تشجيع أستاذ(ة) أو موظف(ة)، أو مجموعة من الأطر في جدول بأسمائهم وأرقام تأجيرهم، مع جدول ثان اختياري.",auto:"الموظفون (الاسم ورقم التأجير)",init:e=>({mode:"one",no:"",city:e.city||"",date:P.todayIso(),emp:"",ppr:"",reason:"",rows:[["",""]],reason2:"",rows2:[],text:"",service:"مصلحة الشؤون القانونية والتواصل والشراكة"}),defs:e=>[{sec:"المراسلة"},{k:"mode",l:"نوع الطلب",t:"select",half:!0,opts:[["one","تشجيع موظف(ة) واحد(ة)"],["group","تشجيع مجموعة من الأطر (جدول)"]]},{k:"no",l:"رقم الإرسال",half:!0,dir:"ltr",ph:"22/051"},{k:"city",l:"حرر ب",half:!0},{k:"date",l:"التاريخ",t:"date",half:!0},{k:"service",l:"المصلحة المرسل إليها بالمديرية",ph:"مصلحة الشؤون القانونية والتواصل والشراكة"},{sec:e.mode==="group"?"الأطر المعنيون":"الموظف(ة) المعني(ة)"}].concat(e.mode==="group"?[x("rows","الجدول الأول: الأطر المعنيون",["الاسم الكامل","رقم التأجير"],{widths:["1.6fr",".8fr"],list:["k2Emps",null],dirs:[null,"ltr"],fill:bt}),{k:"reason",l:"سبب التشجيع (الجدول الأول)",t:"area",rows:3,ph:"نظير مساهمتهم الفعالة في إنجاح عملية ... التي نظمها ... يوم ..."},x("rows2","الجدول الثاني (اختياري): أطر آخرون لسبب آخر",["الاسم الكامل","رقم التأجير"],{widths:["1.6fr",".8fr"],list:["k2Emps",null],dirs:[null,"ltr"],fill:bt}),{k:"reason2",l:"سبب التشجيع (الجدول الثاني)",t:"area",rows:2,ph:"نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة ..."}]:[{k:"emp",l:"الموظف(ة)",list:"k2Emps",half:!0},{k:"ppr",l:"رقم التأجير (يُملأ تلقائيا)",half:!0,dir:"ltr"},{k:"reason",l:"سبب التشجيع",t:"area",rows:4,ph:"بعد أن أبانت عن مستواها المتميز في التأطير والتنسيق وقامت بمجهودات عالية ... وذلك بمشاركتها في ..."}]).concat([{k:"text",l:"نص المراسلة (اختياري: يعوض النص الجاهز)",t:"area",rows:3,hint:"اتركه فارغا لاستعمال النص الجاهز المبني على الاسم والسبب."}]),build:(e,t)=>{if(!window.Letter)return{page:"a4",blocks:[]};const r=String(e.directorate||"").replace(/^(?:ال)?مديرية\s+(?:ال)?إ?ا?قليمية\s*(?:ل|ب)?\s*/,""),l=c=>String(c||"").trim().replace(/[.،]+$/,""),s=["إلى السيد: المدير الإقليمي للأكاديمية الجهوية للتربية والتكوين"+(Letter.myReg?" "+h(Letter.myReg(e)||""):""),"بالمديرية الإقليمية "+h(r||".........."),h(t.service||"مصلحة الشؤون القانونية والتواصل والشراكة")];let i,o,a="";if(t.mode==="group"){const c=wt(t.rows),$=wt(t.rows2);i="طلب تشجيع الأطر التربوية بالمؤسسة",o=t.text?h(t.text).replace(/\n/g,"<br>"):`وبعد، يشرفني أن أطلب منكم تشجيع الأطر التربوية الآتية أسماؤها؛ وذلك ${h(l(t.reason)||"نظير مساهمتها الفعالة في إنجاح أنشطة المؤسسة")}:`,a=vt(c.length?c:[["",""],["",""]]),$.length&&(a+=`<p class="lt-body">كما يشرفني أن أطلب منكم أيضا تشجيع ${$.length>1?"الأطر المشار إليهم":"الإطار المشار إليه"} في الجدول أسفله، ${h(l(t.reason2)||"نظير مساهمتهم الإيجابية في إنجاح جميع الأوراش التي تنخرط فيها المؤسسة")}.</p>`+vt($))}else{const c=String(t.emp||"").trim(),$=t.ppr||xt(c),d=K.E.byName(c)||{},p=d.sex||(/ة$/.test(String(d.firstAr||c.split(" ")[0]||""))?"F":""),m=d.id&&!d.sex?p==="F"?u(c).replace(/^(الأستاذ|السيد|المربي)$/,"$1ة").replace("السيدة","السيدة"):u(c).replace(/^الأستاذ$/,"الأستاذ(ة)").replace(/^السيد$/,"السيد(ة)"):u(c),C=p==="F",k=!p,S=`${m} ${c||"...................."}${$?` (رقم التأجير ${$})`:""}`;i=`طلب تشجيع ${S}`,o=t.text?h(t.text).replace(/\n/g,"<br>"):`وبعد، يشرفني أن أطلب منكم تشجيع ${h(S)} وتحفيز${C?"ها":k?"ه(ا)":"ه"} على مزيد من العطاء ${h(l(t.reason)||(C?"بعد أن أبانت عن مستواها المتميز وقامت بمجهودات عالية":k?"بعد أن أبان(ت) عن مستواه(ا) المتميز وقام(ت) بمجهودات عالية":"بعد أن أبان عن مستواه المتميز وقام بمجهودات عالية"))}.`}const n=Letter.blocks({s:e,f:{no:t.no,city:t.city,date:t.date},noSup:!0,subject:i,to:s,body:o,extra:a||void 0,close:"وتقبلوا فائق التقدير. والسلام",sign:"خاتم وتوقيع مدير المؤسسة"});return{page:"a4",pages:Letter.pages(e,n)}}});const H=()=>$t;let T=null;function I(){return T||(T=K.center({id:"kudos",title:"التهاني والتقديرات",icon:"🏅",route:"kudosDoc",hubRoute:"kudos",docLabel:"الشهادة",groups:[["t","شواهد تقدير الأساتذة والأطر","المشاركة والمساهمة والمجهودات المتميزة"],["f","التهاني بالأعياد والمناسبات","الأعياد الدينية واليوم العالمي للمدرس"],["p","شواهد التفوق للتلاميذ","الثلاثة الأوائل بكل قسم"],["k","الشكر والتقدير للشركاء","جمعية الآباء، المجلس الجماعي، الجمعيات المدنية"],["r","طلبات التشجيع","مراسلة المديرية الإقليمية لتشجيع موظف(ة) أو مجموعة من الأطر"]],docs:H,store:e=>ot(e),years:()=>Object.keys(st().years),hubButtons:()=>'<button class="btn pri" data-go-flyers="congrats">🎨 المصمم الحر (تهاني وشواهد بتصميمك)</button>',intro:"شواهد وبطاقات بتصميم زخرفي فاخر على ورق A4 أفقي، بترويسة المؤسسة كاملة العرض، وبألوان تناسب كل مناسبة. اختر الشهادة وعدّل الأسماء والنص، ثم اطبعها أو احفظها بصيغة PDF؛ كل اسم يُصدر شهادة مستقلة."}),T)}window.Kudos={migrate:N,store:ot,docs:H,center:I,TH:D,FRAMES:M},window.pageKudos=(e,t)=>{N(DB),I().hub(e,t)},window.pageKudosDoc=(e,t)=>{N(DB),I().doc(e,t)},P.modCss+=`
   .kd{position:relative;margin:-8mm -11mm;width:297mm;height:209.5mm;overflow:hidden;color:var(--m);font-family:'MAJT','Amiri','NSA',serif;flex:none}
   .kd-bgw{position:absolute;left:0;top:0}.kd-bgw svg{display:block}
   .kd-in{position:absolute;left:17mm;right:17mm;top:13mm;bottom:12mm;display:flex;flex-direction:column;align-items:center;text-align:center}
@@ -629,5 +138,4 @@
   .kd-sg{width:78mm;font-size:13pt;font-weight:700;min-height:23mm}.kd-sg .n{font-weight:400;font-size:12pt;color:#333;margin-top:.4mm}.kd-sg .sp{height:9mm}
   .kd-seal{width:23mm;height:23mm;border:.45mm dashed var(--a);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8.5pt;color:var(--a);opacity:.75;margin-bottom:1mm}
   .kd-medal{display:block;margin-bottom:-1.5mm}
-  `;
-})();
+  `})();

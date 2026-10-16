@@ -1,220 +1,34 @@
-'use strict';
-/* 1.9.4 — الحياة المدرسية ← «مجلة المؤسسة»: مجلة مدرسية قابلة للتحيين والتغيير (عدد لكل موسم أو أكثر).
-   كل عدد: غلاف (العنوان، رقم العدد، الموسم، صورة، شعار المؤسسة، الألوان) + أقسام مرتبة يمكن تحريكها وتعديلها وحذفها:
-   الفهرس (تلقائي)، صفحة صورة (مثل صورة صاحب الجلالة)، مقال / افتتاحية، الفريق التربوي والإداري ولجنة الإعداد، ألبوم صور الأنشطة،
-   تصميم من «تصاميمي» (إعلان، تهنئة...)، وأي وثيقة من وثائق البرنامج (بطائق الأندية، برنامج الأنشطة، الجمعيات، المجالس...)
-   تدرج كما هي في صفحات المجلة (الوثائق الأفقية تدار لتملأ الصفحة). الطبع A4 أو الحفظ PDF.
-   Data: DB.mag = { issues: [{ id, title, no, sy, date, sub, color, color2, coverImg, sections: [{ id, type, title, ... }] }] } */
-(function () {
-  const Dx = window.Docs, esc = Dx.esc;
-  const nm = t => String(t == null ? '' : t).trim();
-  const R = () => { const m = (DB.mag = DB.mag && typeof DB.mag === 'object' ? DB.mag : {}); m.issues = Array.isArray(m.issues) ? m.issues : []; return m; };
-  const byId = id => R().issues.find(x => x.id === id) || null;
-  const TYPES = {
-    toc: ['📑', 'الفهرس (تلقائي)'], image: ['🖼', 'صفحة صورة (مثل صورة صاحب الجلالة)'], text: ['📝', 'مقال / افتتاحية / إبداعات التلاميذ'], team: ['👥', 'الفريق التربوي والإداري ولجنة الإعداد'],
-    photos: ['📷', 'ألبوم صور الأنشطة'], design: ['🎨', 'تصميم من «تصاميمي»'], doc: ['📄', 'وثيقة من وثائق البرنامج'], sep: ['🔖', 'صفحة فاصلة (عنوان باب)']
-  };
-  const THEMES = [['#0e5a4a', '#d4a52c'], ['#1d2a8c', '#e53935'], ['#7b1fa2', '#ffb300'], ['#c62828', '#1565c0'], ['#00695c', '#8bc34a'], ['#37474f', '#ff7043']];
-  const st = { id: '' };
+"use strict";(function(){const u=window.Docs,c=u.esc,p=i=>String(i??"").trim(),f=()=>{const i=DB.mag=DB.mag&&typeof DB.mag=="object"?DB.mag:{};return i.issues=Array.isArray(i.issues)?i.issues:[],i},j=i=>f().issues.find(s=>s.id===i)||null,x={toc:["📑","الفهرس (تلقائي)"],image:["🖼","صفحة صورة (مثل صورة صاحب الجلالة)"],text:["📝","مقال / افتتاحية / إبداعات التلاميذ"],team:["👥","الفريق التربوي والإداري ولجنة الإعداد"],photos:["📷","ألبوم صور الأنشطة"],design:["🎨","تصميم من «تصاميمي»"],doc:["📄","وثيقة من وثائق البرنامج"],sep:["🔖","صفحة فاصلة (عنوان باب)"]},w=[["#0e5a4a","#d4a52c"],["#1d2a8c","#e53935"],["#7b1fa2","#ffb300"],["#c62828","#1565c0"],["#00695c","#8bc34a"],["#37474f","#ff7043"]],h={id:""},P=(i,s)=>new Promise(l=>{const t=new Image;t.onload=()=>{const n=Math.min(1,(s||1400)/Math.max(t.naturalWidth,t.naturalHeight)),d=document.createElement("canvas");d.width=Math.round(t.naturalWidth*n),d.height=Math.round(t.naturalHeight*n);const a=d.getContext("2d");a.fillStyle="#fff",a.fillRect(0,0,d.width,d.height),a.drawImage(t,0,0,d.width,d.height),l(d.toDataURL("image/jpeg",.82))},t.onerror=()=>l(null),t.src=i});function E(i,s){return new Promise(l=>{const t=document.createElement("input");t.type="file",t.accept="image/*",t.multiple=!!i,t.style.display="none",document.body.appendChild(t),t.onchange=async()=>{const n=[];for(const d of Array.from(t.files||[])){const a=await new Promise(e=>{const r=new FileReader;r.onload=()=>e(r.result),r.onerror=()=>e(null),r.readAsDataURL(d)}),o=a&&await P(a,s);o&&n.push(o)}t.remove(),l(n)},t.click()})}function D(){const i=S(),s=MK.curSy(),l=f().issues.length+1,t=[["الإشراف","مدير(ة) المؤسسة",i.director||""],["التنسيق العام","المنسق(ة) العام(ة)",""],["لجنة الإعداد","منسق(ة) نادي القراءة",""],["لجنة الإعداد","منسق(ة) النادي الثقافي",""],["الجمع والتوضيب","",""],["ضبط أرشيف المجلة","",""]];return{id:uid("mg"),title:"مجلة الحياة المدرسية",no:String(l),sy:s,date:u.todayIso(),sub:"مجلة الأنشطة المدرسية ل"+(i.school||"المؤسسة"),color:w[0][0],color2:w[0][1],coverImg:"",sections:[{id:uid("sc"),type:"toc",title:"فهرس العدد"},{id:uid("sc"),type:"image",title:"صاحب الجلالة الملك محمد السادس نصره الله",img:"",cap:"صاحب الجلالة الملك محمد السادس نصره الله وأيده"},{id:uid("sc"),type:"text",title:"افتتاحية العدد",author:i.director?"مدير المؤسسة: "+i.director:"",body:`تعتبر الحياة المدرسية جزءا من الحياة العامة المتميزة بالسرعة والتدفق، التي تستدعي التجاوب والتفاعل مع المتغيرات الاقتصادية والاجتماعية والثقافية والقيمية...
 
-  /* ---------- images: picked from the computer, reduced (JPEG) so that the data file stays small ---------- */
-  const jpeg = (url, maxW) => new Promise(res => { const im = new Image(); im.onload = () => { const sc = Math.min(1, (maxW || 1400) / Math.max(im.naturalWidth, im.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * sc); c.height = Math.round(im.naturalHeight * sc); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', .82)); }; im.onerror = () => res(null); im.src = url; });
-  function pickImages(multi, maxW) {
-    return new Promise(res => {
-      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = !!multi; inp.style.display = 'none'; document.body.appendChild(inp);
-      inp.onchange = async () => { const out = []; for (const f of Array.from(inp.files || [])) { const u = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.onerror = () => r(null); rd.readAsDataURL(f); }); const j = u && await jpeg(u, maxW); if (j) out.push(j); } inp.remove(); res(out); };
-      inp.click();
-    });
-  }
-
-  /* ---------- a new issue, with the sections of the usual school magazine ---------- */
-  function newIssue() {
-    const s = S(), sy = MK.curSy(), n = R().issues.length + 1;
-    const team = [['الإشراف', 'مدير(ة) المؤسسة', s.director || ''], ['التنسيق العام', 'المنسق(ة) العام(ة)', ''], ['لجنة الإعداد', 'منسق(ة) نادي القراءة', ''], ['لجنة الإعداد', 'منسق(ة) النادي الثقافي', ''], ['الجمع والتوضيب', '', ''], ['ضبط أرشيف المجلة', '', '']];
-    return { id: uid('mg'), title: 'مجلة الحياة المدرسية', no: String(n), sy, date: Dx.todayIso(), sub: 'مجلة الأنشطة المدرسية ل' + (s.school || 'المؤسسة'), color: THEMES[0][0], color2: THEMES[0][1], coverImg: '',
-      sections: [
-        { id: uid('sc'), type: 'toc', title: 'فهرس العدد' },
-        { id: uid('sc'), type: 'image', title: 'صاحب الجلالة الملك محمد السادس نصره الله', img: '', cap: 'صاحب الجلالة الملك محمد السادس نصره الله وأيده' },
-        { id: uid('sc'), type: 'text', title: 'افتتاحية العدد', author: s.director ? 'مدير المؤسسة: ' + s.director : '', body: 'تعتبر الحياة المدرسية جزءا من الحياة العامة المتميزة بالسرعة والتدفق، التي تستدعي التجاوب والتفاعل مع المتغيرات الاقتصادية والاجتماعية والثقافية والقيمية...\n\nيسعدنا أن نضع بين أيديكم هذا العدد من مجلة المؤسسة، ثمرة مجهودات الأطر التربوية والإدارية والمتعلمات والمتعلمين وشركاء المؤسسة.' },
-        { id: uid('sc'), type: 'team', title: 'الفريق التربوي والإداري', rows: team },
-        { id: uid('sc'), type: 'sep', title: 'النوادي التربوية', sub: 'بطائق الأندية وبرامجها' },
-        { id: uid('sc'), type: 'photos', title: 'أنشطة وصور', per: 4, photos: [] }
-      ] };
-  }
-
-  /* ---------- page ---------- */
-  function page(v, arg) {
-    arg = arg || {};
-    if (arg.id) st.id = arg.id;
-    const I = st.id && byId(st.id);
-    if (I) return editor(v, I);
-    const L = R().issues;
-    v.innerHTML = `<div class="page-h"><h1>مجلة المؤسسة</h1><span class="sp"></span><button class="btn pri" id="mgNew">${ic('plus')} عدد جديد</button></div>
+يسعدنا أن نضع بين أيديكم هذا العدد من مجلة المؤسسة، ثمرة مجهودات الأطر التربوية والإدارية والمتعلمات والمتعلمين وشركاء المؤسسة.`},{id:uid("sc"),type:"team",title:"الفريق التربوي والإداري",rows:t},{id:uid("sc"),type:"sep",title:"النوادي التربوية",sub:"بطائق الأندية وبرامجها"},{id:uid("sc"),type:"photos",title:"أنشطة وصور",per:4,photos:[]}]}}function z(i,s){s=s||{},s.id&&(h.id=s.id);const l=h.id&&j(h.id);if(l)return M(i,l);const t=f().issues;i.innerHTML=`<div class="page-h"><h1>مجلة المؤسسة</h1><span class="sp"></span><button class="btn pri" id="mgNew">${ic("plus")} عدد جديد</button></div>
       <div class="card" style="padding:12px 16px;margin-bottom:12px;line-height:1.9;font-size:13px">أنشئ مجلة المؤسسة وحيّنها متى شئت: الغلاف (العنوان، رقم العدد، الموسم، صورة وشعار المؤسسة)، الفهرس التلقائي، صورة صاحب الجلالة، الافتتاحية، الفريق التربوي ولجنة الإعداد، المقالات وإبداعات التلاميذ، ألبومات صور الأنشطة، التصاميم (الإعلانات والتهاني)، وأي وثيقة من وثائق البرنامج (بطائق الأندية، برنامج الأنشطة المندمجة، الجمعيات، المجالس، التعاونية...) تدرج تلقائيا بمعطياتها المحينة. رتب الأقسام كما تريد ثم اطبع المجلة أو احفظها PDF.</div>
-      ${L.length ? `<div class="mg-list">${L.map(x => `<div class="card mg-it" data-op="${x.id}"><div class="mg-cv" style="background:linear-gradient(160deg,${esc(x.color)},${esc(x.color2)})">${x.coverImg ? `<img src="${x.coverImg}">` : ''}<b>${esc(x.title)}</b><span>العدد ${esc(x.no)} — ${esc(MK.syDash(x.sy || MK.curSy()).replace('-', '/'))}</span></div>
-          <div class="mg-ib"><span class="muted">${x.sections.length} قسم</span><div class="btn-row"><button class="btn sm" data-op="${x.id}">${ic('edit')} فتح</button><button class="btn sm" data-pv="${x.id}">${ic('print')}</button><button class="btn sm" data-cp="${x.id}" title="نسخة (عدد جديد بنفس الأقسام)">نسخة</button><button class="btn sm danger" data-del="${x.id}">${ic('trash')}</button></div></div></div>`).join('')}</div>`
-        : '<div class="empty-state">لا يوجد أي عدد بعد. اضغط «عدد جديد»: تنشأ المجلة بأقسامها المعتادة لتعدلها وتكملها.</div>'}`;
-    const again = () => page(v);
-    $('#mgNew', v).onclick = () => { const x = newIssue(); R().issues.unshift(x); persist(); st.id = x.id; again(); };
-    $$('[data-op]', v).forEach(b => b.onclick = e => { if (e.target.closest('[data-pv],[data-cp],[data-del]')) return; st.id = b.dataset.op; again(); });
-    $$('[data-pv]', v).forEach(b => b.onclick = () => go('magDoc', { id: b.dataset.pv }));
-    $$('[data-cp]', v).forEach(b => b.onclick = () => { const x = JSON.parse(JSON.stringify(byId(b.dataset.cp))); x.id = uid('mg'); x.no = String((+x.no || 0) + 1); x.sy = MK.curSy(); x.sections.forEach(s2 => { s2.id = uid('sc'); }); R().issues.unshift(x); persist(); again(); });
-    $$('[data-del]', v).forEach(b => b.onclick = async () => { if (!(await confirmBox('حذف هذا العدد من المجلة نهائيا؟', 'حذف'))) return; R().issues = R().issues.filter(x => x.id !== b.dataset.del); persist(); again(); });
-  }
-
-  const centers = () => ((window.K && K.centers) || []).filter(c => { try { return c.docs().length; } catch (_) { return false; } });
-  function editor(v, I) {
-    const again = () => editor(v, I);
-    const desc = s2 => s2.type === 'doc' ? (() => { const c = centers().find(x => x.id === s2.cid), d = c && c.docs().find(x => x.k === s2.dk); return d ? `${c.title} ← ${d.t}` : 'وثيقة غير متوفرة'; })()
-      : s2.type === 'photos' ? `${(s2.photos || []).length} صورة` : s2.type === 'design' ? ((DB.designs || []).find(d => d.id === s2.did) || {}).name || 'لم يختر بعد' : s2.type === 'text' ? String(s2.body || '').slice(0, 80) + '…' : s2.type === 'team' ? `${(s2.rows || []).filter(r => nm(r[2])).length} اسم` : s2.type === 'image' ? (s2.img ? 'صورة مضافة' : 'بدون صورة') : '';
-    v.innerHTML = `<div class="page-h"><button class="btn" id="mgBack">${ic('back')} الأعداد</button><h1>${esc(I.title)} — العدد ${esc(I.no)}</h1><span class="sp"></span><button class="btn pri" id="mgPv">${ic('print')} معاينة وطباعة المجلة</button></div>
+      ${t.length?`<div class="mg-list">${t.map(d=>`<div class="card mg-it" data-op="${d.id}"><div class="mg-cv" style="background:linear-gradient(160deg,${c(d.color)},${c(d.color2)})">${d.coverImg?`<img src="${d.coverImg}">`:""}<b>${c(d.title)}</b><span>العدد ${c(d.no)} — ${c(MK.syDash(d.sy||MK.curSy()).replace("-","/"))}</span></div>
+          <div class="mg-ib"><span class="muted">${d.sections.length} قسم</span><div class="btn-row"><button class="btn sm" data-op="${d.id}">${ic("edit")} فتح</button><button class="btn sm" data-pv="${d.id}">${ic("print")}</button><button class="btn sm" data-cp="${d.id}" title="نسخة (عدد جديد بنفس الأقسام)">نسخة</button><button class="btn sm danger" data-del="${d.id}">${ic("trash")}</button></div></div></div>`).join("")}</div>`:'<div class="empty-state">لا يوجد أي عدد بعد. اضغط «عدد جديد»: تنشأ المجلة بأقسامها المعتادة لتعدلها وتكملها.</div>'}`;const n=()=>z(i);$("#mgNew",i).onclick=()=>{const d=D();f().issues.unshift(d),persist(),h.id=d.id,n()},$$("[data-op]",i).forEach(d=>d.onclick=a=>{a.target.closest("[data-pv],[data-cp],[data-del]")||(h.id=d.dataset.op,n())}),$$("[data-pv]",i).forEach(d=>d.onclick=()=>go("magDoc",{id:d.dataset.pv})),$$("[data-cp]",i).forEach(d=>d.onclick=()=>{const a=JSON.parse(JSON.stringify(j(d.dataset.cp)));a.id=uid("mg"),a.no=String((+a.no||0)+1),a.sy=MK.curSy(),a.sections.forEach(o=>{o.id=uid("sc")}),f().issues.unshift(a),persist(),n()}),$$("[data-del]",i).forEach(d=>d.onclick=async()=>{await confirmBox("حذف هذا العدد من المجلة نهائيا؟","حذف")&&(f().issues=f().issues.filter(a=>a.id!==d.dataset.del),persist(),n())})}const y=()=>(window.K&&K.centers||[]).filter(i=>{try{return i.docs().length}catch{return!1}});function M(i,s){const l=()=>M(i,s),t=a=>a.type==="doc"?(()=>{const o=y().find(r=>r.id===a.cid),e=o&&o.docs().find(r=>r.k===a.dk);return e?`${o.title} ← ${e.t}`:"وثيقة غير متوفرة"})():a.type==="photos"?`${(a.photos||[]).length} صورة`:a.type==="design"?((DB.designs||[]).find(o=>o.id===a.did)||{}).name||"لم يختر بعد":a.type==="text"?String(a.body||"").slice(0,80)+"…":a.type==="team"?`${(a.rows||[]).filter(o=>p(o[2])).length} اسم`:a.type==="image"?a.img?"صورة مضافة":"بدون صورة":"";i.innerHTML=`<div class="page-h"><button class="btn" id="mgBack">${ic("back")} الأعداد</button><h1>${c(s.title)} — العدد ${c(s.no)}</h1><span class="sp"></span><button class="btn pri" id="mgPv">${ic("print")} معاينة وطباعة المجلة</button></div>
       <div class="mg-ed"><div class="card mg-cvf"><div class="card-h"><h3>الغلاف</h3></div><div class="card-b">
-        <div class="fld"><label>عنوان المجلة</label><input class="inp" data-i="title" value="${esc(I.title)}"></div>
-        <div class="fgrid"><div class="fld"><label>رقم العدد</label><input class="inp" data-i="no" value="${esc(I.no)}"></div><div class="fld"><label>تاريخ الصدور</label><input class="inp" type="date" data-i="date" value="${esc(I.date)}"></div></div>
-        <div class="fld"><label>العنوان الفرعي</label><input class="inp" data-i="sub" value="${esc(I.sub)}"></div>
-        <div class="fld"><label>ألوان المجلة</label><div class="mg-th">${THEMES.map((t, i) => `<button data-th="${i}" style="background:linear-gradient(135deg,${t[0]} 50%,${t[1]} 50%)" class="${t[0] === I.color ? 'on' : ''}"></button>`).join('')}<input type="color" data-i="color" value="${esc(I.color)}"><input type="color" data-i="color2" value="${esc(I.color2)}"></div></div>
-        <div class="fld"><label>صورة الغلاف</label><div class="btn-row"><button class="btn sm" id="mgCI">${ic('up')} ${I.coverImg ? 'تغيير' : 'إضافة'} صورة</button>${I.coverImg ? '<button class="btn sm danger" id="mgCD">حذف</button>' : ''}</div>${I.coverImg ? `<img src="${I.coverImg}" style="max-width:100%;max-height:140px;margin-top:6px;border-radius:6px">` : ''}</div>
-        <p class="muted" style="font-size:12px;line-height:1.7">${S().logo ? 'يظهر شعار المؤسسة المعتمد على الغلاف.' : 'لإظهار شعار المؤسسة على الغلاف: صممه من «الإعلانات والتصاميم ← شعار وترويسة المؤسسة» ثم «اعتماد كشعار».'}</p>
+        <div class="fld"><label>عنوان المجلة</label><input class="inp" data-i="title" value="${c(s.title)}"></div>
+        <div class="fgrid"><div class="fld"><label>رقم العدد</label><input class="inp" data-i="no" value="${c(s.no)}"></div><div class="fld"><label>تاريخ الصدور</label><input class="inp" type="date" data-i="date" value="${c(s.date)}"></div></div>
+        <div class="fld"><label>العنوان الفرعي</label><input class="inp" data-i="sub" value="${c(s.sub)}"></div>
+        <div class="fld"><label>ألوان المجلة</label><div class="mg-th">${w.map((a,o)=>`<button data-th="${o}" style="background:linear-gradient(135deg,${a[0]} 50%,${a[1]} 50%)" class="${a[0]===s.color?"on":""}"></button>`).join("")}<input type="color" data-i="color" value="${c(s.color)}"><input type="color" data-i="color2" value="${c(s.color2)}"></div></div>
+        <div class="fld"><label>صورة الغلاف</label><div class="btn-row"><button class="btn sm" id="mgCI">${ic("up")} ${s.coverImg?"تغيير":"إضافة"} صورة</button>${s.coverImg?'<button class="btn sm danger" id="mgCD">حذف</button>':""}</div>${s.coverImg?`<img src="${s.coverImg}" style="max-width:100%;max-height:140px;margin-top:6px;border-radius:6px">`:""}</div>
+        <p class="muted" style="font-size:12px;line-height:1.7">${S().logo?"يظهر شعار المؤسسة المعتمد على الغلاف.":"لإظهار شعار المؤسسة على الغلاف: صممه من «الإعلانات والتصاميم ← شعار وترويسة المؤسسة» ثم «اعتماد كشعار»."}</p>
       </div></div>
-      <div class="card"><div class="card-h"><h3>أقسام العدد وترتيبها</h3><span class="sp"></span><select class="inp" id="mgAddT" style="width:auto">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t[0]} ${t[1]}</option>`).join('')}</select><button class="btn sm pri" id="mgAdd">${ic('plus')} إضافة قسم</button></div><div class="card-b">
-        <div class="mg-sec mg-cover"><span class="mg-n">1</span><span class="mg-ic">📘</span><div><b>الغلاف</b><div class="muted">${esc(I.sub)}</div></div></div>
-        ${I.sections.map((s2, i) => `<div class="mg-sec"><span class="mg-n">${i + 2}</span><span class="mg-ic">${(TYPES[s2.type] || ['•'])[0]}</span><div style="flex:1;min-width:0"><b>${esc(s2.title || (TYPES[s2.type] || ['', ''])[1])}</b><div class="muted mg-d">${esc(desc(s2))}</div></div>
-          <button class="btn sm" data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button class="btn sm" data-dn="${i}" ${i < I.sections.length - 1 ? '' : 'disabled'}>▼</button><button class="btn sm" data-ed="${i}">${ic('edit')}</button><button class="btn sm danger" data-rm="${i}">${ic('trash')}</button></div>`).join('')}
-      </div></div></div>`;
-    const save = () => { persist(); };
-    $('#mgBack', v).onclick = () => { st.id = ''; page(v); };
-    $('#mgPv', v).onclick = () => go('magDoc', { id: I.id });
-    $$('[data-i]', v).forEach(el => el.oninput = el.onchange = () => { I[el.dataset.i] = el.value; save(); });
-    $$('[data-th]', v).forEach(b => b.onclick = () => { const t = THEMES[+b.dataset.th]; I.color = t[0]; I.color2 = t[1]; save(); again(); });
-    $('#mgCI', v).onclick = async () => { const L = await pickImages(false, 1600); if (L[0]) { I.coverImg = L[0]; save(); again(); } };
-    if ($('#mgCD', v)) $('#mgCD', v).onclick = () => { I.coverImg = ''; save(); again(); };
-    const A = I.sections;
-    $$('[data-up]', v).forEach(b => b.onclick = () => { const i = +b.dataset.up; [A[i - 1], A[i]] = [A[i], A[i - 1]]; save(); again(); });
-    $$('[data-dn]', v).forEach(b => b.onclick = () => { const i = +b.dataset.dn; [A[i + 1], A[i]] = [A[i], A[i + 1]]; save(); again(); });
-    $$('[data-rm]', v).forEach(b => b.onclick = async () => { if (!(await confirmBox('حذف هذا القسم من العدد؟', 'حذف'))) return; A.splice(+b.dataset.rm, 1); save(); again(); });
-    $$('[data-ed]', v).forEach(b => b.onclick = () => secForm(A[+b.dataset.ed], () => { save(); again(); }));
-    $('#mgAdd', v).onclick = () => { const t = $('#mgAddT', v).value, s2 = { id: uid('sc'), type: t, title: t === 'toc' ? 'فهرس العدد' : t === 'team' ? 'لجنة الإعداد' : t === 'photos' ? 'أنشطة وصور' : '', per: 4, photos: [], rows: t === 'team' ? [['', '', '']] : undefined };
-      secForm(s2, () => { A.push(s2); save(); again(); }, true); };
-  }
-
-  /* ---------- the form of a section ---------- */
-  function secForm(s2, done, isNew) {
-    const x = JSON.parse(JSON.stringify(s2)), b = document.createElement('div');
-    const draw = () => {
-      const T = x.type;
-      let h = `<div class="fld"><label>عنوان القسم (يظهر في الفهرس)</label><input class="inp" data-x="title" value="${esc(x.title)}"></div>`;
-      if (T === 'text') h += `<div class="fld"><label>الكاتب(ة) / التوقيع</label><input class="inp" data-x="author" value="${esc(x.author)}"></div>
-        <div class="fld"><label>النص (سطر فارغ بين الفقرات؛ السطر الذي يبدأ بـ - يصبح عنصر لائحة)</label><textarea class="inp" rows="12" data-x="body">${esc(x.body)}</textarea></div>
-        <div class="fld"><label>صورة مرافقة (اختيارية)</label><div class="btn-row"><button class="btn sm" id="sfI">${ic('up')} ${x.img ? 'تغيير' : 'إضافة'} صورة</button>${x.img ? '<button class="btn sm danger" id="sfID">حذف</button>' : ''}</div>${x.img ? `<img src="${x.img}" style="max-height:110px;margin-top:6px">` : ''}</div>`;
-      if (T === 'image') h += `<div class="fld"><label>التعليق تحت الصورة</label><input class="inp" data-x="cap" value="${esc(x.cap)}"></div>
-        <div class="fld"><label>الصورة (تملأ الصفحة)</label><div class="btn-row"><button class="btn sm" id="sfI">${ic('up')} ${x.img ? 'تغيير' : 'اختيار'} الصورة</button></div>${x.img ? `<img src="${x.img}" style="max-height:160px;margin-top:6px">` : ''}</div>`;
-      if (T === 'sep') h += `<div class="fld"><label>عنوان فرعي</label><input class="inp" data-x="sub" value="${esc(x.sub)}"></div>`;
-      if (T === 'team') h += `<table class="tbl compact"><thead><tr><th>المجموعة (الإشراف، لجنة الإعداد...)</th><th>المهمة</th><th>الاسم الكامل</th><th></th></tr></thead><tbody>${(x.rows || []).map((r, i) => `<tr>${[0, 1, 2].map(j => `<td><input class="inp" data-r="${i}" data-j="${j}" value="${esc(r[j])}" ${j === 2 ? 'list="mgEmp"' : ''}></td>`).join('')}<td><button class="btn sm danger" data-rr="${i}">${ic('trash')}</button></td></tr>`).join('')}</tbody></table>
-        <div class="btn-row" style="margin-top:6px"><button class="btn sm" id="sfRA">${ic('plus')} سطر</button><button class="btn sm" id="sfRC" title="منسقو الأندية من «الأندية التربوية»">إضافة منسقي الأندية</button></div>${K.dl('mgEmp', K.E ? K.E.names() : [])}`;
-      if (T === 'photos') h += `<div class="fgrid"><div class="fld"><label>عدد الصور في الصفحة</label><select class="inp" data-x="per">${[1, 2, 4, 6, 9].map(n => `<option ${+x.per === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div class="fld"><label>نص تقديمي (اختياري)</label><input class="inp" data-x="intro" value="${esc(x.intro)}"></div></div>
-        <button class="btn sm pri" id="sfP">${ic('up')} إضافة صور (يمكن اختيار عدة صور)</button>
-        <div class="mg-ph">${(x.photos || []).map((p, i) => `<div><img src="${p.src}"><input class="inp" data-pc="${i}" placeholder="تعليق" value="${esc(p.cap)}"><div class="btn-row"><button class="btn sm" data-pu="${i}" ${i ? '' : 'disabled'}>▶</button><button class="btn sm danger" data-pd="${i}">${ic('trash')}</button></div></div>`).join('')}</div>`;
-      if (T === 'design') { const D = (DB.designs || []); h += D.length ? `<div class="mg-dz">${D.map(d => `<button class="${d.id === x.did ? 'on' : ''}" data-dz="${d.id}"><img src="${d.thumb}"><span>${esc(d.name)}</span></button>`).join('')}</div>` : '<p class="muted">لا توجد تصاميم محفوظة بعد في «تصاميمي» (الحياة المدرسية ← الإعلانات والتصاميم).</p>'; }
-      if (T === 'doc') {
-        const C = centers(), c = C.find(y => y.id === x.cid) || C[0]; if (c && !x.cid) { x.cid = c.id; }
-        h += `<div class="fld"><label>الخانة</label><select class="inp" id="sfC">${C.map(y => `<option value="${y.id}" ${c && y.id === c.id ? 'selected' : ''}>${esc(y.title)}</option>`).join('')}</select></div>
-          <div class="fld"><label>الوثيقة</label><select class="inp" id="sfD">${c ? c.docs().map(d => `<option value="${d.k}" ${d.k === x.dk ? 'selected' : ''}>${esc(d.t)}</option>`).join('') : ''}</select></div>
-          <p class="muted" style="font-size:12px;line-height:1.7">تدرج الوثيقة بمعطياتها المحينة للموسم الحالي كما تطبع من خانتها (الوثائق الأفقية تدار لتملأ صفحة المجلة).</p>`;
-      }
-      if (T === 'toc') h += '<p class="muted">يبنى الفهرس تلقائيا من عناوين الأقسام وأرقام صفحاتها.</p>';
-      b.innerHTML = h;
-      $$('[data-x]', b).forEach(el => el.oninput = el.onchange = () => { x[el.dataset.x] = el.value; });
-      $$('[data-r]', b).forEach(el => el.oninput = () => { x.rows[+el.dataset.r][+el.dataset.j] = el.value; });
-      $$('[data-rr]', b).forEach(el => el.onclick = () => { x.rows.splice(+el.dataset.rr, 1); draw(); });
-      if ($('#sfRA', b)) $('#sfRA', b).onclick = () => { x.rows.push([(x.rows[x.rows.length - 1] || [''])[0], '', '']); draw(); };
-      if ($('#sfRC', b)) $('#sfRC', b).onclick = () => { const L = clubCoords(); if (!L.length) return toast('لم يتم العثور على منسقي الأندية في «الأندية التربوية»', true); L.forEach(r => x.rows.push(['لجنة الإعداد', 'منسق(ة) ' + r[0], r[1]])); draw(); };
-      if ($('#sfI', b)) $('#sfI', b).onclick = async () => { const L = await pickImages(false, x.type === 'image' ? 1800 : 1200); if (L[0]) { x.img = L[0]; draw(); } };
-      if ($('#sfID', b)) $('#sfID', b).onclick = () => { x.img = ''; draw(); };
-      if ($('#sfP', b)) $('#sfP', b).onclick = async () => { const L = await pickImages(true, 1300); x.photos = (x.photos || []).concat(L.map(src => ({ src, cap: '' }))); draw(); };
-      $$('[data-pc]', b).forEach(el => el.oninput = () => { x.photos[+el.dataset.pc].cap = el.value; });
-      $$('[data-pu]', b).forEach(el => el.onclick = () => { const i = +el.dataset.pu, P = x.photos; [P[i - 1], P[i]] = [P[i], P[i - 1]]; draw(); });
-      $$('[data-pd]', b).forEach(el => el.onclick = () => { x.photos.splice(+el.dataset.pd, 1); draw(); });
-      $$('[data-dz]', b).forEach(el => el.onclick = () => { x.did = el.dataset.dz; if (!nm(x.title)) x.title = ((DB.designs || []).find(d => d.id === x.did) || {}).name || ''; draw(); });
-      if ($('#sfC', b)) $('#sfC', b).onchange = e => { x.cid = e.target.value; x.dk = ''; draw(); };
-      if ($('#sfD', b)) { if (!x.dk) x.dk = $('#sfD', b).value; $('#sfD', b).onchange = e => { x.dk = e.target.value; const c = centers().find(y => y.id === x.cid), d = c && c.docs().find(y => y.k === x.dk); if (d && (!nm(x.title) || x._auto)) { x.title = d.t; x._auto = 1; } }; }
-      if (T === 'doc' && !nm(x.title)) { const c = centers().find(y => y.id === x.cid), d = c && c.docs().find(y => y.k === x.dk); if (d) { x.title = d.t; x._auto = 1; $('[data-x=title]', b).value = d.t; } }
-    };
-    draw();
-    modal({ title: (isNew ? 'إضافة قسم: ' : 'تعديل القسم: ') + (TYPES[x.type] || ['', ''])[1], size: x.type === 'photos' || x.type === 'design' || x.type === 'team' ? 'xl' : 'lg', body: b, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: () => {
-      if (x.type === 'doc' && !x.dk) { toast('اختر الوثيقة', true); return false; }
-      if (x.type === 'design' && !x.did) { toast('اختر التصميم', true); return false; }
-      if (x.type === 'team') x.rows = (x.rows || []).filter(r => r.some(nm));
-      Object.keys(s2).forEach(k => delete s2[k]); Object.assign(s2, x); done();
-    } }, { label: 'إلغاء' }] });
-  }
-  const clubCoords = () => { try { const B = window.Budget && Budget.F ? Budget.F('cl_list', MK.curSy()) : null; return ((B && B.rows) || []).filter(r => nm(r[0])).map(r => [nm(r[0]), nm(r[1] || r[2] || '')]); } catch (_) { return []; } };
-
-  /* ---------- the printed magazine ---------- */
-  const fold = p => `<!--cls:mg-full-->${p}`;
-  const markOf = p => { const m = typeof p === 'string' && /^<!--cls:([\w -]+)-->/.exec(p); return m ? m[1] : ''; };
-  const runP = (p, i) => (typeof p === 'function' ? p(i) : p);
-  function frame(I, title, inner, n) {
-    return `<div class="mg-pg" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e"><div class="mg-hd"><span>${esc(I.title)} — العدد ${esc(I.no)}</span><span>${esc(title || '')}</span></div><div class="mg-bd">${inner}</div><div class="mg-ft"><span>${esc(S().school || '')}</span><b>${n}</b></div></div>`;
-  }
-  const paras = t => { const out = []; let ul = []; String(t || '').split(/\n/).forEach(l => { const s2 = l.trim(); if (/^[-•●▪]\s*/.test(s2)) { ul.push(s2.replace(/^[-•●▪]\s*/, '')); return; } if (ul.length) { out.push(`<ul>${ul.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`); ul = []; } if (s2) out.push(`<p>${esc(s2)}</p>`); }); if (ul.length) out.push(`<ul>${ul.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`); return out; };
-  function textPages(I, s2) {
-    const P = [].concat(...paras(s2.body).map(p => { const t = p.replace(/<[^>]+>/g, ''); if (t.length < 1400 || !/^<p>/.test(p)) return [p]; const w = t.split(' '), out = []; let c = ''; w.forEach(x => { if ((c + ' ' + x).length > 1200) { out.push(c); c = x; } else c = c ? c + ' ' + x : x; }); if (c) out.push(c); return out.map((x, i) => `<p${i ? ' class="cont"' : ''}>${x}</p>`); })), pages = []; let cur = [], len = 0; const cap = s2.img ? 2100 : 3000;
-    P.forEach(p => { const l = p.replace(/<[^>]+>/g, '').length + 60; if (len + l > (pages.length ? 3600 : cap) && cur.length) { pages.push(cur); cur = []; len = 0; } cur.push(p); len += l; });
-    if (cur.length || !pages.length) pages.push(cur);
-    return pages.map((c, i) => ({ title: s2.title, html: `${i ? '' : `<h2 class="mg-h2">${esc(s2.title)}</h2>`}${!i && s2.img ? `<img class="mg-tim" src="${s2.img}">` : ''}<div class="mg-txt">${c.join('')}</div>${i === pages.length - 1 && s2.author ? `<div class="mg-au">${esc(s2.author)}</div>` : ''}` }));
-  }
-  function teamPage(I, s2) {
-    const groups = []; (s2.rows || []).forEach(r => { const g = nm(r[0]) || ' '; let G = groups.find(x => x.g === g); if (!G) groups.push(G = { g, L: [] }); G.L.push(r); });
-    return [{ title: s2.title, html: `<h2 class="mg-h2">${esc(s2.title)}</h2>${S().logo ? `<img src="${S().logo}" class="mg-tlogo">` : ''}<div class="mg-team">${groups.map(G => `<div class="mg-tg"><div class="mg-tgt">${esc(G.g)}</div>${G.L.map(r => `<div class="mg-tr">${r[1] ? `<span>${esc(r[1])}</span>` : ''}<b>${esc(r[2])}</b></div>`).join('')}</div>`).join('')}</div>` }];
-  }
-  function photoPages(I, s2) {
-    const per = Math.max(1, +s2.per || 4), P = s2.photos || [], out = [];
-    const cols = per === 1 ? 1 : per <= 4 ? 2 : 3;
-    for (let i = 0; i < Math.max(1, P.length); i += per) {
-      const chunk = P.slice(i, i + per);
-      out.push({ title: s2.title, html: `${i ? '' : `<h2 class="mg-h2">${esc(s2.title)}</h2>${s2.intro ? `<p class="mg-in">${esc(s2.intro)}</p>` : ''}`}<div class="mg-grid c${cols} n${per}">${chunk.map(p => `<figure><img src="${p.src}">${p.cap ? `<figcaption>${esc(p.cap)}</figcaption>` : ''}</figure>`).join('') || '<p class="muted" style="text-align:center">أضف صور الأنشطة لهذا القسم.</p>'}</div>` });
-    }
-    return out;
-  }
-  function docPages(s2) {
-    const c = centers().find(x => x.id === s2.cid); if (!c) return [];
-    let r = null; try { r = c.render(s2.dk, MK.curSy()); } catch (_) { r = null; } if (!r || !r.pages) return [];
-    return r.pages.map(p => {
-      if (r.page === 'a4') return { raw: p };
-      const inner = r.page === 'a4l' ? `<div class="page-a4l ${markOf(p)}">${runP(p, 0)}</div>` : r.page === 'single' ? `<div class="sheet single"><div class="copy">${runP(p, 0)}</div></div>` : `<div class="sheet"><div class="copy">${runP(p, 0)}</div><div class="copy">${runP(p, 1)}</div></div>`;
-      return r.page === 'single' ? { raw: fold(`<div class="mg-ins">${inner}</div>`) } : { raw: fold(`<div class="mg-rot">${inner}</div>`) };
-    });
-  }
-  function build(I) {
-    const s = S(), sy = I.sy || MK.curSy();
-    const list = []; // { sec, pages: [{ title, html } | { raw }] }
-    I.sections.forEach(s2 => {
-      let pg = [];
-      if (s2.type === 'text') pg = textPages(I, s2);
-      else if (s2.type === 'team') pg = teamPage(I, s2);
-      else if (s2.type === 'photos') pg = photoPages(I, s2);
-      else if (s2.type === 'image') pg = [{ raw: fold(`<div class="mg-imgp" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e">${s2.img ? `<img src="${s2.img}">` : '<div class="mg-noimg">الصورة</div>'}${s2.cap ? `<div class="mg-cap">${esc(s2.cap)}</div>` : ''}</div>`) }];
-      else if (s2.type === 'sep') pg = [{ raw: fold(`<div class="mg-sep" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e"><div class="mg-sep-i"><span>${esc(I.title)}</span><h1>${esc(s2.title)}</h1>${s2.sub ? `<h3>${esc(s2.sub)}</h3>` : ''}</div></div>`) }];
-      else if (s2.type === 'design') { const d = (DB.designs || []).find(x => x.id === s2.did); if (d && window.Designer) { let u = ''; try { u = Designer.toCanvas(d.doc, Math.min(2.4, 2000 / Math.max(d.doc.w, d.doc.h))).toDataURL('image/jpeg', .9); } catch (_) {} pg = [{ raw: fold(`<div class="mg-dzp${d.doc.w > d.doc.h ? ' land' : ''}"><img src="${u}"></div>`) }]; } }
-      else if (s2.type === 'doc') pg = docPages(s2);
-      else if (s2.type === 'toc') pg = [{ toc: true, title: s2.title }];
-      list.push({ s2, pages: pg });
-    });
-    // page numbers (cover = 1)
-    let n = 2; list.forEach(x => { x.start = n; n += x.pages.length; });
-    const tocHtml = t => `<h2 class="mg-h2">${esc(t || 'فهرس العدد')}</h2><div class="mg-toc">${list.filter(x => x.s2.type !== 'toc' && x.pages.length).map(x => `<div><span>${esc(x.s2.title || (TYPES[x.s2.type] || ['', ''])[1])}</span><i></i><b>${x.start}</b></div>`).join('')}</div>`;
-    const out = [cover(I, s, sy)];
-    list.forEach(x => x.pages.forEach((p, i) => { out.push(p.raw != null ? p.raw : fold(frame(I, p.title, p.toc ? tocHtml(p.title) : p.html, x.start + i))); }));
-    return out;
-  }
-  function cover(I, s, sy) {
-    return fold(`<div class="mg-cover" style="--c1:${esc(I.color)};--c2:${esc(I.color2)};--c1l:${esc(I.color)}1f;--c2l:${esc(I.color2)}2e">
-      <div class="mg-ch">${Dx.header ? `<div class="mg-chh">${Dx.header(s)}</div>` : ''}</div>
-      <div class="mg-ct"><div class="mg-cl">${s.logo ? `<img src="${s.logo}">` : ''}</div><h1>${esc(I.title)}</h1><div class="mg-csub">${esc(I.sub)}</div></div>
-      <div class="mg-cimg">${I.coverImg ? `<img src="${I.coverImg}">` : '<div class="mg-cdeco"></div>'}</div>
-      <div class="mg-cf"><div><b>العدد ${esc(I.no)}</b></div><div>الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}</div><div>${esc(Dx.fmtDate ? Dx.fmtDate(I.date) : I.date)}</div></div></div>`);
-  }
-  Dx.modCss += `
+      <div class="card"><div class="card-h"><h3>أقسام العدد وترتيبها</h3><span class="sp"></span><select class="inp" id="mgAddT" style="width:auto">${Object.entries(x).map(([a,o])=>`<option value="${a}">${o[0]} ${o[1]}</option>`).join("")}</select><button class="btn sm pri" id="mgAdd">${ic("plus")} إضافة قسم</button></div><div class="card-b">
+        <div class="mg-sec mg-cover"><span class="mg-n">1</span><span class="mg-ic">📘</span><div><b>الغلاف</b><div class="muted">${c(s.sub)}</div></div></div>
+        ${s.sections.map((a,o)=>`<div class="mg-sec"><span class="mg-n">${o+2}</span><span class="mg-ic">${(x[a.type]||["•"])[0]}</span><div style="flex:1;min-width:0"><b>${c(a.title||(x[a.type]||["",""])[1])}</b><div class="muted mg-d">${c(t(a))}</div></div>
+          <button class="btn sm" data-up="${o}" ${o?"":"disabled"}>▲</button><button class="btn sm" data-dn="${o}" ${o<s.sections.length-1?"":"disabled"}>▼</button><button class="btn sm" data-ed="${o}">${ic("edit")}</button><button class="btn sm danger" data-rm="${o}">${ic("trash")}</button></div>`).join("")}
+      </div></div></div>`;const n=()=>{persist()};$("#mgBack",i).onclick=()=>{h.id="",z(i)},$("#mgPv",i).onclick=()=>go("magDoc",{id:s.id}),$$("[data-i]",i).forEach(a=>a.oninput=a.onchange=()=>{s[a.dataset.i]=a.value,n()}),$$("[data-th]",i).forEach(a=>a.onclick=()=>{const o=w[+a.dataset.th];s.color=o[0],s.color2=o[1],n(),l()}),$("#mgCI",i).onclick=async()=>{const a=await E(!1,1600);a[0]&&(s.coverImg=a[0],n(),l())},$("#mgCD",i)&&($("#mgCD",i).onclick=()=>{s.coverImg="",n(),l()});const d=s.sections;$$("[data-up]",i).forEach(a=>a.onclick=()=>{const o=+a.dataset.up;[d[o-1],d[o]]=[d[o],d[o-1]],n(),l()}),$$("[data-dn]",i).forEach(a=>a.onclick=()=>{const o=+a.dataset.dn;[d[o+1],d[o]]=[d[o],d[o+1]],n(),l()}),$$("[data-rm]",i).forEach(a=>a.onclick=async()=>{await confirmBox("حذف هذا القسم من العدد؟","حذف")&&(d.splice(+a.dataset.rm,1),n(),l())}),$$("[data-ed]",i).forEach(a=>a.onclick=()=>T(d[+a.dataset.ed],()=>{n(),l()})),$("#mgAdd",i).onclick=()=>{const a=$("#mgAddT",i).value,o={id:uid("sc"),type:a,title:a==="toc"?"فهرس العدد":a==="team"?"لجنة الإعداد":a==="photos"?"أنشطة وصور":"",per:4,photos:[],rows:a==="team"?[["","",""]]:void 0};T(o,()=>{d.push(o),n(),l()},!0)}}function T(i,s,l){const t=JSON.parse(JSON.stringify(i)),n=document.createElement("div"),d=()=>{const a=t.type;let o=`<div class="fld"><label>عنوان القسم (يظهر في الفهرس)</label><input class="inp" data-x="title" value="${c(t.title)}"></div>`;if(a==="text"&&(o+=`<div class="fld"><label>الكاتب(ة) / التوقيع</label><input class="inp" data-x="author" value="${c(t.author)}"></div>
+        <div class="fld"><label>النص (سطر فارغ بين الفقرات؛ السطر الذي يبدأ بـ - يصبح عنصر لائحة)</label><textarea class="inp" rows="12" data-x="body">${c(t.body)}</textarea></div>
+        <div class="fld"><label>صورة مرافقة (اختيارية)</label><div class="btn-row"><button class="btn sm" id="sfI">${ic("up")} ${t.img?"تغيير":"إضافة"} صورة</button>${t.img?'<button class="btn sm danger" id="sfID">حذف</button>':""}</div>${t.img?`<img src="${t.img}" style="max-height:110px;margin-top:6px">`:""}</div>`),a==="image"&&(o+=`<div class="fld"><label>التعليق تحت الصورة</label><input class="inp" data-x="cap" value="${c(t.cap)}"></div>
+        <div class="fld"><label>الصورة (تملأ الصفحة)</label><div class="btn-row"><button class="btn sm" id="sfI">${ic("up")} ${t.img?"تغيير":"اختيار"} الصورة</button></div>${t.img?`<img src="${t.img}" style="max-height:160px;margin-top:6px">`:""}</div>`),a==="sep"&&(o+=`<div class="fld"><label>عنوان فرعي</label><input class="inp" data-x="sub" value="${c(t.sub)}"></div>`),a==="team"&&(o+=`<table class="tbl compact"><thead><tr><th>المجموعة (الإشراف، لجنة الإعداد...)</th><th>المهمة</th><th>الاسم الكامل</th><th></th></tr></thead><tbody>${(t.rows||[]).map((e,r)=>`<tr>${[0,1,2].map(m=>`<td><input class="inp" data-r="${r}" data-j="${m}" value="${c(e[m])}" ${m===2?'list="mgEmp"':""}></td>`).join("")}<td><button class="btn sm danger" data-rr="${r}">${ic("trash")}</button></td></tr>`).join("")}</tbody></table>
+        <div class="btn-row" style="margin-top:6px"><button class="btn sm" id="sfRA">${ic("plus")} سطر</button><button class="btn sm" id="sfRC" title="منسقو الأندية من «الأندية التربوية»">إضافة منسقي الأندية</button></div>${K.dl("mgEmp",K.E?K.E.names():[])}`),a==="photos"&&(o+=`<div class="fgrid"><div class="fld"><label>عدد الصور في الصفحة</label><select class="inp" data-x="per">${[1,2,4,6,9].map(e=>`<option ${+t.per===e?"selected":""}>${e}</option>`).join("")}</select></div><div class="fld"><label>نص تقديمي (اختياري)</label><input class="inp" data-x="intro" value="${c(t.intro)}"></div></div>
+        <button class="btn sm pri" id="sfP">${ic("up")} إضافة صور (يمكن اختيار عدة صور)</button>
+        <div class="mg-ph">${(t.photos||[]).map((e,r)=>`<div><img src="${e.src}"><input class="inp" data-pc="${r}" placeholder="تعليق" value="${c(e.cap)}"><div class="btn-row"><button class="btn sm" data-pu="${r}" ${r?"":"disabled"}>▶</button><button class="btn sm danger" data-pd="${r}">${ic("trash")}</button></div></div>`).join("")}</div>`),a==="design"){const e=DB.designs||[];o+=e.length?`<div class="mg-dz">${e.map(r=>`<button class="${r.id===t.did?"on":""}" data-dz="${r.id}"><img src="${r.thumb}"><span>${c(r.name)}</span></button>`).join("")}</div>`:'<p class="muted">لا توجد تصاميم محفوظة بعد في «تصاميمي» (الحياة المدرسية ← الإعلانات والتصاميم).</p>'}if(a==="doc"){const e=y(),r=e.find(m=>m.id===t.cid)||e[0];r&&!t.cid&&(t.cid=r.id),o+=`<div class="fld"><label>الخانة</label><select class="inp" id="sfC">${e.map(m=>`<option value="${m.id}" ${r&&m.id===r.id?"selected":""}>${c(m.title)}</option>`).join("")}</select></div>
+          <div class="fld"><label>الوثيقة</label><select class="inp" id="sfD">${r?r.docs().map(m=>`<option value="${m.k}" ${m.k===t.dk?"selected":""}>${c(m.t)}</option>`).join(""):""}</select></div>
+          <p class="muted" style="font-size:12px;line-height:1.7">تدرج الوثيقة بمعطياتها المحينة للموسم الحالي كما تطبع من خانتها (الوثائق الأفقية تدار لتملأ صفحة المجلة).</p>`}if(a==="toc"&&(o+='<p class="muted">يبنى الفهرس تلقائيا من عناوين الأقسام وأرقام صفحاتها.</p>'),n.innerHTML=o,$$("[data-x]",n).forEach(e=>e.oninput=e.onchange=()=>{t[e.dataset.x]=e.value}),$$("[data-r]",n).forEach(e=>e.oninput=()=>{t.rows[+e.dataset.r][+e.dataset.j]=e.value}),$$("[data-rr]",n).forEach(e=>e.onclick=()=>{t.rows.splice(+e.dataset.rr,1),d()}),$("#sfRA",n)&&($("#sfRA",n).onclick=()=>{t.rows.push([(t.rows[t.rows.length-1]||[""])[0],"",""]),d()}),$("#sfRC",n)&&($("#sfRC",n).onclick=()=>{const e=L();if(!e.length)return toast("لم يتم العثور على منسقي الأندية في «الأندية التربوية»",!0);e.forEach(r=>t.rows.push(["لجنة الإعداد","منسق(ة) "+r[0],r[1]])),d()}),$("#sfI",n)&&($("#sfI",n).onclick=async()=>{const e=await E(!1,t.type==="image"?1800:1200);e[0]&&(t.img=e[0],d())}),$("#sfID",n)&&($("#sfID",n).onclick=()=>{t.img="",d()}),$("#sfP",n)&&($("#sfP",n).onclick=async()=>{const e=await E(!0,1300);t.photos=(t.photos||[]).concat(e.map(r=>({src:r,cap:""}))),d()}),$$("[data-pc]",n).forEach(e=>e.oninput=()=>{t.photos[+e.dataset.pc].cap=e.value}),$$("[data-pu]",n).forEach(e=>e.onclick=()=>{const r=+e.dataset.pu,m=t.photos;[m[r-1],m[r]]=[m[r],m[r-1]],d()}),$$("[data-pd]",n).forEach(e=>e.onclick=()=>{t.photos.splice(+e.dataset.pd,1),d()}),$$("[data-dz]",n).forEach(e=>e.onclick=()=>{t.did=e.dataset.dz,p(t.title)||(t.title=((DB.designs||[]).find(r=>r.id===t.did)||{}).name||""),d()}),$("#sfC",n)&&($("#sfC",n).onchange=e=>{t.cid=e.target.value,t.dk="",d()}),$("#sfD",n)&&(t.dk||(t.dk=$("#sfD",n).value),$("#sfD",n).onchange=e=>{t.dk=e.target.value;const r=y().find(g=>g.id===t.cid),m=r&&r.docs().find(g=>g.k===t.dk);m&&(!p(t.title)||t._auto)&&(t.title=m.t,t._auto=1)}),a==="doc"&&!p(t.title)){const e=y().find(m=>m.id===t.cid),r=e&&e.docs().find(m=>m.k===t.dk);r&&(t.title=r.t,t._auto=1,$("[data-x=title]",n).value=r.t)}};d(),modal({title:(l?"إضافة قسم: ":"تعديل القسم: ")+(x[t.type]||["",""])[1],size:t.type==="photos"||t.type==="design"||t.type==="team"?"xl":"lg",body:n,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:()=>{if(t.type==="doc"&&!t.dk)return toast("اختر الوثيقة",!0),!1;if(t.type==="design"&&!t.did)return toast("اختر التصميم",!0),!1;t.type==="team"&&(t.rows=(t.rows||[]).filter(a=>a.some(p))),Object.keys(i).forEach(a=>delete i[a]),Object.assign(i,t),s()}},{label:"إلغاء"}]})}const L=()=>{try{const i=window.Budget&&Budget.F?Budget.F("cl_list",MK.curSy()):null;return(i&&i.rows||[]).filter(s=>p(s[0])).map(s=>[p(s[0]),p(s[1]||s[2]||"")])}catch{return[]}},b=i=>`<!--cls:mg-full-->${i}`,B=i=>{const s=typeof i=="string"&&/^<!--cls:([\w -]+)-->/.exec(i);return s?s[1]:""},k=(i,s)=>typeof i=="function"?i(s):i;function R(i,s,l,t){return`<div class="mg-pg" style="--c1:${c(i.color)};--c2:${c(i.color2)};--c1l:${c(i.color)}1f;--c2l:${c(i.color2)}2e"><div class="mg-hd"><span>${c(i.title)} — العدد ${c(i.no)}</span><span>${c(s||"")}</span></div><div class="mg-bd">${l}</div><div class="mg-ft"><span>${c(S().school||"")}</span><b>${t}</b></div></div>`}const _=i=>{const s=[];let l=[];return String(i||"").split(/\n/).forEach(t=>{const n=t.trim();if(/^[-•●▪]\s*/.test(n)){l.push(n.replace(/^[-•●▪]\s*/,""));return}l.length&&(s.push(`<ul>${l.map(d=>`<li>${c(d)}</li>`).join("")}</ul>`),l=[]),n&&s.push(`<p>${c(n)}</p>`)}),l.length&&s.push(`<ul>${l.map(t=>`<li>${c(t)}</li>`).join("")}</ul>`),s};function H(i,s){const l=[].concat(..._(s.body).map(o=>{const e=o.replace(/<[^>]+>/g,"");if(e.length<1400||!/^<p>/.test(o))return[o];const r=e.split(" "),m=[];let g="";return r.forEach(v=>{(g+" "+v).length>1200?(m.push(g),g=v):g=g?g+" "+v:v}),g&&m.push(g),m.map((v,U)=>`<p${U?' class="cont"':""}>${v}</p>`)})),t=[];let n=[],d=0;const a=s.img?2100:3e3;return l.forEach(o=>{const e=o.replace(/<[^>]+>/g,"").length+60;d+e>(t.length?3600:a)&&n.length&&(t.push(n),n=[],d=0),n.push(o),d+=e}),(n.length||!t.length)&&t.push(n),t.map((o,e)=>({title:s.title,html:`${e?"":`<h2 class="mg-h2">${c(s.title)}</h2>`}${!e&&s.img?`<img class="mg-tim" src="${s.img}">`:""}<div class="mg-txt">${o.join("")}</div>${e===t.length-1&&s.author?`<div class="mg-au">${c(s.author)}</div>`:""}`}))}function J(i,s){const l=[];return(s.rows||[]).forEach(t=>{const n=p(t[0])||" ";let d=l.find(a=>a.g===n);d||l.push(d={g:n,L:[]}),d.L.push(t)}),[{title:s.title,html:`<h2 class="mg-h2">${c(s.title)}</h2>${S().logo?`<img src="${S().logo}" class="mg-tlogo">`:""}<div class="mg-team">${l.map(t=>`<div class="mg-tg"><div class="mg-tgt">${c(t.g)}</div>${t.L.map(n=>`<div class="mg-tr">${n[1]?`<span>${c(n[1])}</span>`:""}<b>${c(n[2])}</b></div>`).join("")}</div>`).join("")}</div>`}]}function O(i,s){const l=Math.max(1,+s.per||4),t=s.photos||[],n=[],d=l===1?1:l<=4?2:3;for(let a=0;a<Math.max(1,t.length);a+=l){const o=t.slice(a,a+l);n.push({title:s.title,html:`${a?"":`<h2 class="mg-h2">${c(s.title)}</h2>${s.intro?`<p class="mg-in">${c(s.intro)}</p>`:""}`}<div class="mg-grid c${d} n${l}">${o.map(e=>`<figure><img src="${e.src}">${e.cap?`<figcaption>${c(e.cap)}</figcaption>`:""}</figure>`).join("")||'<p class="muted" style="text-align:center">أضف صور الأنشطة لهذا القسم.</p>'}</div>`})}return n}function N(i){const s=y().find(t=>t.id===i.cid);if(!s)return[];let l=null;try{l=s.render(i.dk,MK.curSy())}catch{l=null}return!l||!l.pages?[]:l.pages.map(t=>{if(l.page==="a4")return{raw:t};const n=l.page==="a4l"?`<div class="page-a4l ${B(t)}">${k(t,0)}</div>`:l.page==="single"?`<div class="sheet single"><div class="copy">${k(t,0)}</div></div>`:`<div class="sheet"><div class="copy">${k(t,0)}</div><div class="copy">${k(t,1)}</div></div>`;return l.page==="single"?{raw:b(`<div class="mg-ins">${n}</div>`)}:{raw:b(`<div class="mg-rot">${n}</div>`)}})}function A(i){const s=S(),l=i.sy||MK.curSy(),t=[];i.sections.forEach(o=>{let e=[];if(o.type==="text")e=H(i,o);else if(o.type==="team")e=J(i,o);else if(o.type==="photos")e=O(i,o);else if(o.type==="image")e=[{raw:b(`<div class="mg-imgp" style="--c1:${c(i.color)};--c2:${c(i.color2)};--c1l:${c(i.color)}1f;--c2l:${c(i.color2)}2e">${o.img?`<img src="${o.img}">`:'<div class="mg-noimg">الصورة</div>'}${o.cap?`<div class="mg-cap">${c(o.cap)}</div>`:""}</div>`)}];else if(o.type==="sep")e=[{raw:b(`<div class="mg-sep" style="--c1:${c(i.color)};--c2:${c(i.color2)};--c1l:${c(i.color)}1f;--c2l:${c(i.color2)}2e"><div class="mg-sep-i"><span>${c(i.title)}</span><h1>${c(o.title)}</h1>${o.sub?`<h3>${c(o.sub)}</h3>`:""}</div></div>`)}];else if(o.type==="design"){const r=(DB.designs||[]).find(m=>m.id===o.did);if(r&&window.Designer){let m="";try{m=Designer.toCanvas(r.doc,Math.min(2.4,2e3/Math.max(r.doc.w,r.doc.h))).toDataURL("image/jpeg",.9)}catch{}e=[{raw:b(`<div class="mg-dzp${r.doc.w>r.doc.h?" land":""}"><img src="${m}"></div>`)}]}}else o.type==="doc"?e=N(o):o.type==="toc"&&(e=[{toc:!0,title:o.title}]);t.push({s2:o,pages:e})});let n=2;t.forEach(o=>{o.start=n,n+=o.pages.length});const d=o=>`<h2 class="mg-h2">${c(o||"فهرس العدد")}</h2><div class="mg-toc">${t.filter(e=>e.s2.type!=="toc"&&e.pages.length).map(e=>`<div><span>${c(e.s2.title||(x[e.s2.type]||["",""])[1])}</span><i></i><b>${e.start}</b></div>`).join("")}</div>`,a=[F(i,s,l)];return t.forEach(o=>o.pages.forEach((e,r)=>{a.push(e.raw!=null?e.raw:b(R(i,e.title,e.toc?d(e.title):e.html,o.start+r)))})),a}function F(i,s,l){return b(`<div class="mg-cover" style="--c1:${c(i.color)};--c2:${c(i.color2)};--c1l:${c(i.color)}1f;--c2l:${c(i.color2)}2e">
+      <div class="mg-ch">${u.header?`<div class="mg-chh">${u.header(s)}</div>`:""}</div>
+      <div class="mg-ct"><div class="mg-cl">${s.logo?`<img src="${s.logo}">`:""}</div><h1>${c(i.title)}</h1><div class="mg-csub">${c(i.sub)}</div></div>
+      <div class="mg-cimg">${i.coverImg?`<img src="${i.coverImg}">`:'<div class="mg-cdeco"></div>'}</div>
+      <div class="mg-cf"><div><b>العدد ${c(i.no)}</b></div><div>الموسم الدراسي ${c(MK.syDash(l).replace("-","/"))}</div><div>${c(u.fmtDate?u.fmtDate(i.date):i.date)}</div></div></div>`)}u.modCss+=`
   .page-a4.mg-full{padding:0}
   .mg-pg{height:100%;display:flex;flex-direction:column;padding:9mm 12mm 7mm}
   .mg-hd{display:flex;justify-content:space-between;border-bottom:2.2px solid var(--c1);color:var(--c1);font-weight:700;font-size:9pt;padding-bottom:1.2mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -247,33 +61,10 @@
   .mg-ct h1{font-family:'MAJT','Amiri',serif;font-size:40pt;line-height:1.25;margin:0;color:var(--c1)}.mg-csub{display:inline-block;margin-top:2mm;background:var(--c2);color:#fff;font-weight:700;font-size:14pt;padding:1.5mm 8mm;border-radius:6mm}
   .mg-cimg{flex:1;min-height:0;margin:6mm 14mm;border-radius:5mm;overflow:hidden;border:2mm solid #fff;box-shadow:0 0 0 1.2mm var(--c1);display:flex}.mg-cimg img{width:100%;height:100%;object-fit:cover}
   .mg-cdeco{flex:1;background:repeating-linear-gradient(45deg,var(--c1l) 0 8mm,#fff 8mm 16mm)}
-  .mg-cf{display:flex;justify-content:space-between;align-items:center;background:var(--c1);color:#fff;padding:5mm 14mm;font-size:13pt}.mg-cf b{background:var(--c2);padding:1mm 6mm;border-radius:4mm;font-size:15pt}`;
-  const css = document.createElement('style');
-  css.textContent = `.mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}.mg-it{padding:6px;cursor:pointer}.mg-cv{height:240px;border-radius:8px;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative;overflow:hidden}.mg-cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.45}.mg-cv b,.mg-cv span{position:relative}.mg-cv b{font-size:18px}
+  .mg-cf{display:flex;justify-content:space-between;align-items:center;background:var(--c1);color:#fff;padding:5mm 14mm;font-size:13pt}.mg-cf b{background:var(--c2);padding:1mm 6mm;border-radius:4mm;font-size:15pt}`;const C=document.createElement("style");C.textContent=`.mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}.mg-it{padding:6px;cursor:pointer}.mg-cv{height:240px;border-radius:8px;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative;overflow:hidden}.mg-cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.45}.mg-cv b,.mg-cv span{position:relative}.mg-cv b{font-size:18px}
     .mg-ib{display:flex;justify-content:space-between;align-items:center;padding:6px 2px 0;gap:6px;flex-wrap:wrap}
     .mg-ed{display:grid;grid-template-columns:330px 1fr;gap:12px;align-items:start}@media(max-width:900px){.mg-ed{grid-template-columns:1fr}}
     .mg-th{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.mg-th button{width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #bbb;cursor:pointer}.mg-th button.on{box-shadow:0 0 0 3px #222}.mg-th input{width:36px;height:30px;padding:0;border:1px solid #ccc;border-radius:6px}
     .mg-sec{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}.mg-n{background:#0e5a4a;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px}.mg-ic{font-size:20px}.mg-d{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mg-ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}.mg-ph>div{border:1px solid var(--line);border-radius:8px;padding:4px}.mg-ph img{width:100%;height:100px;object-fit:cover;border-radius:6px}
-    .mg-dz{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.mg-dz button{border:2px solid var(--line);border-radius:8px;background:#fff;padding:4px;cursor:pointer;display:flex;flex-direction:column;gap:4px;font-family:inherit}.mg-dz button.on{border-color:#0e5a4a;box-shadow:0 0 0 2px #bfe0d4}.mg-dz img{width:100%;height:120px;object-fit:contain;background:#f4f4f4}`;
-  document.head.appendChild(css);
-
-  window.pageMag = (v, a) => {
-    // the documents centres are created when their page is first opened: open the sections once so that every document can be embedded
-    if (window.Tools && Tools.warm && Tools.warm()) { setTimeout(() => go('mag', a), 50); v.innerHTML = '<div class="empty-state">…</div>'; return; }
-    page(v, a);
-  };
-  window.pageMagDoc = function (v, arg) {
-    arg = arg || {};
-    if (window.Tools && Tools.warm && Tools.warm()) { setTimeout(() => go('magDoc', arg), 50); v.innerHTML = '<div class="empty-state">…</div>'; return; }
-    const I = byId(arg.id || st.id) || R().issues[0];
-    MK.docPage(v, {
-      title: 'مجلة المؤسسة', icon: '📰', modes: false, state: {},
-      back: () => go('mag', { id: I ? I.id : '' }),
-      form: box => { box.innerHTML = I ? `<p class="muted" style="line-height:1.8">${esc(I.title)} — العدد ${esc(I.no)}: الغلاف + ${I.sections.length} قسم. تحيّن المجلة من صفحة العدد (الأقسام، الترتيب، الصور، الوثائق المدرجة).</p>` : '<p class="muted">لا يوجد أي عدد.</p>'; },
-      build: () => ({ page: 'a4', pages: I ? build(I) : [] }),
-      fname: () => (I ? `${I.title}_العدد_${I.no}`.replace(/\s+/g, '_') : 'مجلة_المؤسسة')
-    });
-  };
-  window.Mag = { R, build, newIssue };
-})();
+    .mg-dz{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.mg-dz button{border:2px solid var(--line);border-radius:8px;background:#fff;padding:4px;cursor:pointer;display:flex;flex-direction:column;gap:4px;font-family:inherit}.mg-dz button.on{border-color:#0e5a4a;box-shadow:0 0 0 2px #bfe0d4}.mg-dz img{width:100%;height:120px;object-fit:contain;background:#f4f4f4}`,document.head.appendChild(C),window.pageMag=(i,s)=>{if(window.Tools&&Tools.warm&&Tools.warm()){setTimeout(()=>go("mag",s),50),i.innerHTML='<div class="empty-state">…</div>';return}z(i,s)},window.pageMagDoc=function(i,s){if(s=s||{},window.Tools&&Tools.warm&&Tools.warm()){setTimeout(()=>go("magDoc",s),50),i.innerHTML='<div class="empty-state">…</div>';return}const l=j(s.id||h.id)||f().issues[0];MK.docPage(i,{title:"مجلة المؤسسة",icon:"📰",modes:!1,state:{},back:()=>go("mag",{id:l?l.id:""}),form:t=>{t.innerHTML=l?`<p class="muted" style="line-height:1.8">${c(l.title)} — العدد ${c(l.no)}: الغلاف + ${l.sections.length} قسم. تحيّن المجلة من صفحة العدد (الأقسام، الترتيب، الصور، الوثائق المدرجة).</p>`:'<p class="muted">لا يوجد أي عدد.</p>'},build:()=>({page:"a4",pages:l?A(l):[]}),fname:()=>l?`${l.title}_العدد_${l.no}`.replace(/\s+/g,"_"):"مجلة_المؤسسة"})},window.Mag={R:f,build:A,newIssue:D}})();

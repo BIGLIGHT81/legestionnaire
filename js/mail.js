@@ -1,274 +1,31 @@
-'use strict';
-/* 1.9.4 — الواردات والصادرات والأرشيف (مكتب الضبط):
-   - حفظ المذكرات الوزارية والجهوية والإقليمية وكل المراسلات الواردة: تاريخ الورود، رقم التسجيل (تلقائي لكل سنة)، المرجع، الموضوع، المصدر.
-   - الصادرات من المؤسسة إلى المصالح: رقم الإرسال (تلقائي)، المرسل إليه، الموضوع، المرفقات.
-   - تصنيف كل وثيقة في الأرشيف (صنف + رقم أرشيف تلقائي داخل الصنف) مع إمكانية إرفاق نسخة ممسوحة (PDF / صورة).
-   - الطبع: سجل الواردات، سجل الصادرات، فهرس الأرشيف، بطاقة إحالة.
-   Data: DB.mail = { items: [{ id, dir:'in'|'out', year, no, regDate, kind, party, ref, refDate, subject, cat, arch, box, action, notes, file:{name,size,b64} }], cats: [[code, name]] } */
-(function () {
-  const Dx = window.Docs;
-  const { esc } = Dx;
-  const { SB, tr, thr, tbl, ldate } = window.K;
-  const nm = t => String(t == null ? '' : t).trim();
-
-  const KINDS_IN = ['مذكرة وزارية', 'مذكرة جهوية (الأكاديمية)', 'مذكرة إقليمية (المديرية)', 'مراسلة', 'منشور / دورية', 'قرار', 'إرسالية', 'استدعاء', 'طلب', 'شكاية', 'أخرى'];
-  const KINDS_OUT = ['مراسلة', 'تقرير', 'ورقة إرسال', 'جواب', 'محضر', 'طلب', 'بيان / إحصاء', 'أخرى'];
-  const CATS0 = [['01', 'الموارد البشرية'], ['02', 'الشؤون التربوية'], ['03', 'شؤون التلاميذ'], ['04', 'التقويم والامتحانات'], ['05', 'التدبير المالي والمادي'], ['06', 'البنايات والتجهيز'], ['07', 'الحياة المدرسية والشراكة'], ['08', 'الصحة والسلامة'], ['09', 'مختلفات']];
-  const PARTIES = ['الوزارة', 'الأكاديمية الجهوية للتربية والتكوين', 'المديرية الإقليمية', 'مصلحة الموارد البشرية', 'مصلحة الشؤون التربوية', 'مصلحة الشؤون القانونية والتواصل والشراكة', 'مصلحة التخطيط والخريطة المدرسية', 'مصلحة الشؤون الإدارية والمالية', 'السلطة المحلية', 'الجماعة', 'جمعية آباء وأمهات وأولياء التلاميذ'];
-
-  // 1.9.4: the services of the directorate: every incoming / outgoing item is linked to a service (registers, filters and covers of the files per service)
-  const SVC0 = ['المذكرات الوزارية', 'المذكرات الأكاديمية', 'الكتابة الخاصة', 'مصلحة تدبير الموارد البشرية', 'مصلحة الشؤون التربوية', 'مصلحة تأطير المؤسسات والتوجيه', 'مصلحة التخطيط والخريطة المدرسية', 'مصلحة الشؤون الإدارية والمالية', 'مصلحة البناءات والتجهيز والممتلكات', 'مصلحة الشراكة والشؤون القانونية والتواصل', 'المركز الإقليمي لمنظومة الإعلام', 'المركز الإقليمي للامتحانات'];
-  const nA = t => nm(t).replace(/[إأآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ');
-  const svcGuess = x => {
-    const S0 = ML().svcs, txt = nA([x.party, x.kind, x.subject].join(' '));
-    const hit = S0.find(v => { const k = nA(v).replace(/^(مصلحه|المركز الاقليمي ل?|المذكرات)\s*/, ''); return k.length > 3 && txt.includes(k.split(' ').slice(0, 2).join(' ')); });
-    if (hit) return hit;
-    if (/وزاري/.test(x.kind)) return S0.find(v => /الوزارية/.test(v)) || '';
-    if (/جهوي|اكاديمي/.test(nA(x.kind + ' ' + x.party))) return S0.find(v => /الأكاديمية/.test(v)) || '';
-    if (/موارد البشري|موظف|رخص|تغيب/.test(txt)) return S0.find(v => /الموارد البشرية/.test(v)) || '';
-    if (/امتحان|امتحانات/.test(txt)) return S0.find(v => /للامتحانات|للإمتحانات/.test(v)) || '';
-    if (/مسار|منظومه|احصاء|الاعلام/.test(txt)) return S0.find(v => /الإعلام/.test(v)) || '';
-    return '';
-  };
-  const svcOf = x => x.svc || '';
-  function migrate(db) {
-    const m = db.mail = db.mail && typeof db.mail === 'object' ? db.mail : {};
-    m.items = Array.isArray(m.items) ? m.items : [];
-    m.cats = Array.isArray(m.cats) && m.cats.length ? m.cats : CATS0.map(x => x.slice());
-    m.svcs = Array.isArray(m.svcs) && m.svcs.length ? m.svcs : SVC0.slice();
-    m.items.forEach(x => { x.id = x.id || uid('ml'); x.dir = x.dir === 'out' ? 'out' : 'in'; });
-    m.dos = Array.isArray(m.dos) ? m.dos : [];
-  }
-  const ML = () => { migrate(DB); return DB.mail; };
-  const yearOf = d => +(String(d || Dx.todayIso()).slice(0, 4)) || new Date().getFullYear();
-  const nextNo = (dir, y) => ML().items.filter(x => x.dir === dir && +x.year === y).reduce((m, x) => Math.max(m, +x.no || 0), 0) + 1;
-  const nextArch = cat => ML().items.filter(x => x.cat === cat).reduce((m, x) => Math.max(m, +(String(x.arch || '').split('/').pop()) || 0), 0) + 1;
-  const regNo = x => (x.no ? `${x.no}/${x.year}` : '');
-  const catName = c => (ML().cats.find(x => x[0] === c) || [c, ''])[1];
-  const archNo = x => (x.cat ? `${x.cat}/${String(x.arch || '').split('/').pop() || '?'}` : '');
-  const kb = n => (n > 1048576 ? (n / 1048576).toFixed(1) + ' م.ب' : Math.max(1, Math.round(n / 1024)) + ' ك.ب');
-
-  /* ---------- the edit dialog ---------- */
-  function edit(it, dir, done) {
-    const isNew = !it;
-    const y0 = yearOf(Dx.todayIso());
-    const f = it ? JSON.parse(JSON.stringify(it)) : { id: uid('ml'), dir, year: y0, no: nextNo(dir, y0), regDate: Dx.todayIso(), kind: dir === 'in' ? KINDS_IN[0] : KINDS_OUT[0], party: dir === 'in' ? 'المديرية الإقليمية' : 'المديرية الإقليمية', ref: '', refDate: '', subject: '', cat: '', arch: '', box: '', action: '', notes: '', file: null };
-    const body = document.createElement('div');
-    const D = () => [
-      { k: 'no', l: dir === 'in' ? 'رقم التسجيل (الورود)' : 'رقم الإرسال', t: 'num', half: true, hint: `تلقائي لكل سنة — السنة ${f.year}` },
-      { k: 'regDate', l: dir === 'in' ? 'تاريخ الورود' : 'تاريخ الإرسال', t: 'date', half: true },
-      { k: 'kind', l: 'النوع', half: true, list: dir === 'in' ? 'mlKindsIn' : 'mlKindsOut' },
-      { k: 'party', l: dir === 'in' ? 'المصدر (الجهة المرسلة)' : 'المرسل إليه', half: true, list: 'mlParties' },
-      { k: 'ref', l: dir === 'in' ? 'رقم المذكرة / المراسلة الأصلي' : 'المرجع', half: true, dir: 'ltr' },
-      { k: 'refDate', l: 'تاريخها', t: 'date', half: true },
-      { k: 'subject', l: 'الموضوع', t: 'area', rows: 2 },
-      { k: 'svc', l: 'المصلحة المعنية (ملف المصلحة)', t: 'select', opts: [['', '— بدون —']].concat(ML().svcs.map(v => [v, v])), hint: 'تقترح تلقائيا من المصدر / النوع / الموضوع' },
-      { sec: 'الأرشيف' },
-      { k: 'cat', l: 'صنف الأرشيف', t: 'select', opts: [['', '— بدون تصنيف —']].concat(ML().cats.map(([c, n]) => [c, `${c} — ${n}`])), half: true },
-      { k: 'arch', l: 'رقم الأرشيف داخل الصنف', half: true, hint: 'يُعطى تلقائيا عند اختيار الصنف' },
-      { k: 'box', l: 'مكان الحفظ (الملف / الرف / الصندوق)', half: true },
-      { k: 'action', l: dir === 'in' ? 'الإجراء / الإحالة (إلى من)' : 'المرفقات', half: true },
-      { k: 'notes', l: 'ملاحظات', t: 'area', rows: 2 }];
-    const draw = () => {
-      K.form(box, D, f, k => { if (['party', 'kind', 'subject'].includes(k) && !f._svcSet) { const g = svcGuess(f); if (g && g !== f.svc) { f.svc = g; draw(); return; } } if (k === 'svc') f._svcSet = 1; if (k === 'regDate') { const y = yearOf(f.regDate); if (y !== +f.year) { f.year = y; if (isNew) f.no = nextNo(dir, y); draw(); } } if (k === 'cat') { f.arch = f.cat ? String(nextArch(f.cat)) : ''; draw(); } });
-      fileBox();
-    };
-    const box = document.createElement('div');
-    const fb = document.createElement('div');
-    const fileBox = () => {
-      fb.innerHTML = `<div class="sec-t" style="margin-top:8px">النسخة الممسوحة (اختياري)</div>
-        <div class="btn-row" style="align-items:center">${f.file ? `<span class="tag" style="font-size:12.5px">📎 ${esc(f.file.name)} (${kb(f.file.size || 0)})</span><button type="button" class="btn sm" id="mlSave">${ic('down')} حفظ نسخة</button><button type="button" class="btn sm danger" id="mlDel">إزالة</button>` : ''}
-          <button type="button" class="btn sm" id="mlAtt">${ic('up')} ${f.file ? 'تعويض الملف' : 'إرفاق ملف (PDF / صورة / Word)'}</button></div>
-        <p class="muted" style="font-size:12px;margin:4px 0 0">يُحفظ الملف داخل معطيات البرنامج (15 م.ب كحد أقصى) ويُنقل مع النسخ الاحتياطية.</p>`;
-      $('#mlAtt', fb).onclick = async () => { const r = await window.api.openAny('مذكرة / مراسلة'); if (!r) return; if (r.error) return toast('الملف كبير جدا (أكثر من 15 م.ب)', true); f.file = r; fileBox(); };
-      if ($('#mlSave', fb)) $('#mlSave', fb).onclick = () => window.api.saveBin(f.file.b64, f.file.name);
-      if ($('#mlDel', fb)) $('#mlDel', fb).onclick = () => { f.file = null; fileBox(); };
-    };
-    body.appendChild(box); body.appendChild(fb);
-    body.insertAdjacentHTML('beforeend', `<datalist id="mlKindsIn">${KINDS_IN.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="mlKindsOut">${KINDS_OUT.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="mlParties">${PARTIES.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`);
-    draw();
-    modal({ title: (isNew ? 'تسجيل ' : 'تعديل ') + (dir === 'in' ? 'وارد' : 'صادر'), size: 'lg', body, actions: [
-      { label: ic('check') + ' حفظ', cls: 'pri', onClick: () => {
-        if (!nm(f.subject)) { toast('اكتب موضوع الوثيقة', true); return false; }
-        f.no = +f.no || nextNo(dir, +f.year); f.year = yearOf(f.regDate); delete f._svcSet;
-        if (ML().items.some(x => x.id !== f.id && x.dir === dir && +x.year === +f.year && +x.no === +f.no)) { toast(`الرقم ${f.no}/${f.year} مستعمل من قبل`, true); return false; }
-        if (f.cat && !nm(f.arch)) f.arch = String(nextArch(f.cat));
-        const i = ML().items.findIndex(x => x.id === f.id);
-        if (i >= 0) ML().items[i] = f; else ML().items.push(f);
-        persist(); toast('تم الحفظ'); done && done(); } },
-      it ? { label: 'حذف', cls: 'danger', onClick: async () => { if (!await confirmBox('حذف هذا التسجيل نهائيا؟', 'حذف')) return false; ML().items = ML().items.filter(x => x.id !== f.id); persist(); done && done(); } } : null,
-      { label: 'إلغاء' }].filter(Boolean) });
-  }
-
-
-  /* ---------- 1.9.4: the school files (الملفات المدرسية): request the file of an arriving pupil / send the file of a leaving pupil.
-     DB.mail.dos = [{ id, type:'req'|'send', year, rno, date, mailId, dest, ddir, theirNo, theirDate, rows:[[name, code, reg, level, certNo, certDate, note]], done, doneDate, doneRef, inId, notes }]
-     Every request / sending is also registered in the outgoing register (رقم الإرسال), the reception of a requested file in the incoming one. */
-  const DOS_T = { req: { n: 'طلب ملف مدرسي', sh: 'طلب', subj: 'طلب وثائق مدرسية', c: '#1d6fd8', bg: '#e6f0fd', done: 'تم التوصل بالملف', wait: 'في انتظار الملف' },
-    send: { n: 'إرسال ملف مدرسي', sh: 'إرسال', subj: 'إرسال وثائق مدرسية', c: '#1f8a4c', bg: '#e5f5ec', done: 'تم التوصل (إشعار)', wait: 'مرسل' } };
-  const DOS_COLS = ['الاسم والنسب', 'الرقم الوطني (مسار)', 'ر. التسجيل', 'المستوى', 'شهادة المغادرة رقم', 'بتاريخ', 'ملاحظات إضافية'];
-  const dosRows = f => (f.rows || []).filter(r => nm(r[0]) || nm(r[1]));
-  const dosNextNo = (type, y) => ML().dos.filter(x => x.type === type && +x.year === +y).reduce((m, x) => Math.max(m, +x.rno || 0), 0) + 1;
-  const dosMail = f => ML().items.find(x => x.id === f.mailId);
-  const pad2 = n => (n ? String(n).padStart(2, '0') : '');
-  const dosNo = f => { const it = dosMail(f); return it && it.no ? `${pad2(it.no)}/${it.year}` : ''; };
-  const pupG = name => { const r = K.PP && K.PP.resolve ? K.PP.resolve('pupil', name) : null; return r && r.rec ? r.rec.g : ''; };
-  const dosWord = rows => {
-    const g = rows.map(r => pupG(r[0])), n = rows.length, F = g.filter(x => x === 'F').length, M = g.filter(x => x === 'M').length;
-    if (n <= 1) return M ? 'التلميذ' : F ? 'التلميذة' : 'التلميذ(ة)';
-    if (n === 2) return F === 2 ? 'التلميذتين' : 'التلميذين';
-    return 'التلاميذ';
-  };
-  const dosNames = f => dosRows(f).map(r => nm(r[0])).filter(Boolean).join('، ');
-  const ALL_DIRS = () => (window.Letter && Letter.REGIONS ? [].concat(...Object.values(Letter.REGIONS)) : []);
-  // keeps the linked outgoing record (رقم الإرسال) in step with the request / sending
-  function dosSync(f) {
-    const y = yearOf(f.date), cat = ML().cats.some(c => c[0] === '03') ? '03' : '';
-    const subject = `${DOS_T[f.type].subj}${dosNames(f) ? ' — ' + dosNames(f) : ''}`;
-    let it = dosMail(f);
-    if (!it) {
-      it = { id: uid('ml'), dir: 'out', year: y, no: nextNo('out', y), regDate: f.date, kind: f.type === 'req' ? 'طلب' : 'ورقة إرسال', party: '', ref: '', refDate: '', subject: '', cat, arch: cat ? String(nextArch(cat)) : '', box: '', action: '', notes: '', file: null, svc: '' };
-      ML().items.push(it); f.mailId = it.id;
-    } else if (+it.year !== y) { it.year = y; it.no = nextNo('out', y); }
-    Object.assign(it, { regDate: f.date, party: nm(f.dest) ? `مدير(ة) ${nm(f.dest)}` : 'مؤسسة تعليمية', subject, action: f.type === 'send' ? `الملفات المدرسية (${dosRows(f).length})` : '', ref: f.type === 'send' ? nm(f.theirNo) : '', refDate: f.type === 'send' ? (f.theirDate || '') : '', dos: f.id });
-  }
-  function dosEdit(x, type, done) {
-    const isNew = !x, y0 = yearOf(Dx.todayIso());
-    const f = x ? JSON.parse(JSON.stringify(x)) : { id: uid('ds'), type, year: y0, rno: dosNextNo(type, y0), date: Dx.todayIso(), dest: '', ddir: '', theirNo: '', theirDate: '', rows: [['', '', '', '', '', '', '']], done: false, doneDate: '', doneRef: '', notes: '' };
-    const T = DOS_T[f.type];
-    const used = new Set(ML().dos.filter(d => d.type === f.type && d.id !== f.id).reduce((a, d) => a.concat(dosRows(d).map(r => nm(r[1]).toUpperCase()).filter(Boolean)), []));
-    const D = () => [
-      { sec: f.type === 'req' ? 'الطلب' : 'الإرسال' },
-      { k: 'rno', l: f.type === 'req' ? 'طلب رقم' : 'إرسال رقم', t: 'num', half: true, hint: `تسلسلي لكل سنة — السنة ${f.year}` },
-      { k: 'date', l: 'التاريخ', t: 'date', half: true, hint: x && dosNo(x) ? `رقم الإرسال في سجل الصادرات: ${dosNo(x)}` : 'يُسجَّل تلقائيا في سجل الصادرات ويأخذ رقم الإرسال' },
-      { sec: f.type === 'req' ? 'المؤسسة الأصلية (المطلوب منها الملف)' : 'المؤسسة المستقبلة (المرسل إليها الملف)' },
-      { k: 'dest', l: 'إلى السيد(ة) مدير(ة)', half: true, ph: 'مجموعة مدارس ... / م.م ...', list: 'dsSch' },
-      { k: 'ddir', l: 'المديرية الإقليمية للمؤسسة', half: true, list: 'dsDirs', ph: 'فارغ = نفس المديرية' },
-      ...(f.type === 'send' ? [{ k: 'theirNo', l: 'طلبهم رقم (اختياري)', half: true, dir: 'ltr' }, { k: 'theirDate', l: 'بتاريخ', t: 'date', half: true }] : []),
-      { sec: 'التلاميذ' },
-      { k: 'rows', l: 'اكتب الاسم أو رقم مسار فتُملأ باقي الخانات من بطاقة التلاميذ', t: 'grid', cols: DOS_COLS, widths: ['1.5fr', '1fr', '.6fr', '.9fr', '.8fr', '.9fr', '1fr'], types: [null, null, null, null, null, 'date', null], list: ['k2Pupils', 'k2Codes', null, null, null, null, null], dirs: [null, 'ltr', 'ltr', null, 'ltr', null, null],
-        link: { src: 'pupil', n: 0, cols: { code: 1, lvl: 3 }, post: (row, r) => { if (r.rec && r.rec.lvl) row[3] = K.LV.ar(r.rec.lvl); } },
-        extraBtn: `<button type="button" class="btn sm" data-dsmv="1">${ic('plus')} ${f.type === 'req' ? 'إضافة الوافدين المسجلين في بطاقة التلاميذ' : 'إضافة المغادرين المسجلين في بطاقة التلاميذ'}</button>` },
-      { k: 'notes', l: 'ملاحظات', t: 'area', rows: 2 }];
-    const body = document.createElement('div'), box = document.createElement('div');
-    body.appendChild(box);
-    const schools = () => Array.from(new Set(ML().dos.map(d => nm(d.dest)).concat(window.Pupils && Pupils.movesOf ? Pupils.movesOf(MK.curSy()).map(m => nm(m.orig || m.recv)) : []).filter(Boolean)));
-    const draw = K.form(box, D, f, k => { if (k === 'date') { const y = yearOf(f.date); if (y !== +f.year) { f.year = y; if (isNew) f.rno = dosNextNo(f.type, y); draw(); } } });
-    const lists = () => `<datalist id="dsDirs">${ALL_DIRS().map(o => `<option value="${esc(o)}">`).join('')}</datalist><datalist id="dsSch">${schools().map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
-    box.onDraw = () => box.insertAdjacentHTML('beforeend', lists()); box.onDraw();
-    body.addEventListener('click', e => {
-      if (!e.target.closest('[data-dsmv]')) return;
-      const L = window.Pupils && Pupils.movesOf ? Pupils.movesOf(MK.curSy(), f.type === 'req' ? 'joined' : 'left') : [];
-      const sch = m => nm(f.type === 'req' ? m.orig : m.recv);
-      if (!L.length) return toast(f.type === 'req' ? 'لا يوجد وافدون مسجلون في بطاقة التلاميذ لهذا الموسم' : 'لا يوجد مغادرون مسجلون في بطاقة التلاميذ لهذا الموسم', true);
-      const have = new Set(dosRows(f).map(r => nm(r[1]).toUpperCase()).filter(Boolean));
-      let M = L.filter(m => !have.has(String(m.code || '').toUpperCase()) && !used.has(String(m.code || '').toUpperCase()));
-      if (nm(f.dest)) { const k = nA(f.dest); const S2 = M.filter(m => sch(m) && (nA(sch(m)).includes(k) || k.includes(nA(sch(m))))); if (S2.length) M = S2; }
-      else { const c = {}; M.forEach(m => { const v = sch(m); if (v) c[v] = (c[v] || 0) + 1; }); const top = Object.keys(c).sort((a, b) => c[b] - c[a])[0]; if (top) { f.dest = top; M = M.filter(m => sch(m) === top); } }
-      if (!M.length) return toast('كل التلاميذ المسجلين أضيفوا من قبل (في هذا الطلب أو في طلب سابق)', true);
-      f.rows = dosRows(f).concat(M.map(m => [`${m.last || ''} ${m.first || ''}`.trim(), m.code || '', '', K.LV.ar(m.lvl), '', '', '']));
-      draw(); toast(`تمت إضافة ${M.length} تلميذ(ة)`);
-    });
-    modal({ title: `${isNew ? '' : 'تعديل '}${T.n}`, size: 'lg', body, actions: [
-      { label: ic('check') + ' حفظ', cls: 'pri', onClick: () => {
-        f.rows = dosRows(f);
-        if (!f.rows.length) { toast('أضف تلميذا واحدا على الأقل', true); f.rows = [['', '', '', '', '', '', '']]; draw(); return false; }
-        if (!nm(f.dest)) { toast('اكتب اسم المؤسسة', true); return false; }
-        f.year = yearOf(f.date); f.rno = +f.rno || dosNextNo(f.type, f.year);
-        if (ML().dos.some(d => d.id !== f.id && d.type === f.type && +d.year === +f.year && +d.rno === +f.rno)) { toast(`الرقم ${f.rno} مستعمل من قبل في هذه السنة`, true); return false; }
-        dosSync(f);
-        const i = ML().dos.findIndex(d => d.id === f.id); if (i >= 0) ML().dos[i] = f; else ML().dos.push(f);
-        persist(); toast(`تم الحفظ — رقم الإرسال ${dosNo(f)}`); done && done(f); } },
-      x ? { label: 'حذف', cls: 'danger', onClick: async () => { if (!await confirmBox('حذف هذا الملف وتسجيله في الصادرات (والواردات إن وجد)؟', 'حذف')) return false; ML().dos = ML().dos.filter(d => d.id !== f.id); ML().items = ML().items.filter(it => it.id !== f.mailId && it.id !== f.inId); persist(); done && done(); } } : null,
-      { label: 'إلغاء' }].filter(Boolean) });
-  }
-  // the requested file arrived (registered in the incoming register) / the receiving school acknowledged the file sent
-  function dosDone(x, done) {
-    const T = DOS_T[x.type], f = { doneDate: x.doneDate || Dx.todayIso(), doneRef: x.doneRef || '', reg: x.type === 'req' && !x.inId ? '1' : '' };
-    const body = document.createElement('div');
-    K.form(body, () => [{ k: 'doneDate', l: x.type === 'req' ? 'تاريخ التوصل بالملف' : 'تاريخ الإشعار بالتوصل', t: 'date', half: true }, { k: 'doneRef', l: 'رقم إرساليتهم (اختياري)', half: true, dir: 'ltr' },
-      ...(x.type === 'req' && !x.inId ? [{ k: 'reg', l: 'التسجيل في سجل الواردات', t: 'select', opts: [['1', 'نعم، يسجل تلقائيا كوارد'], ['', 'لا']] }] : [])], f);
-    modal({ title: T.done, body, actions: [
-      { label: ic('check') + ' تأكيد', cls: 'pri', onClick: () => {
-        x.done = true; x.doneDate = f.doneDate; x.doneRef = f.doneRef;
-        if (f.reg === '1') { const y = yearOf(f.doneDate), it = { id: uid('ml'), dir: 'in', year: y, no: nextNo('in', y), regDate: f.doneDate, kind: 'إرسالية', party: `مدير(ة) ${nm(x.dest)}`, ref: nm(f.doneRef), refDate: '', subject: `التوصل بالوثائق المدرسية — ${dosNames(x)}`, cat: ML().cats.some(c => c[0] === '03') ? '03' : '', arch: '', box: '', action: 'تضاف إلى ملفات التلاميذ', notes: '', file: null, svc: '', dos: x.id }; if (it.cat) it.arch = String(nextArch(it.cat)); ML().items.push(it); x.inId = it.id; }
-        persist(); toast('تم'); done && done(); } },
-      x.done ? { label: 'إلغاء الحالة', onClick: () => { x.done = false; x.doneDate = ''; persist(); done && done(); } } : null,
-      { label: 'إغلاق' }].filter(Boolean) });
-  }
-  const dst = { type: '', stat: '' };
-  function dosPage(v, years, seg, bindSeg) {
-    const all = ML().dos;
-    const L = all.filter(x => (!st.y || +x.year === +st.y) && (!dst.type || x.type === dst.type) && (!dst.stat || (dst.stat === 'done' ? x.done : !x.done))
-      && (!st.q || [x.dest, x.ddir, dosNo(x), x.rno, x.notes].concat(dosRows(x).map(r => r.join(' '))).join(' ').toLowerCase().includes(st.q.toLowerCase())))
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (+b.rno - +a.rno));
-    const yy = all.filter(x => +x.year === +st.y), c = (t, d) => yy.filter(x => x.type === t && (d == null || !!x.done === d)).length;
-    const tag = x => `<span class="ds-tag" style="--c:${DOS_T[x.type].c};--b:${DOS_T[x.type].bg}">${DOS_T[x.type].sh}</span>`;
-    v.innerHTML = `<div class="page-h"><h1>الملفات المدرسية (طلب وإرسال)</h1><span class="sub">الضبط — شؤون التلاميذ</span><span class="sp"></span>
-        <button class="btn pri" id="dsReq">${ic('plus')} طلب ملف مدرسي</button><button class="btn pri" id="dsSend" style="background:#1f8a4c;border-color:#1f8a4c">${ic('plus')} إرسال ملف مدرسي</button>
-        <button class="btn" id="dsReg">${ic('print')} سجل الملفات المدرسية</button></div>
+"use strict";(function(){const D=window.Docs,{esc:d}=D,{SB:B,tr:z,thr:Q,tbl:x,ldate:F}=window.K,y=e=>String(e??"").trim(),tt=["مذكرة وزارية","مذكرة جهوية (الأكاديمية)","مذكرة إقليمية (المديرية)","مراسلة","منشور / دورية","قرار","إرسالية","استدعاء","طلب","شكاية","أخرى"],et=["مراسلة","تقرير","ورقة إرسال","جواب","محضر","طلب","بيان / إحصاء","أخرى"],at=[["01","الموارد البشرية"],["02","الشؤون التربوية"],["03","شؤون التلاميذ"],["04","التقويم والامتحانات"],["05","التدبير المالي والمادي"],["06","البنايات والتجهيز"],["07","الحياة المدرسية والشراكة"],["08","الصحة والسلامة"],["09","مختلفات"]],nt=["الوزارة","الأكاديمية الجهوية للتربية والتكوين","المديرية الإقليمية","مصلحة الموارد البشرية","مصلحة الشؤون التربوية","مصلحة الشؤون القانونية والتواصل والشراكة","مصلحة التخطيط والخريطة المدرسية","مصلحة الشؤون الإدارية والمالية","السلطة المحلية","الجماعة","جمعية آباء وأمهات وأولياء التلاميذ"],lt=["المذكرات الوزارية","المذكرات الأكاديمية","الكتابة الخاصة","مصلحة تدبير الموارد البشرية","مصلحة الشؤون التربوية","مصلحة تأطير المؤسسات والتوجيه","مصلحة التخطيط والخريطة المدرسية","مصلحة الشؤون الإدارية والمالية","مصلحة البناءات والتجهيز والممتلكات","مصلحة الشراكة والشؤون القانونية والتواصل","المركز الإقليمي لمنظومة الإعلام","المركز الإقليمي للامتحانات"],O=e=>y(e).replace(/[إأآ]/g,"ا").replace(/ة/g,"ه").replace(/\s+/g," "),W=e=>{const s=m().svcs,l=O([e.party,e.kind,e.subject].join(" ")),u=s.find(r=>{const i=O(r).replace(/^(مصلحه|المركز الاقليمي ل?|المذكرات)\s*/,"");return i.length>3&&l.includes(i.split(" ").slice(0,2).join(" "))});return u||(/وزاري/.test(e.kind)?s.find(r=>/الوزارية/.test(r))||"":/جهوي|اكاديمي/.test(O(e.kind+" "+e.party))?s.find(r=>/الأكاديمية/.test(r))||"":/موارد البشري|موظف|رخص|تغيب/.test(l)?s.find(r=>/الموارد البشرية/.test(r))||"":/امتحان|امتحانات/.test(l)?s.find(r=>/للامتحانات|للإمتحانات/.test(r))||"":/مسار|منظومه|احصاء|الاعلام/.test(l)&&s.find(r=>/الإعلام/.test(r))||"")},R=e=>e.svc||"";function U(e){const s=e.mail=e.mail&&typeof e.mail=="object"?e.mail:{};s.items=Array.isArray(s.items)?s.items:[],s.cats=Array.isArray(s.cats)&&s.cats.length?s.cats:at.map(l=>l.slice()),s.svcs=Array.isArray(s.svcs)&&s.svcs.length?s.svcs:lt.slice(),s.items.forEach(l=>{l.id=l.id||uid("ml"),l.dir=l.dir==="out"?"out":"in"}),s.dos=Array.isArray(s.dos)?s.dos:[]}const m=()=>(U(DB),DB.mail),q=e=>+String(e||D.todayIso()).slice(0,4)||new Date().getFullYear(),H=(e,s)=>m().items.filter(l=>l.dir===e&&+l.year===s).reduce((l,u)=>Math.max(l,+u.no||0),0)+1,G=e=>m().items.filter(s=>s.cat===e).reduce((s,l)=>Math.max(s,+String(l.arch||"").split("/").pop()||0),0)+1,P=e=>e.no?`${e.no}/${e.year}`:"",Y=e=>(m().cats.find(s=>s[0]===e)||[e,""])[1],I=e=>e.cat?`${e.cat}/${String(e.arch||"").split("/").pop()||"?"}`:"",dt=e=>e>1048576?(e/1048576).toFixed(1)+" م.ب":Math.max(1,Math.round(e/1024))+" ك.ب";function st(e,s,l){const u=!e,r=q(D.todayIso()),i=e?JSON.parse(JSON.stringify(e)):{id:uid("ml"),dir:s,year:r,no:H(s,r),regDate:D.todayIso(),kind:s==="in"?tt[0]:et[0],party:"المديرية الإقليمية",ref:"",refDate:"",subject:"",cat:"",arch:"",box:"",action:"",notes:"",file:null},c=document.createElement("div"),f=()=>[{k:"no",l:s==="in"?"رقم التسجيل (الورود)":"رقم الإرسال",t:"num",half:!0,hint:`تلقائي لكل سنة — السنة ${i.year}`},{k:"regDate",l:s==="in"?"تاريخ الورود":"تاريخ الإرسال",t:"date",half:!0},{k:"kind",l:"النوع",half:!0,list:s==="in"?"mlKindsIn":"mlKindsOut"},{k:"party",l:s==="in"?"المصدر (الجهة المرسلة)":"المرسل إليه",half:!0,list:"mlParties"},{k:"ref",l:s==="in"?"رقم المذكرة / المراسلة الأصلي":"المرجع",half:!0,dir:"ltr"},{k:"refDate",l:"تاريخها",t:"date",half:!0},{k:"subject",l:"الموضوع",t:"area",rows:2},{k:"svc",l:"المصلحة المعنية (ملف المصلحة)",t:"select",opts:[["","— بدون —"]].concat(m().svcs.map(n=>[n,n])),hint:"تقترح تلقائيا من المصدر / النوع / الموضوع"},{sec:"الأرشيف"},{k:"cat",l:"صنف الأرشيف",t:"select",opts:[["","— بدون تصنيف —"]].concat(m().cats.map(([n,h])=>[n,`${n} — ${h}`])),half:!0},{k:"arch",l:"رقم الأرشيف داخل الصنف",half:!0,hint:"يُعطى تلقائيا عند اختيار الصنف"},{k:"box",l:"مكان الحفظ (الملف / الرف / الصندوق)",half:!0},{k:"action",l:s==="in"?"الإجراء / الإحالة (إلى من)":"المرفقات",half:!0},{k:"notes",l:"ملاحظات",t:"area",rows:2}],v=()=>{K.form(a,f,i,n=>{if(["party","kind","subject"].includes(n)&&!i._svcSet){const h=W(i);if(h&&h!==i.svc){i.svc=h,v();return}}if(n==="svc"&&(i._svcSet=1),n==="regDate"){const h=q(i.regDate);h!==+i.year&&(i.year=h,u&&(i.no=H(s,h)),v())}n==="cat"&&(i.arch=i.cat?String(G(i.cat)):"",v())}),p()},a=document.createElement("div"),t=document.createElement("div"),p=()=>{t.innerHTML=`<div class="sec-t" style="margin-top:8px">النسخة الممسوحة (اختياري)</div>
+        <div class="btn-row" style="align-items:center">${i.file?`<span class="tag" style="font-size:12.5px">📎 ${d(i.file.name)} (${dt(i.file.size||0)})</span><button type="button" class="btn sm" id="mlSave">${ic("down")} حفظ نسخة</button><button type="button" class="btn sm danger" id="mlDel">إزالة</button>`:""}
+          <button type="button" class="btn sm" id="mlAtt">${ic("up")} ${i.file?"تعويض الملف":"إرفاق ملف (PDF / صورة / Word)"}</button></div>
+        <p class="muted" style="font-size:12px;margin:4px 0 0">يُحفظ الملف داخل معطيات البرنامج (15 م.ب كحد أقصى) ويُنقل مع النسخ الاحتياطية.</p>`,$("#mlAtt",t).onclick=async()=>{const n=await window.api.openAny("مذكرة / مراسلة");if(n){if(n.error)return toast("الملف كبير جدا (أكثر من 15 م.ب)",!0);i.file=n,p()}},$("#mlSave",t)&&($("#mlSave",t).onclick=()=>window.api.saveBin(i.file.b64,i.file.name)),$("#mlDel",t)&&($("#mlDel",t).onclick=()=>{i.file=null,p()})};c.appendChild(a),c.appendChild(t),c.insertAdjacentHTML("beforeend",`<datalist id="mlKindsIn">${tt.map(n=>`<option value="${d(n)}">`).join("")}</datalist><datalist id="mlKindsOut">${et.map(n=>`<option value="${d(n)}">`).join("")}</datalist><datalist id="mlParties">${nt.map(n=>`<option value="${d(n)}">`).join("")}</datalist>`),v(),modal({title:(u?"تسجيل ":"تعديل ")+(s==="in"?"وارد":"صادر"),size:"lg",body:c,actions:[{label:ic("check")+" حفظ",cls:"pri",onClick:()=>{if(!y(i.subject))return toast("اكتب موضوع الوثيقة",!0),!1;if(i.no=+i.no||H(s,+i.year),i.year=q(i.regDate),delete i._svcSet,m().items.some(h=>h.id!==i.id&&h.dir===s&&+h.year==+i.year&&+h.no==+i.no))return toast(`الرقم ${i.no}/${i.year} مستعمل من قبل`,!0),!1;i.cat&&!y(i.arch)&&(i.arch=String(G(i.cat)));const n=m().items.findIndex(h=>h.id===i.id);n>=0?m().items[n]=i:m().items.push(i),persist(),toast("تم الحفظ"),l&&l()}},e?{label:"حذف",cls:"danger",onClick:async()=>{if(!await confirmBox("حذف هذا التسجيل نهائيا؟","حذف"))return!1;m().items=m().items.filter(n=>n.id!==i.id),persist(),l&&l()}}:null,{label:"إلغاء"}].filter(Boolean)})}const C={req:{n:"طلب ملف مدرسي",sh:"طلب",subj:"طلب وثائق مدرسية",c:"#1d6fd8",bg:"#e6f0fd",done:"تم التوصل بالملف",wait:"في انتظار الملف"},send:{n:"إرسال ملف مدرسي",sh:"إرسال",subj:"إرسال وثائق مدرسية",c:"#1f8a4c",bg:"#e5f5ec",done:"تم التوصل (إشعار)",wait:"مرسل"}},ot=["الاسم والنسب","الرقم الوطني (مسار)","ر. التسجيل","المستوى","شهادة المغادرة رقم","بتاريخ","ملاحظات إضافية"],T=e=>(e.rows||[]).filter(s=>y(s[0])||y(s[1])),X=(e,s)=>m().dos.filter(l=>l.type===e&&+l.year==+s).reduce((l,u)=>Math.max(l,+u.rno||0),0)+1,it=e=>m().items.find(s=>s.id===e.mailId),ct=e=>e?String(e).padStart(2,"0"):"",A=e=>{const s=it(e);return s&&s.no?`${ct(s.no)}/${s.year}`:""},rt=e=>{const s=K.PP&&K.PP.resolve?K.PP.resolve("pupil",e):null;return s&&s.rec?s.rec.g:""},pt=e=>{const s=e.map(i=>rt(i[0])),l=e.length,u=s.filter(i=>i==="F").length,r=s.filter(i=>i==="M").length;return l<=1?r?"التلميذ":u?"التلميذة":"التلميذ(ة)":l===2?u===2?"التلميذتين":"التلميذين":"التلاميذ"},Z=e=>T(e).map(s=>y(s[0])).filter(Boolean).join("، "),mt=()=>window.Letter&&Letter.REGIONS?[].concat(...Object.values(Letter.REGIONS)):[];function ut(e){const s=q(e.date),l=m().cats.some(i=>i[0]==="03")?"03":"",u=`${C[e.type].subj}${Z(e)?" — "+Z(e):""}`;let r=it(e);r?+r.year!==s&&(r.year=s,r.no=H("out",s)):(r={id:uid("ml"),dir:"out",year:s,no:H("out",s),regDate:e.date,kind:e.type==="req"?"طلب":"ورقة إرسال",party:"",ref:"",refDate:"",subject:"",cat:l,arch:l?String(G(l)):"",box:"",action:"",notes:"",file:null,svc:""},m().items.push(r),e.mailId=r.id),Object.assign(r,{regDate:e.date,party:y(e.dest)?`مدير(ة) ${y(e.dest)}`:"مؤسسة تعليمية",subject:u,action:e.type==="send"?`الملفات المدرسية (${T(e).length})`:"",ref:e.type==="send"?y(e.theirNo):"",refDate:e.type==="send"&&e.theirDate||"",dos:e.id})}function V(e,s,l){const u=!e,r=q(D.todayIso()),i=e?JSON.parse(JSON.stringify(e)):{id:uid("ds"),type:s,year:r,rno:X(s,r),date:D.todayIso(),dest:"",ddir:"",theirNo:"",theirDate:"",rows:[["","","","","","",""]],done:!1,doneDate:"",doneRef:"",notes:""},c=C[i.type],f=new Set(m().dos.filter(b=>b.type===i.type&&b.id!==i.id).reduce((b,g)=>b.concat(T(g).map(w=>y(w[1]).toUpperCase()).filter(Boolean)),[])),v=()=>[{sec:i.type==="req"?"الطلب":"الإرسال"},{k:"rno",l:i.type==="req"?"طلب رقم":"إرسال رقم",t:"num",half:!0,hint:`تسلسلي لكل سنة — السنة ${i.year}`},{k:"date",l:"التاريخ",t:"date",half:!0,hint:e&&A(e)?`رقم الإرسال في سجل الصادرات: ${A(e)}`:"يُسجَّل تلقائيا في سجل الصادرات ويأخذ رقم الإرسال"},{sec:i.type==="req"?"المؤسسة الأصلية (المطلوب منها الملف)":"المؤسسة المستقبلة (المرسل إليها الملف)"},{k:"dest",l:"إلى السيد(ة) مدير(ة)",half:!0,ph:"مجموعة مدارس ... / م.م ...",list:"dsSch"},{k:"ddir",l:"المديرية الإقليمية للمؤسسة",half:!0,list:"dsDirs",ph:"فارغ = نفس المديرية"},...i.type==="send"?[{k:"theirNo",l:"طلبهم رقم (اختياري)",half:!0,dir:"ltr"},{k:"theirDate",l:"بتاريخ",t:"date",half:!0}]:[],{sec:"التلاميذ"},{k:"rows",l:"اكتب الاسم أو رقم مسار فتُملأ باقي الخانات من بطاقة التلاميذ",t:"grid",cols:ot,widths:["1.5fr","1fr",".6fr",".9fr",".8fr",".9fr","1fr"],types:[null,null,null,null,null,"date",null],list:["k2Pupils","k2Codes",null,null,null,null,null],dirs:[null,"ltr","ltr",null,"ltr",null,null],link:{src:"pupil",n:0,cols:{code:1,lvl:3},post:(b,g)=>{g.rec&&g.rec.lvl&&(b[3]=K.LV.ar(g.rec.lvl))}},extraBtn:`<button type="button" class="btn sm" data-dsmv="1">${ic("plus")} ${i.type==="req"?"إضافة الوافدين المسجلين في بطاقة التلاميذ":"إضافة المغادرين المسجلين في بطاقة التلاميذ"}</button>`},{k:"notes",l:"ملاحظات",t:"area",rows:2}],a=document.createElement("div"),t=document.createElement("div");a.appendChild(t);const p=()=>Array.from(new Set(m().dos.map(b=>y(b.dest)).concat(window.Pupils&&Pupils.movesOf?Pupils.movesOf(MK.curSy()).map(b=>y(b.orig||b.recv)):[]).filter(Boolean))),n=K.form(t,v,i,b=>{if(b==="date"){const g=q(i.date);g!==+i.year&&(i.year=g,u&&(i.rno=X(i.type,g)),n())}}),h=()=>`<datalist id="dsDirs">${mt().map(b=>`<option value="${d(b)}">`).join("")}</datalist><datalist id="dsSch">${p().map(b=>`<option value="${d(b)}">`).join("")}</datalist>`;t.onDraw=()=>t.insertAdjacentHTML("beforeend",h()),t.onDraw(),a.addEventListener("click",b=>{if(!b.target.closest("[data-dsmv]"))return;const g=window.Pupils&&Pupils.movesOf?Pupils.movesOf(MK.curSy(),i.type==="req"?"joined":"left"):[],w=k=>y(i.type==="req"?k.orig:k.recv);if(!g.length)return toast(i.type==="req"?"لا يوجد وافدون مسجلون في بطاقة التلاميذ لهذا الموسم":"لا يوجد مغادرون مسجلون في بطاقة التلاميذ لهذا الموسم",!0);const L=new Set(T(i).map(k=>y(k[1]).toUpperCase()).filter(Boolean));let M=g.filter(k=>!L.has(String(k.code||"").toUpperCase())&&!f.has(String(k.code||"").toUpperCase()));if(y(i.dest)){const k=O(i.dest),E=M.filter(N=>w(N)&&(O(w(N)).includes(k)||k.includes(O(w(N)))));E.length&&(M=E)}else{const k={};M.forEach(N=>{const J=w(N);J&&(k[J]=(k[J]||0)+1)});const E=Object.keys(k).sort((N,J)=>k[J]-k[N])[0];E&&(i.dest=E,M=M.filter(N=>w(N)===E))}if(!M.length)return toast("كل التلاميذ المسجلين أضيفوا من قبل (في هذا الطلب أو في طلب سابق)",!0);i.rows=T(i).concat(M.map(k=>[`${k.last||""} ${k.first||""}`.trim(),k.code||"","",K.LV.ar(k.lvl),"","",""])),n(),toast(`تمت إضافة ${M.length} تلميذ(ة)`)}),modal({title:`${u?"":"تعديل "}${c.n}`,size:"lg",body:a,actions:[{label:ic("check")+" حفظ",cls:"pri",onClick:()=>{if(i.rows=T(i),!i.rows.length)return toast("أضف تلميذا واحدا على الأقل",!0),i.rows=[["","","","","","",""]],n(),!1;if(!y(i.dest))return toast("اكتب اسم المؤسسة",!0),!1;if(i.year=q(i.date),i.rno=+i.rno||X(i.type,i.year),m().dos.some(g=>g.id!==i.id&&g.type===i.type&&+g.year==+i.year&&+g.rno==+i.rno))return toast(`الرقم ${i.rno} مستعمل من قبل في هذه السنة`,!0),!1;ut(i);const b=m().dos.findIndex(g=>g.id===i.id);b>=0?m().dos[b]=i:m().dos.push(i),persist(),toast(`تم الحفظ — رقم الإرسال ${A(i)}`),l&&l(i)}},e?{label:"حذف",cls:"danger",onClick:async()=>{if(!await confirmBox("حذف هذا الملف وتسجيله في الصادرات (والواردات إن وجد)؟","حذف"))return!1;m().dos=m().dos.filter(b=>b.id!==i.id),m().items=m().items.filter(b=>b.id!==i.mailId&&b.id!==i.inId),persist(),l&&l()}}:null,{label:"إلغاء"}].filter(Boolean)})}function ft(e,s){const l=C[e.type],u={doneDate:e.doneDate||D.todayIso(),doneRef:e.doneRef||"",reg:e.type==="req"&&!e.inId?"1":""},r=document.createElement("div");K.form(r,()=>[{k:"doneDate",l:e.type==="req"?"تاريخ التوصل بالملف":"تاريخ الإشعار بالتوصل",t:"date",half:!0},{k:"doneRef",l:"رقم إرساليتهم (اختياري)",half:!0,dir:"ltr"},...e.type==="req"&&!e.inId?[{k:"reg",l:"التسجيل في سجل الواردات",t:"select",opts:[["1","نعم، يسجل تلقائيا كوارد"],["","لا"]]}]:[]],u),modal({title:l.done,body:r,actions:[{label:ic("check")+" تأكيد",cls:"pri",onClick:()=>{if(e.done=!0,e.doneDate=u.doneDate,e.doneRef=u.doneRef,u.reg==="1"){const i=q(u.doneDate),c={id:uid("ml"),dir:"in",year:i,no:H("in",i),regDate:u.doneDate,kind:"إرسالية",party:`مدير(ة) ${y(e.dest)}`,ref:y(u.doneRef),refDate:"",subject:`التوصل بالوثائق المدرسية — ${Z(e)}`,cat:m().cats.some(f=>f[0]==="03")?"03":"",arch:"",box:"",action:"تضاف إلى ملفات التلاميذ",notes:"",file:null,svc:"",dos:e.id};c.cat&&(c.arch=String(G(c.cat))),m().items.push(c),e.inId=c.id}persist(),toast("تم"),s&&s()}},e.done?{label:"إلغاء الحالة",onClick:()=>{e.done=!1,e.doneDate="",persist(),s&&s()}}:null,{label:"إغلاق"}].filter(Boolean)})}const _={type:"",stat:""};function ht(e,s,l,u){const r=m().dos,i=r.filter(t=>(!o.y||+t.year==+o.y)&&(!_.type||t.type===_.type)&&(!_.stat||(_.stat==="done"?t.done:!t.done))&&(!o.q||[t.dest,t.ddir,A(t),t.rno,t.notes].concat(T(t).map(p=>p.join(" "))).join(" ").toLowerCase().includes(o.q.toLowerCase()))).sort((t,p)=>String(p.date).localeCompare(String(t.date))||+p.rno-+t.rno),c=r.filter(t=>+t.year==+o.y),f=(t,p)=>c.filter(n=>n.type===t&&(p==null||!!n.done===p)).length,v=t=>`<span class="ds-tag" style="--c:${C[t.type].c};--b:${C[t.type].bg}">${C[t.type].sh}</span>`;e.innerHTML=`<div class="page-h"><h1>الملفات المدرسية (طلب وإرسال)</h1><span class="sub">الضبط — شؤون التلاميذ</span><span class="sp"></span>
+        <button class="btn pri" id="dsReq">${ic("plus")} طلب ملف مدرسي</button><button class="btn pri" id="dsSend" style="background:#1f8a4c;border-color:#1f8a4c">${ic("plus")} إرسال ملف مدرسي</button>
+        <button class="btn" id="dsReg">${ic("print")} سجل الملفات المدرسية</button></div>
       <div class="card" style="margin-bottom:10px"><div class="card-b btn-row" style="flex-wrap:wrap;align-items:center;gap:8px"><b>مراسلات الملفات والوثائق:</b>
-        <button class="btn sm" id="dsL1">${ic('file')} طلب ملف ووثائق تلميذ(ة)</button><button class="btn sm" id="dsL2">${ic('file')} بعث ملف ووثائق تلميذ(ة)</button>
+        <button class="btn sm" id="dsL1">${ic("file")} طلب ملف ووثائق تلميذ(ة)</button><button class="btn sm" id="dsL2">${ic("file")} بعث ملف ووثائق تلميذ(ة)</button>
         <span class="muted" style="font-size:12px">مراسلة مستقلة لكل تلميذ(ة)، أو تلاميذ نفس المؤسسة في مراسلة واحدة.</span></div></div>
-      ${seg}
+      ${l}
       <div class="ds-kpi">
-        <div style="--c:${DOS_T.req.c};--b:${DOS_T.req.bg}"><b>${c('req')}</b><span>طلبات الملفات (الوافدون)</span><i>${c('req', false)} في الانتظار — ${c('req', true)} توصلنا بها</i></div>
-        <div style="--c:${DOS_T.send.c};--b:${DOS_T.send.bg}"><b>${c('send')}</b><span>ملفات مرسلة (المغادرون)</span><i>${c('send', true)} أشعرت بالتوصل</i></div>
-        <div style="--c:#7a5af8;--b:#efebff"><b>${yy.reduce((t, x) => t + dosRows(x).length, 0)}</b><span>تلميذ(ة) معني(ة)</span><i>سنة ${esc(st.y)}</i></div></div>
+        <div style="--c:${C.req.c};--b:${C.req.bg}"><b>${f("req")}</b><span>طلبات الملفات (الوافدون)</span><i>${f("req",!1)} في الانتظار — ${f("req",!0)} توصلنا بها</i></div>
+        <div style="--c:${C.send.c};--b:${C.send.bg}"><b>${f("send")}</b><span>ملفات مرسلة (المغادرون)</span><i>${f("send",!0)} أشعرت بالتوصل</i></div>
+        <div style="--c:#7a5af8;--b:#efebff"><b>${c.reduce((t,p)=>t+T(p).length,0)}</b><span>تلميذ(ة) معني(ة)</span><i>سنة ${d(o.y)}</i></div></div>
       <div class="card" style="margin-bottom:10px"><div class="card-b btn-row" style="flex-wrap:wrap;align-items:center;gap:8px">
-        <select class="inp" id="mlY" style="width:auto">${years.map(y => `<option ${+st.y === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
-        <select class="inp" id="dsT" style="width:auto"><option value="">الطلبات والإرسالات</option><option value="req" ${dst.type === 'req' ? 'selected' : ''}>طلبات الملفات</option><option value="send" ${dst.type === 'send' ? 'selected' : ''}>الملفات المرسلة</option></select>
-        <select class="inp" id="dsS" style="width:auto"><option value="">كل الحالات</option><option value="wait" ${dst.stat === 'wait' ? 'selected' : ''}>في الانتظار</option><option value="done" ${dst.stat === 'done' ? 'selected' : ''}>تم التوصل</option></select>
-        <input class="inp" id="mlQ" placeholder="بحث: التلميذ، رقم مسار، المؤسسة..." value="${esc(st.q)}" style="max-width:300px"><span class="sp"></span><span class="muted">${L.length} ملف</span></div></div>
-      <div class="card"><div id="mlT">${L.length ? `<table class="tbl"><thead><tr><th></th><th>الرقم</th><th>التاريخ</th><th>رقم الإرسال</th><th>المؤسسة</th><th>التلاميذ</th><th>الحالة</th><th></th></tr></thead><tbody>
-        ${L.map(x => `<tr><td>${tag(x)}</td><td class="num b">${esc(String(x.rno || ''))}</td><td class="num">${esc(Dx.fmtDate(x.date))}</td><td class="num" dir="ltr">${esc(dosNo(x))}</td>
-          <td>${esc(x.dest || '')}${x.ddir ? `<div class="muted" style="font-size:12px">مديرية ${esc(x.ddir)}</div>` : ''}</td>
-          <td style="font-size:12.5px;line-height:1.7">${dosRows(x).map(r => `${esc(r[0])}${r[1] ? ` <span class="muted" dir="ltr">${esc(r[1])}</span>` : ''}`).join('<br>')}</td>
-          <td>${x.done ? `<span class="tag" style="background:#e5f5ec;color:#1f7a45">${DOS_T[x.type].done}</span><div class="muted" style="font-size:11.5px">${esc(Dx.fmtDate(x.doneDate))}</div>` : `<button class="btn sm" data-dd="${x.id}">${x.type === 'req' ? 'في الانتظار — تسجيل التوصل' : 'مرسل — تسجيل الإشعار'}</button>`}</td>
-          <td class="act"><button class="btn sm" data-dp="${x.id}" title="طبع المراسلة">${ic('print')}</button>${x.done ? `<button class="btn sm" data-dd="${x.id}" title="الحالة">✓</button>` : ''}<button class="btn sm" data-de="${x.id}">${ic('edit')}</button></td></tr>`).join('')}</tbody></table>`
-        : `<div class="empty-state">لا توجد طلبات أو إرسالات ملفات مدرسية في هذه السنة. استعمل «طلب ملف مدرسي» لتلميذ(ة) وافد(ة)، أو «إرسال ملف مدرسي» لتلميذ(ة) مغادر(ة).</div>`}</div></div>
-      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">كل طلب أو إرسال يسجل تلقائيا في سجل الصادرات (رقم الإرسال) وفي صنف «شؤون التلاميذ» بالأرشيف، والتوصل بالملف المطلوب يسجل في سجل الواردات. يمكن ملء التلاميذ من الوافدين أو المغادرين المسجلين في بطاقة التلاميذ.</p>`;
-    bindSeg();
-    const re = () => page(v);
-    $('#mlY').onchange = e => { st.y = e.target.value; re(); };
-    $('#dsT').onchange = e => { dst.type = e.target.value; re(); };
-    $('#dsS').onchange = e => { dst.stat = e.target.value; re(); };
-    $('#mlQ').oninput = e => { st.q = e.target.value; clearTimeout(page.t); page.t = setTimeout(() => { re(); const q = $('#mlQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 250); };
-    $('#dsReq').onclick = () => dosEdit(null, 'req', f => { re(); if (f) go('mailDoc', { kind: 'dos', id: f.id }); });
-    $('#dsSend').onclick = () => dosEdit(null, 'send', f => { re(); if (f) go('mailDoc', { kind: 'dos', id: f.id }); });
-    $('#dsReg').onclick = () => go('mailDoc', { kind: 'dosreg', y: st.y });
-    $('#dsL1').onclick = () => go('filesDoc', { kind: 'fl_preq' });
-    $('#dsL2').onclick = () => go('filesDoc', { kind: 'fl_psend' });
-    $$('[data-de]', v).forEach(b => b.onclick = () => dosEdit(all.find(x => x.id === b.dataset.de), null, re));
-    $$('[data-dd]', v).forEach(b => b.onclick = () => dosDone(all.find(x => x.id === b.dataset.dd), re));
-    $$('[data-dp]', v).forEach(b => b.onclick = () => go('mailDoc', { kind: 'dos', id: b.dataset.dp }));
-  }
-  // the letter, laid out as the model used by the schools (header, numbers, from / to, supervision, references, table, frame of the mail office)
-  function dosLetter(s, x) {
-    const T = DOS_T[x.type], rows = dosRows(x), w = dosWord(rows), date = Dx.fmtDate(x.date);
-    const sup = window.Letter && Letter.supervision ? Letter.supervision(s, { ddir: x.ddir, supMode: 'auto' }) : [];
-    const refs = rows.filter(r => nm(r[4])).map(r => `<tr><td class="k">المراجع:</td><td>شهادة المغادرة رقم: <b dir="ltr">${esc(nm(r[4]))}</b>${rows.length > 1 ? ` <span class="nm">(${esc(nm(r[0]))})</span>` : ''}</td><td>بتـــاريخ: <b>${esc(r[5] ? Dx.fmtDate(r[5]) : '')}</b></td></tr>`);
-    if (x.type === 'send' && (nm(x.theirNo) || x.theirDate)) refs.unshift(`<tr><td class="k">المراجع:</td><td>طلبكم رقم: <b dir="ltr">${esc(nm(x.theirNo))}</b></td><td>بتـــاريخ: <b>${esc(x.theirDate ? Dx.fmtDate(x.theirDate) : '')}</b></td></tr>`);
-    const refsH = refs.length ? `<table class="ds-refs">${refs.map((r, i) => i ? r.replace('<td class="k">المراجع:</td>', '<td class="k"></td>') : r).join('')}</table>` : '';
-    const body = x.type === 'req' ? `وبعد، يشرفني أن أطلب منكم موافاتي بالوثائق المدرسية ${w === 'التلاميذ' ? 'للتلاميذ' : 'لل' + w.slice(2)} ${rows.length > 1 ? 'المبينة أسماؤهم' : 'المبين(ة) اسمه(ا)'} في الجدول أسفله:`
-      : `وبعد، يشرفني أن أبعث إليكم رفقته بالوثائق المدرسية الخاصة ب${w} ${rows.length > 1 ? 'المبينة أسماؤهم' : 'المبين(ة) اسمه(ا)'} في الجدول أسفله${nm(x.theirNo) || x.theirDate ? '، وذلك جوابا على طلبكم المشار إليه في المرجع أعلاه' : ''}:`;
-    const tRows = rows.map((r, i) => tr([i + 1, { t: r[0], c: 'b' }, { h: `<bdi dir="ltr">${esc(nm(r[2]))}</bdi>` }, r[3] || '', { h: `<bdi dir="ltr">${esc(nm(r[1]))}</bdi>` }, { t: r[6] || '', c: 'sm' }]));
-    for (let i = rows.length; i < Math.max(3, rows.length + 1); i++) tRows.push(tr([i + 1, '', '', '', '', '']));
-    const B = [
-      { html: `<div class="ds-top"><div class="ds-n"><div>رقم الإرسال: <b dir="ltr">${esc(dosNo(x) || '........')}</b></div><div>بتاريخ: <b>${esc(date)}</b></div></div>
-        <div class="ds-ft"><div><span class="l">من مدير(ة):</span><span class="bx">${esc(s.school || '')}</span></div><div><span class="l">إلى السيد(ة) مدير(ة):</span><span class="bx">${esc(x.dest || '')}</span></div></div>
-        <div class="ds-d">${esc(s.city || '')} في: <b>${esc(date)}</b></div></div>` },
-      { html: `<div class="ds-sup">${sup.map(t => `<div>${esc(t)}</div>`).join('')}</div>` },
-      { html: `<div class="ds-rno"><span>${x.type === 'req' ? 'طلب' : 'إرسال'} رقم ${esc(String(x.rno || ''))}</span></div><div class="ds-subj"><span>الموضوع: ${esc(T.subj)}</span></div>`, keepNext: true },
-      refsH ? { html: refsH } : null,
-      { html: '<div class="ds-salam">سلام تام بوجود مولانا الإمام المؤيد بالله</div>' },
-      { html: `<p class="ds-body">${body}</p>`, keepNext: true },
-      { table: { cls: 'ds-t', head: thr(['ر.ت', 'الاسم والنسب', 'ر. التسجيل', 'المستوى', 'الرقم الوطني', 'ملاحظات إضافية']), rows: tRows } },
-      { html: '<div class="ds-close">وتقبلوا فائق الاحترام والتقدير، والسلام.</div>' },
-      { html: `<div class="ds-foot"><div class="ds-bo"><div class="h">إطار خاص بمكتب الضبط</div><div class="ln">تاريخ التوصل: ......................</div><div class="ln">رقم التسجيل بالواردات: ..............</div></div><div class="ds-sg">خاتم وتوقيع المدير(ة)</div></div>` }].filter(Boolean);
-    return MK.flowPages({ page: 'a4', cls: 'ds', head: `<div class="mk-hdr">${Dx.header(s)}</div>`, blocks: B });
-  }
-  Dx.modCss += `
+        <select class="inp" id="mlY" style="width:auto">${s.map(t=>`<option ${+o.y===t?"selected":""}>${t}</option>`).join("")}</select>
+        <select class="inp" id="dsT" style="width:auto"><option value="">الطلبات والإرسالات</option><option value="req" ${_.type==="req"?"selected":""}>طلبات الملفات</option><option value="send" ${_.type==="send"?"selected":""}>الملفات المرسلة</option></select>
+        <select class="inp" id="dsS" style="width:auto"><option value="">كل الحالات</option><option value="wait" ${_.stat==="wait"?"selected":""}>في الانتظار</option><option value="done" ${_.stat==="done"?"selected":""}>تم التوصل</option></select>
+        <input class="inp" id="mlQ" placeholder="بحث: التلميذ، رقم مسار، المؤسسة..." value="${d(o.q)}" style="max-width:300px"><span class="sp"></span><span class="muted">${i.length} ملف</span></div></div>
+      <div class="card"><div id="mlT">${i.length?`<table class="tbl"><thead><tr><th></th><th>الرقم</th><th>التاريخ</th><th>رقم الإرسال</th><th>المؤسسة</th><th>التلاميذ</th><th>الحالة</th><th></th></tr></thead><tbody>
+        ${i.map(t=>`<tr><td>${v(t)}</td><td class="num b">${d(String(t.rno||""))}</td><td class="num">${d(D.fmtDate(t.date))}</td><td class="num" dir="ltr">${d(A(t))}</td>
+          <td>${d(t.dest||"")}${t.ddir?`<div class="muted" style="font-size:12px">مديرية ${d(t.ddir)}</div>`:""}</td>
+          <td style="font-size:12.5px;line-height:1.7">${T(t).map(p=>`${d(p[0])}${p[1]?` <span class="muted" dir="ltr">${d(p[1])}</span>`:""}`).join("<br>")}</td>
+          <td>${t.done?`<span class="tag" style="background:#e5f5ec;color:#1f7a45">${C[t.type].done}</span><div class="muted" style="font-size:11.5px">${d(D.fmtDate(t.doneDate))}</div>`:`<button class="btn sm" data-dd="${t.id}">${t.type==="req"?"في الانتظار — تسجيل التوصل":"مرسل — تسجيل الإشعار"}</button>`}</td>
+          <td class="act"><button class="btn sm" data-dp="${t.id}" title="طبع المراسلة">${ic("print")}</button>${t.done?`<button class="btn sm" data-dd="${t.id}" title="الحالة">✓</button>`:""}<button class="btn sm" data-de="${t.id}">${ic("edit")}</button></td></tr>`).join("")}</tbody></table>`:'<div class="empty-state">لا توجد طلبات أو إرسالات ملفات مدرسية في هذه السنة. استعمل «طلب ملف مدرسي» لتلميذ(ة) وافد(ة)، أو «إرسال ملف مدرسي» لتلميذ(ة) مغادر(ة).</div>'}</div></div>
+      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">كل طلب أو إرسال يسجل تلقائيا في سجل الصادرات (رقم الإرسال) وفي صنف «شؤون التلاميذ» بالأرشيف، والتوصل بالملف المطلوب يسجل في سجل الواردات. يمكن ملء التلاميذ من الوافدين أو المغادرين المسجلين في بطاقة التلاميذ.</p>`,u();const a=()=>j(e);$("#mlY").onchange=t=>{o.y=t.target.value,a()},$("#dsT").onchange=t=>{_.type=t.target.value,a()},$("#dsS").onchange=t=>{_.stat=t.target.value,a()},$("#mlQ").oninput=t=>{o.q=t.target.value,clearTimeout(j.t),j.t=setTimeout(()=>{a();const p=$("#mlQ");p.focus(),p.setSelectionRange(p.value.length,p.value.length)},250)},$("#dsReq").onclick=()=>V(null,"req",t=>{a(),t&&go("mailDoc",{kind:"dos",id:t.id})}),$("#dsSend").onclick=()=>V(null,"send",t=>{a(),t&&go("mailDoc",{kind:"dos",id:t.id})}),$("#dsReg").onclick=()=>go("mailDoc",{kind:"dosreg",y:o.y}),$("#dsL1").onclick=()=>go("filesDoc",{kind:"fl_preq"}),$("#dsL2").onclick=()=>go("filesDoc",{kind:"fl_psend"}),$$("[data-de]",e).forEach(t=>t.onclick=()=>V(r.find(p=>p.id===t.dataset.de),null,a)),$$("[data-dd]",e).forEach(t=>t.onclick=()=>ft(r.find(p=>p.id===t.dataset.dd),a)),$$("[data-dp]",e).forEach(t=>t.onclick=()=>go("mailDoc",{kind:"dos",id:t.dataset.dp}))}function $t(e,s){const l=C[s.type],u=T(s),r=pt(u),i=D.fmtDate(s.date),c=window.Letter&&Letter.supervision?Letter.supervision(e,{ddir:s.ddir,supMode:"auto"}):[],f=u.filter(n=>y(n[4])).map(n=>`<tr><td class="k">المراجع:</td><td>شهادة المغادرة رقم: <b dir="ltr">${d(y(n[4]))}</b>${u.length>1?` <span class="nm">(${d(y(n[0]))})</span>`:""}</td><td>بتـــاريخ: <b>${d(n[5]?D.fmtDate(n[5]):"")}</b></td></tr>`);s.type==="send"&&(y(s.theirNo)||s.theirDate)&&f.unshift(`<tr><td class="k">المراجع:</td><td>طلبكم رقم: <b dir="ltr">${d(y(s.theirNo))}</b></td><td>بتـــاريخ: <b>${d(s.theirDate?D.fmtDate(s.theirDate):"")}</b></td></tr>`);const v=f.length?`<table class="ds-refs">${f.map((n,h)=>h?n.replace('<td class="k">المراجع:</td>','<td class="k"></td>'):n).join("")}</table>`:"",a=s.type==="req"?`وبعد، يشرفني أن أطلب منكم موافاتي بالوثائق المدرسية ${r==="التلاميذ"?"للتلاميذ":"لل"+r.slice(2)} ${u.length>1?"المبينة أسماؤهم":"المبين(ة) اسمه(ا)"} في الجدول أسفله:`:`وبعد، يشرفني أن أبعث إليكم رفقته بالوثائق المدرسية الخاصة ب${r} ${u.length>1?"المبينة أسماؤهم":"المبين(ة) اسمه(ا)"} في الجدول أسفله${y(s.theirNo)||s.theirDate?"، وذلك جوابا على طلبكم المشار إليه في المرجع أعلاه":""}:`,t=u.map((n,h)=>z([h+1,{t:n[0],c:"b"},{h:`<bdi dir="ltr">${d(y(n[2]))}</bdi>`},n[3]||"",{h:`<bdi dir="ltr">${d(y(n[1]))}</bdi>`},{t:n[6]||"",c:"sm"}]));for(let n=u.length;n<Math.max(3,u.length+1);n++)t.push(z([n+1,"","","","",""]));const p=[{html:`<div class="ds-top"><div class="ds-n"><div>رقم الإرسال: <b dir="ltr">${d(A(s)||"........")}</b></div><div>بتاريخ: <b>${d(i)}</b></div></div>
+        <div class="ds-ft"><div><span class="l">من مدير(ة):</span><span class="bx">${d(e.school||"")}</span></div><div><span class="l">إلى السيد(ة) مدير(ة):</span><span class="bx">${d(s.dest||"")}</span></div></div>
+        <div class="ds-d">${d(e.city||"")} في: <b>${d(i)}</b></div></div>`},{html:`<div class="ds-sup">${c.map(n=>`<div>${d(n)}</div>`).join("")}</div>`},{html:`<div class="ds-rno"><span>${s.type==="req"?"طلب":"إرسال"} رقم ${d(String(s.rno||""))}</span></div><div class="ds-subj"><span>الموضوع: ${d(l.subj)}</span></div>`,keepNext:!0},v?{html:v}:null,{html:'<div class="ds-salam">سلام تام بوجود مولانا الإمام المؤيد بالله</div>'},{html:`<p class="ds-body">${a}</p>`,keepNext:!0},{table:{cls:"ds-t",head:Q(["ر.ت","الاسم والنسب","ر. التسجيل","المستوى","الرقم الوطني","ملاحظات إضافية"]),rows:t}},{html:'<div class="ds-close">وتقبلوا فائق الاحترام والتقدير، والسلام.</div>'},{html:'<div class="ds-foot"><div class="ds-bo"><div class="h">إطار خاص بمكتب الضبط</div><div class="ln">تاريخ التوصل: ......................</div><div class="ln">رقم التسجيل بالواردات: ..............</div></div><div class="ds-sg">خاتم وتوقيع المدير(ة)</div></div>'}].filter(Boolean);return MK.flowPages({page:"a4",cls:"ds",head:`<div class="mk-hdr">${D.header(e)}</div>`,blocks:p})}D.modCss+=`
   .ds{font-size:11.4pt;line-height:1.7}
   .ds-top{display:grid;grid-template-columns:auto 1fr auto;gap:4mm;align-items:start;margin:0 0 2mm;font-weight:700}
   .ds-n div{white-space:nowrap}.ds-d{white-space:nowrap;font-size:11pt}
@@ -285,186 +42,35 @@
   .ds-foot{display:grid;grid-template-columns:1.15fr 1fr;gap:8mm;margin-top:2mm}
   .ds-bo{border:.35mm solid #000;min-height:34mm;padding:1.5mm 3mm}.ds-bo .h{font-weight:700;text-decoration:underline;margin-bottom:2mm}.ds-bo .ln{font-size:10.4pt;margin-top:1.5mm}
   .ds-sg{text-align:center;font-weight:700;text-decoration:underline;padding-top:8mm}
-`;
-
-  /* ---------- the page ---------- */
-  const st = { dir: 'in', y: '', cat: '', q: '', kind: '', svc: '' };
-  function page(v, arg) {
-    if (arg && arg.dir) st.dir = arg.dir;
-    const all = ML().items;
-    const years = Array.from(new Set(all.map(x => +x.year).concat([yearOf()]))).sort((a, b) => b - a);
-    if (!st.y) st.y = String(years[0]);
-    const L = all.filter(x => (st.dir === 'arch' ? !!x.cat : x.dir === st.dir) && (st.dir === 'arch' || !st.y || +x.year === +st.y) && (!st.cat || x.cat === st.cat) && (!st.kind || x.kind === st.kind) && (!st.svc || (st.svc === '__none' ? !svcOf(x) : svcOf(x) === st.svc))
-      && (!st.q || [x.subject, x.party, x.ref, x.kind, regNo(x), archNo(x), x.notes, x.box].join(' ').toLowerCase().includes(st.q.toLowerCase())))
-      .sort((a, b) => st.dir === 'arch' ? String(a.cat).localeCompare(String(b.cat)) || (+String(a.arch).split('/').pop() || 0) - (+String(b.arch).split('/').pop() || 0) : (+b.year - +a.year) || (+b.no - +a.no));
-    const cnt = d => all.filter(x => x.dir === d && +x.year === +st.y).length;
-    const kinds = Array.from(new Set(all.filter(x => x.dir === st.dir).map(x => x.kind).filter(Boolean)));
-    const seg = `<div class="seg" id="mlDir" style="margin-bottom:10px"><button data-d="in">الواردات (${cnt('in')})</button><button data-d="out">الصادرات (${cnt('out')})</button><button data-d="arch">الأرشيف المصنف (${all.filter(x => x.cat).length})</button><button data-d="svc">حسب المصالح</button><button data-d="dos">الملفات المدرسية (${ML().dos.filter(x => +x.year === +st.y).length})</button></div>`;
-    const bindSeg = () => $$('#mlDir button').forEach(b => { b.classList.toggle('on', b.dataset.d === st.dir); b.onclick = () => { st.kind = ''; if ((b.dataset.d === 'dos') !== (st.dir === 'dos')) return go('mail', { dir: b.dataset.d }); st.dir = b.dataset.d; page(v); }; });
-    if (st.dir === 'dos') return dosPage(v, years, seg, bindSeg);
-    v.innerHTML = `<div class="page-h"><h1>الواردات والصادرات والأرشيف</h1><span class="sub">الضبط</span><span class="sp"></span>
-        ${st.dir !== 'arch' && st.dir !== 'svc' ? `<button class="btn pri" id="mlNew">${ic('plus')} ${st.dir === 'in' ? 'تسجيل وارد (مذكرة / مراسلة)' : 'تسجيل صادر'}</button>` : ''}
-        <button class="btn" id="mlPrint">${ic('print')} ${st.dir === 'in' ? 'سجل الواردات' : st.dir === 'out' ? 'سجل الصادرات' : 'فهرس الأرشيف'}</button>
-        <button class="btn" id="mlCov" title="واجهات ملفات الواردات والصادرات لكل مصلحة">${ic('file')} واجهات ملفات المصالح</button>
-        <button class="btn" id="mlSv">${ic('gear')} المصالح</button><button class="btn" id="mlCats">${ic('gear')} أصناف الأرشيف</button></div>
-      ${seg}
+`;const o={dir:"in",y:"",cat:"",q:"",kind:"",svc:""};function j(e,s){s&&s.dir&&(o.dir=s.dir);const l=m().items,u=Array.from(new Set(l.map(a=>+a.year).concat([q()]))).sort((a,t)=>t-a);o.y||(o.y=String(u[0]));const r=l.filter(a=>(o.dir==="arch"?!!a.cat:a.dir===o.dir)&&(o.dir==="arch"||!o.y||+a.year==+o.y)&&(!o.cat||a.cat===o.cat)&&(!o.kind||a.kind===o.kind)&&(!o.svc||(o.svc==="__none"?!R(a):R(a)===o.svc))&&(!o.q||[a.subject,a.party,a.ref,a.kind,P(a),I(a),a.notes,a.box].join(" ").toLowerCase().includes(o.q.toLowerCase()))).sort((a,t)=>o.dir==="arch"?String(a.cat).localeCompare(String(t.cat))||(+String(a.arch).split("/").pop()||0)-(+String(t.arch).split("/").pop()||0):+t.year-+a.year||+t.no-+a.no),i=a=>l.filter(t=>t.dir===a&&+t.year==+o.y).length,c=Array.from(new Set(l.filter(a=>a.dir===o.dir).map(a=>a.kind).filter(Boolean))),f=`<div class="seg" id="mlDir" style="margin-bottom:10px"><button data-d="in">الواردات (${i("in")})</button><button data-d="out">الصادرات (${i("out")})</button><button data-d="arch">الأرشيف المصنف (${l.filter(a=>a.cat).length})</button><button data-d="svc">حسب المصالح</button><button data-d="dos">الملفات المدرسية (${m().dos.filter(a=>+a.year==+o.y).length})</button></div>`,v=()=>$$("#mlDir button").forEach(a=>{a.classList.toggle("on",a.dataset.d===o.dir),a.onclick=()=>{if(o.kind="",a.dataset.d==="dos"!=(o.dir==="dos"))return go("mail",{dir:a.dataset.d});o.dir=a.dataset.d,j(e)}});if(o.dir==="dos")return ht(e,u,f,v);if(e.innerHTML=`<div class="page-h"><h1>الواردات والصادرات والأرشيف</h1><span class="sub">الضبط</span><span class="sp"></span>
+        ${o.dir!=="arch"&&o.dir!=="svc"?`<button class="btn pri" id="mlNew">${ic("plus")} ${o.dir==="in"?"تسجيل وارد (مذكرة / مراسلة)":"تسجيل صادر"}</button>`:""}
+        <button class="btn" id="mlPrint">${ic("print")} ${o.dir==="in"?"سجل الواردات":o.dir==="out"?"سجل الصادرات":"فهرس الأرشيف"}</button>
+        <button class="btn" id="mlCov" title="واجهات ملفات الواردات والصادرات لكل مصلحة">${ic("file")} واجهات ملفات المصالح</button>
+        <button class="btn" id="mlSv">${ic("gear")} المصالح</button><button class="btn" id="mlCats">${ic("gear")} أصناف الأرشيف</button></div>
+      ${f}
       <div class="card" style="margin-bottom:10px"><div class="card-b btn-row" style="flex-wrap:wrap;align-items:center;gap:8px">
-        ${st.dir !== 'arch' ? `<select class="inp" id="mlY" style="width:auto">${years.map(y => `<option ${+st.y === y ? 'selected' : ''}>${y}</option>`).join('')}</select>` : ''}
-        <select class="inp" id="mlS" style="width:auto"><option value="">كل المصالح</option>${ML().svcs.map(v => `<option ${st.svc === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__none" ${st.svc === '__none' ? 'selected' : ''}>بدون مصلحة</option></select>
-        <select class="inp" id="mlC" style="width:auto"><option value="">كل الأصناف</option>${ML().cats.map(([c, n]) => `<option value="${esc(c)}" ${st.cat === c ? 'selected' : ''}>${esc(c)} — ${esc(n)}</option>`).join('')}</select>
-        ${st.dir !== 'arch' && kinds.length ? `<select class="inp" id="mlK" style="width:auto"><option value="">كل الأنواع</option>${kinds.map(k => `<option ${st.kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>` : ''}
-        <input class="inp" id="mlQ" placeholder="بحث: الموضوع، الرقم، المرجع، الجهة..." value="${esc(st.q)}" style="max-width:300px"><span class="sp"></span><span class="muted">${L.length} وثيقة</span></div></div>
+        ${o.dir!=="arch"?`<select class="inp" id="mlY" style="width:auto">${u.map(a=>`<option ${+o.y===a?"selected":""}>${a}</option>`).join("")}</select>`:""}
+        <select class="inp" id="mlS" style="width:auto"><option value="">كل المصالح</option>${m().svcs.map(a=>`<option ${o.svc===a?"selected":""}>${d(a)}</option>`).join("")}<option value="__none" ${o.svc==="__none"?"selected":""}>بدون مصلحة</option></select>
+        <select class="inp" id="mlC" style="width:auto"><option value="">كل الأصناف</option>${m().cats.map(([a,t])=>`<option value="${d(a)}" ${o.cat===a?"selected":""}>${d(a)} — ${d(t)}</option>`).join("")}</select>
+        ${o.dir!=="arch"&&c.length?`<select class="inp" id="mlK" style="width:auto"><option value="">كل الأنواع</option>${c.map(a=>`<option ${o.kind===a?"selected":""}>${d(a)}</option>`).join("")}</select>`:""}
+        <input class="inp" id="mlQ" placeholder="بحث: الموضوع، الرقم، المرجع، الجهة..." value="${d(o.q)}" style="max-width:300px"><span class="sp"></span><span class="muted">${r.length} وثيقة</span></div></div>
       <div class="card"><div id="mlT"></div></div>
-      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">رقم التسجيل يُعطى تلقائيا لكل سنة (مثلا <b dir="ltr">12/2026</b>)، وكذلك رقم الأرشيف داخل كل صنف (مثلا <b dir="ltr">02/7</b>). يمكن إرفاق النسخة الممسوحة لكل مذكرة أو مراسلة والرجوع إليها أو حفظ نسخة منها في أي وقت.</p>`;
-    if (st.dir === 'svc') {
-      const yy = all.filter(x => +x.year === +st.y), row = v => { const X = yy.filter(x => (v === '' ? !svcOf(x) : svcOf(x) === v)); return [X.filter(x => x.dir === 'in').length, X.filter(x => x.dir === 'out').length]; };
-      $('#mlT').innerHTML = `<table class="tbl"><thead><tr><th>المصلحة</th><th>الواردات</th><th>الصادرات</th><th>المجموع</th><th></th></tr></thead><tbody>${ML().svcs.concat(['']).map(v => { const [a, b] = row(v); return v === '' && !a && !b ? '' : `<tr><td class="b">${esc(v || 'بدون مصلحة')}</td><td class="num">${a}</td><td class="num">${b}</td><td class="num b">${a + b}</td><td class="act"><button class="btn sm" data-sv="${esc(v || '__none')}" data-sd="in">الواردات</button><button class="btn sm" data-sv="${esc(v || '__none')}" data-sd="out">الصادرات</button><button class="btn sm" data-sp="${esc(v || '__none')}">${ic('print')}</button></td></tr>`; }).join('')}</tbody></table>`;
-      $$('[data-sv]', v).forEach(b => b.onclick = () => { st.svc = b.dataset.sv; st.dir = b.dataset.sd; page(v); });
-      $$('[data-sp]', v).forEach(b => b.onclick = () => go('mailDoc', { kind: 'in', y: st.y, svc: b.dataset.sp }));
-    } else
-    $('#mlT').innerHTML = L.length ? `<table class="tbl"><thead><tr>${st.dir === 'arch' ? '<th>رقم الأرشيف</th><th>الصنف</th><th>وارد/صادر</th>' : `<th>${st.dir === 'in' ? 'رقم التسجيل' : 'رقم الإرسال'}</th><th>${st.dir === 'in' ? 'تاريخ الورود' : 'تاريخ الإرسال'}</th>`}<th>النوع</th><th>${st.dir === 'out' ? 'المرسل إليه' : 'المصدر'}</th><th>المرجع</th><th>الموضوع</th>${st.dir === 'arch' ? '<th>مكان الحفظ</th>' : '<th>الأرشيف</th>'}<th></th></tr></thead><tbody>
-      ${L.map(x => `<tr data-id="${x.id}">${st.dir === 'arch' ? `<td class="num b" dir="ltr">${esc(archNo(x))}</td><td>${esc(catName(x.cat))}</td><td>${x.dir === 'in' ? 'وارد ' : 'صادر '}<span class="muted" dir="ltr">${esc(regNo(x))}</span></td>` : `<td class="num b" dir="ltr">${esc(regNo(x))}</td><td class="num">${esc(Dx.fmtDate(x.regDate))}</td>`}
-        <td>${esc(x.kind || '')}</td><td>${esc(x.party || '')}</td><td dir="ltr" style="text-align:right">${esc(x.ref || '')}${x.refDate ? `<br><span class="muted">${esc(Dx.fmtDate(x.refDate))}</span>` : ''}</td><td>${esc(x.subject || '')}</td>
-        <td>${st.dir === 'arch' ? esc(x.box || '') : x.cat ? `<span class="tag" dir="ltr">${esc(archNo(x))}</span>` : '<span class="muted">—</span>'}</td>
-        <td class="act">${x.file ? `<button class="btn sm" data-f="${x.id}" title="${esc(x.file.name)}">📎</button>` : ''}<button class="btn sm" data-s="${x.id}" title="بطاقة إحالة">${ic('print')}</button><button class="btn sm" data-e="${x.id}">${ic('edit')}</button></td></tr>`).join('')}</tbody></table>`
-      : `<div class="empty-state">${st.dir === 'arch' ? 'لا توجد وثائق مصنفة في الأرشيف بعد (اختر صنفا عند تسجيل وارد أو صادر).' : 'لا توجد تسجيلات في هذه السنة.'}</div>`;
-    bindSeg();
-    if ($('#mlY')) $('#mlY').onchange = e => { st.y = e.target.value; page(v); };
-    $('#mlC').onchange = e => { st.cat = e.target.value; page(v); };
-    $('#mlS').onchange = e => { st.svc = e.target.value; page(v); };
-    $('#mlSv').onclick = () => svcs(() => page(v));
-    $('#mlCov').onclick = () => go('mailDoc', { kind: 'covers' });
-    if ($('#mlK')) $('#mlK').onchange = e => { st.kind = e.target.value; page(v); };
-    $('#mlQ').oninput = e => { st.q = e.target.value; clearTimeout(page.t); page.t = setTimeout(() => { page(v); const q = $('#mlQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 250); };
-    if ($('#mlNew')) $('#mlNew').onclick = () => edit(null, st.dir, () => page(v));
-    $$('[data-e]', v).forEach(b => b.onclick = () => { const x = all.find(i => i.id === b.dataset.e); edit(x, x.dir, () => page(v)); });
-    $$('[data-f]', v).forEach(b => b.onclick = () => { const x = all.find(i => i.id === b.dataset.f); if (x && x.file) window.api.saveBin(x.file.b64, x.file.name); });
-    $$('[data-s]', v).forEach(b => b.onclick = () => go('mailDoc', { kind: 'slip', id: b.dataset.s }));
-    $('#mlPrint').onclick = () => go('mailDoc', { kind: st.dir === 'arch' ? 'arch' : st.dir === 'svc' ? 'in' : st.dir, y: st.y, cat: st.cat, svc: st.svc });
-    $('#mlCats').onclick = () => cats(() => page(v));
-  }
-  function svcs(done) {
-    const body = document.createElement('div');
-    body.innerHTML = `<p class="muted" style="margin-top:0;font-size:12.5px;line-height:1.8">المصالح التي تربط بها الواردات والصادرات (سطر لكل مصلحة). عند تسجيل وارد أو صادر يقترح البرنامج المصلحة تلقائيا. زر «ربط تلقائي» يربط التسجيلات القديمة التي ليس لها مصلحة.</p><textarea class="inp" rows="14" id="svT">${esc(ML().svcs.join('\n'))}</textarea>`;
-    modal({ title: 'المصالح', body, actions: [{ label: ic('check') + ' حفظ', cls: 'pri', onClick: () => { const L = $('#svT', body).value.split(/\n/).map(nm).filter(Boolean); if (!L.length) { toast('اكتب مصلحة واحدة على الأقل', true); return false; } ML().svcs = Array.from(new Set(L)); persist(); done && done(); } },
-      { label: 'ربط تلقائي للتسجيلات بدون مصلحة', onClick: () => { let n = 0; ML().items.forEach(x => { if (!x.svc) { const g = svcGuess(x); if (g) { x.svc = g; n++; } } }); persist(); toast(`تم ربط ${n} تسجيلا بمصالحها`); done && done(); } }, { label: 'إلغاء' }] });
-  }
-  function cats(done) {
-    const L = ML().cats.map(x => x.slice());
-    const body = document.createElement('div');
-    const draw = () => {
-      body.innerHTML = `<p class="muted" style="margin-top:0;font-size:12.5px">رمز الصنف يسبق رقم الأرشيف (مثلا 02/7). يمكنك تعديل الأصناف أو إضافة أصناف جديدة.</p>
-        ${L.map((c, i) => `<div style="display:grid;grid-template-columns:80px 1fr 34px;gap:6px;margin-bottom:5px"><input class="inp" data-c="${i}" value="${esc(c[0])}" dir="ltr"><input class="inp" data-n="${i}" value="${esc(c[1])}"><button class="btn sm danger icon" data-x="${i}">✕</button></div>`).join('')}
-        <button class="btn sm" id="mcAdd">${ic('plus')} صنف جديد</button>`;
-      $$('[data-c]', body).forEach(el => el.oninput = () => { L[+el.dataset.c][0] = el.value.trim(); });
-      $$('[data-n]', body).forEach(el => el.oninput = () => { L[+el.dataset.n][1] = el.value.trim(); });
-      $$('[data-x]', body).forEach(b => b.onclick = () => { if (ML().items.some(x => x.cat === L[+b.dataset.x][0])) return toast('صنف مستعمل في الأرشيف: لا يمكن حذفه', true); L.splice(+b.dataset.x, 1); draw(); });
-      $('#mcAdd', body).onclick = () => { L.push([String(L.length + 1).padStart(2, '0'), '']); draw(); };
-    };
-    draw();
-    modal({ title: 'أصناف الأرشيف', body, actions: [{ label: ic('check') + ' حفظ', cls: 'pri', onClick: () => { ML().cats = L.filter(c => c[0] && c[1]); persist(); done && done(); } }, { label: 'إلغاء' }] });
-  }
-
-  /* ---------- printed registers ---------- */
-  function docPage(v, arg) {
-    arg = arg || {};
-    const kind = arg.kind || 'in';
-    const it = ML().items.find(x => x.id === arg.id);
-    const titles = { in: 'سجل الواردات', out: 'سجل الصادرات', arch: 'فهرس الأرشيف', slip: 'بطاقة إحالة / تأشير', covers: 'واجهات ملفات المصالح', dos: 'مراسلة الملف المدرسي', dosreg: 'سجل الملفات المدرسية' };
-    const dx = ML().dos.find(x => x.id === arg.id);
-    if (kind === 'dos' && dx) titles.dos = `${DOS_T[dx.type].n} رقم ${dx.rno}`;
-    MK.docPage(v, {
-      title: titles[kind], icon: '🗄️', modes: false, flow: true, state: { y: arg.y || String(yearOf()), cat: arg.cat || '', svc: arg.svc || '', to: '', note: '', cdir: 'both', per: '4', sel: '' },
-      back: () => go('mail', { dir: kind === 'slip' ? (it ? it.dir : 'in') : kind === 'covers' ? 'svc' : /^dos/.test(kind) ? 'dos' : kind }),
-      fname: st => `${titles[kind]}_${st.y || ''}`,
-      form: (box, st, refresh) => {
-        const years = Array.from(new Set(ML().items.map(x => +x.year).concat([yearOf()]))).sort((a, b) => b - a);
-        if (kind === 'dos') {
-          box.innerHTML = dx ? `<div class="btn-row"><button type="button" class="btn" id="mdE">${ic('edit')} تعديل المعطيات</button></div><p class="muted" style="font-size:12px;line-height:1.7">رقم الإرسال <b dir="ltr">${esc(dosNo(dx))}</b> مسجل في سجل الصادرات.</p>` : '<p class="muted">هذا الملف غير موجود.</p>';
-          if ($('#mdE', box)) $('#mdE', box).onclick = () => dosEdit(dx, null, () => go('mailDoc', { kind: 'dos', id: dx.id }));
-          refresh(); return;
-        }
-        if (kind === 'dosreg') {
-          box.innerHTML = `<div class="fld"><label>السنة</label><select class="inp" id="mdY">${Array.from(new Set(ML().dos.map(x => +x.year).concat([yearOf()]))).sort((a, b) => b - a).map(y => `<option ${+st.y === y ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
-            <div class="fld"><label>النوع</label><select class="inp" id="mdT"><option value="">الطلبات والإرسالات</option><option value="req" ${st.cat === 'req' ? 'selected' : ''}>طلبات الملفات (الوافدون)</option><option value="send" ${st.cat === 'send' ? 'selected' : ''}>الملفات المرسلة (المغادرون)</option></select></div>`;
-          $('#mdY', box).onchange = e => { st.y = e.target.value; refresh(); };
-          $('#mdT', box).onchange = e => { st.cat = e.target.value; refresh(); };
-          refresh(); return;
-        }
-        if (kind === 'covers') {
-          box.innerHTML = `<div class="fld"><label>الملفات</label><select class="inp" id="mdD"><option value="both" ${st.cdir === 'both' ? 'selected' : ''}>الصادرات والواردات</option><option value="in" ${st.cdir === 'in' ? 'selected' : ''}>الواردات فقط</option><option value="out" ${st.cdir === 'out' ? 'selected' : ''}>الصادرات فقط</option></select></div>
-            <div class="fld"><label>عدد الواجهات في الصفحة</label><select class="inp" id="mdP">${['1', '2', '3', '4', '5'].map(n => `<option ${st.per === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-            <div class="fld"><label>المصلحة</label><select class="inp" id="mdS"><option value="">كل المصالح</option>${ML().svcs.map(v => `<option ${st.sel === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-            <p class="muted" style="font-size:12px;line-height:1.7">واجهة (ملصق) لكل ملف: اسم المصلحة بخط كبير، ثم «صادرات / واردات الموسم الدراسي». تعدل لائحة المصالح من زر «المصالح».</p>`;
-          $('#mdD', box).onchange = e => { st.cdir = e.target.value; refresh(); };
-          $('#mdP', box).onchange = e => { st.per = e.target.value; refresh(); };
-          $('#mdS', box).onchange = e => { st.sel = e.target.value; refresh(); };
-          refresh(); return;
-        }
-        box.innerHTML = kind === 'slip' ? `<div class="fld"><label>يحال إلى</label><input class="inp" id="mdTo" list="k2Emps"></div><div class="fld"><label>التأشيرة / التعليمات</label><textarea class="inp" id="mdN" rows="3"></textarea></div>${K.dl ? K.dl('k2Emps', K.E.names()) : ''}`
-          : `${kind !== 'arch' ? `<div class="fld"><label>السنة</label><select class="inp" id="mdY">${years.map(y => `<option ${+st.y === y ? 'selected' : ''}>${y}</option>`).join('')}</select></div>` : ''}
-            ${kind !== 'arch' ? `<div class="fld"><label>المصلحة</label><select class="inp" id="mdS"><option value="">كل المصالح</option>${ML().svcs.map(v => `<option ${st.svc === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__none" ${st.svc === '__none' ? 'selected' : ''}>بدون مصلحة</option></select></div>` : ''}
-            <div class="fld"><label>الصنف</label><select class="inp" id="mdC"><option value="">كل الأصناف</option>${ML().cats.map(([c, n]) => `<option value="${esc(c)}" ${st.cat === c ? 'selected' : ''}>${esc(c)} — ${esc(n)}</option>`).join('')}</select></div>`;
-        if ($('#mdY', box)) $('#mdY', box).onchange = e => { st.y = e.target.value; refresh(); };
-        if ($('#mdC', box)) $('#mdC', box).onchange = e => { st.cat = e.target.value; refresh(); };
-        if ($('#mdS', box)) $('#mdS', box).onchange = e => { st.svc = e.target.value; refresh(); };
-        if ($('#mdTo', box)) $('#mdTo', box).oninput = e => { st.to = e.target.value; refresh(); };
-        if ($('#mdN', box)) $('#mdN', box).oninput = e => { st.note = e.target.value; refresh(); };
-        refresh();
-      },
-      build: st => {
-        const s = S();
-        if (kind === 'dos') return { page: 'a4', pages: dx ? dosLetter(s, dx) : [] };
-        if (kind === 'dosreg') {
-          const L = ML().dos.filter(x => +x.year === +st.y && (!st.cat || x.type === st.cat)).sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.type.localeCompare(b.type) || (+a.rno - +b.rno));
-          const rows = [];
-          L.forEach(x => { const R = dosRows(x); R.forEach((r, j) => rows.push(tr((j ? [] : [{ t: DOS_T[x.type].sh, c: 'b', r: R.length }, { t: String(x.rno || ''), r: R.length }, { h: `<bdi dir="ltr">${esc(dosNo(x))}</bdi>`, r: R.length }, { t: ldate(x.date), c: 'sm', r: R.length }, { t: x.dest || '', c: 'sm', r: R.length }]).concat([{ t: r[0], c: 'r' }, { h: `<bdi dir="ltr">${esc(nm(r[1]))}</bdi>`, c: 'sm' }, { t: r[3] || '', c: 'sm' }, { t: nm(r[4]) ? `${nm(r[4])}${r[5] ? ' — ' + Dx.fmtDate(r[5]) : ''}` : '', c: 'sm' }])
-            .concat(j ? [] : [{ t: x.done ? `${DOS_T[x.type].done} ${Dx.fmtDate(x.doneDate)}` : DOS_T[x.type].wait, c: 'sm', r: R.length }])))); });
-          for (let i = rows.length; i < 10; i++) rows.push(tr(Array.from({ length: 10 }, (_, j) => (j === 9 ? { t: '', st: 'height:7mm' } : ''))));
-          const head = thr(['النوع', 'الرقم', 'رقم الإرسال', 'التاريخ', 'المؤسسة', 'التلميذ(ة)', 'الرقم الوطني', 'المستوى', 'شهادة المغادرة', 'الحالة'].map(t => ({ t, c: 'd' })));
-          return { page: 'a4l', pages: SB.pages(s, { title: `سجل الملفات المدرسية (طلب وإرسال) — سنة ${st.y}${st.cat ? ' — ' + (st.cat === 'req' ? 'طلبات الملفات' : 'الملفات المرسلة') : ''}`, page: 'a4l', blocks: [tbl(head, rows, 'cmp')], sign: SB.sign(s, { left: 'توقيع وطابع مدير(ة) المؤسسة' }) }) };
-        }
-        if (kind === 'covers') {
-          const sy = MK.curSy(), syT = MK.syDash(sy).replace('-', '/'), V = st.sel ? [st.sel] : ML().svcs, dirs = st.cdir === 'both' ? ['out', 'in'] : [st.cdir];
-          const items = []; V.forEach(v => dirs.forEach(d => items.push([v, d])));
-          const per = Math.max(1, +st.per || 4), pages = [];
-          for (let i = 0; i < items.length; i += per) pages.push(`<div class="ml-covs" style="--n:${per}">${items.slice(i, i + per).map(([v, d]) => `<div class="ml-cov"><div class="n" style="font-size:${Math.min(60, Math.max(24, 200 / per + 14 - Math.max(0, v.length - 18) * (6 / per)))}pt">${esc(v)}</div><div class="d">${d === 'out' ? 'صادرات' : 'واردات'} الموسم الدراسي ${esc(syT)}</div><div class="s">${esc(s.school || '')}</div></div>`).join('')}</div>`);
-          return { page: 'a4', pages };
-        }
-        if (kind === 'slip') {
-          const x = it || {};
-          return { page: 'a4', pages: MK.flowPages({ page: 'a4', cls: 'sb', head: SB.head(s, 'بطاقة إحالة / تأشير'), blocks: [
-            { table: { cls: 'sb-t kv cmp', head: '', colgroup: '<colgroup><col style="width:28%"><col style="width:72%"></colgroup>', rows: [
-              ['رقم التسجيل', `<bdi dir="ltr">${esc(regNo(x))}</bdi>`], [x.dir === 'out' ? 'تاريخ الإرسال' : 'تاريخ الورود', esc(Dx.fmtDate(x.regDate))], ['النوع', esc(x.kind || '')], [x.dir === 'out' ? 'المرسل إليه' : 'المصدر', esc(x.party || '')],
-              ['المرجع', `<bdi dir="ltr">${esc(x.ref || '')}</bdi> ${x.refDate ? esc(Dx.fmtDate(x.refDate)) : ''}`], ['الموضوع', `<b>${esc(x.subject || '')}</b>`], ['رقم الأرشيف', `<bdi dir="ltr">${esc(archNo(x))}</bdi> ${x.cat ? esc(catName(x.cat)) : ''}`],
-              ['يحال إلى', esc(st.to || x.action || '')], ['التأشيرة / التعليمات', `${esc(st.note || '')}<div style="height:26mm"></div>`]].map(([a, b]) => tr([{ t: a, c: 'k' }, { h: b }])) } },
-            SB.sign(s, { right: '<span class="d">توقيع المعني(ة) بالتسلم</span>', left: 'تأشيرة مدير(ة) المؤسسة' })] }) };
-        }
-        const L = ML().items.filter(x => (kind === 'arch' ? !!x.cat : x.dir === kind && +x.year === +st.y) && (!st.cat || x.cat === st.cat) && (kind === 'arch' || !st.svc || (st.svc === '__none' ? !svcOf(x) : svcOf(x) === st.svc)))
-          .sort((a, b) => kind === 'arch' ? String(a.cat).localeCompare(String(b.cat)) || (+String(a.arch).split('/').pop() || 0) - (+String(b.arch).split('/').pop() || 0) : (+a.no - +b.no));
-        let head, rows;
-        if (kind === 'arch') {
-          head = thr(['رقم الأرشيف', 'الصنف', 'وارد / صادر', 'التاريخ', 'الجهة', 'المرجع', 'الموضوع', 'مكان الحفظ'].map(t => ({ t, c: 'd' })));
-          rows = L.map(x => tr([{ h: `<bdi dir="ltr">${esc(archNo(x))}</bdi>`, c: 'b' }, { t: catName(x.cat), c: 'sm' }, { h: `${x.dir === 'in' ? 'وارد' : 'صادر'} <bdi dir="ltr">${esc(regNo(x))}</bdi>`, c: 'sm' }, { t: ldate(x.regDate), c: 'sm' }, { t: x.party || '', c: 'sm' }, { h: `<bdi dir="ltr">${esc(x.ref || '')}</bdi>`, c: 'sm' }, { t: x.subject || '', c: 'r' }, { t: x.box || '', c: 'sm' }]));
-        } else {
-          head = thr([kind === 'in' ? 'رقم التسجيل' : 'رقم الإرسال', kind === 'in' ? 'تاريخ الورود' : 'تاريخ الإرسال', 'النوع', kind === 'in' ? 'المصدر' : 'المرسل إليه', 'المرجع وتاريخه', 'الموضوع', kind === 'in' ? 'الإحالة / الإجراء' : 'المرفقات', 'رقم الأرشيف'].map(t => ({ t, c: 'd' })));
-          rows = L.map(x => tr([{ h: `<bdi dir="ltr">${esc(regNo(x))}</bdi>`, c: 'b' }, { t: ldate(x.regDate), c: 'sm' }, { t: x.kind || '', c: 'sm' }, { t: x.party || '', c: 'sm' }, { h: `<bdi dir="ltr">${esc(x.ref || '')}</bdi>${x.refDate ? ' — ' + esc(ldate(x.refDate)) : ''}`, c: 'sm' }, { t: x.subject || '', c: 'r' }, { t: x.action || '', c: 'sm' }, { h: `<bdi dir="ltr">${esc(archNo(x))}</bdi>`, c: 'sm' }]));
-        }
-        for (let i = rows.length; i < 10; i++) rows.push(tr(Array.from({ length: 8 }, (_, j) => (j === 7 ? { t: '', st: 'height:7mm' } : ''))));
-        const t = kind === 'arch' ? `فهرس الأرشيف${st.cat ? ' — ' + st.cat + ' ' + catName(st.cat) : ''}` : `${titles[kind]} — سنة ${st.y}${st.cat ? ' — ' + catName(st.cat) : ''}${kind !== 'arch' && st.svc && st.svc !== '__none' ? ' — ' + st.svc : ''}`;
-        return { page: 'a4l', pages: SB.pages(s, { title: t, page: 'a4l', blocks: [tbl(head, rows, 'cmp')], sign: SB.sign(s, { left: 'توقيع وطابع مدير(ة) المؤسسة' }) }) };
-      }
-    });
-  }
-
-  Dx.modCss += `.ml-covs{display:flex;flex-direction:column;height:100%;gap:2mm;margin:-4mm -4mm}.ml-cov{flex:1;border:2px solid #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm 4mm;overflow:hidden}
-  .ml-cov .n{font-family:'MAJT','Amiri',serif;font-weight:700;line-height:1.15}.ml-cov .d{font-size:13pt;font-weight:700;margin-top:1.5mm}.ml-cov .s{font-size:9.5pt;color:#555;margin-top:.5mm}`;
-  { const c = document.createElement('style'); c.textContent = `
+      <p class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.8">رقم التسجيل يُعطى تلقائيا لكل سنة (مثلا <b dir="ltr">12/2026</b>)، وكذلك رقم الأرشيف داخل كل صنف (مثلا <b dir="ltr">02/7</b>). يمكن إرفاق النسخة الممسوحة لكل مذكرة أو مراسلة والرجوع إليها أو حفظ نسخة منها في أي وقت.</p>`,o.dir==="svc"){const a=l.filter(p=>+p.year==+o.y),t=p=>{const n=a.filter(h=>p===""?!R(h):R(h)===p);return[n.filter(h=>h.dir==="in").length,n.filter(h=>h.dir==="out").length]};$("#mlT").innerHTML=`<table class="tbl"><thead><tr><th>المصلحة</th><th>الواردات</th><th>الصادرات</th><th>المجموع</th><th></th></tr></thead><tbody>${m().svcs.concat([""]).map(p=>{const[n,h]=t(p);return p===""&&!n&&!h?"":`<tr><td class="b">${d(p||"بدون مصلحة")}</td><td class="num">${n}</td><td class="num">${h}</td><td class="num b">${n+h}</td><td class="act"><button class="btn sm" data-sv="${d(p||"__none")}" data-sd="in">الواردات</button><button class="btn sm" data-sv="${d(p||"__none")}" data-sd="out">الصادرات</button><button class="btn sm" data-sp="${d(p||"__none")}">${ic("print")}</button></td></tr>`}).join("")}</tbody></table>`,$$("[data-sv]",e).forEach(p=>p.onclick=()=>{o.svc=p.dataset.sv,o.dir=p.dataset.sd,j(e)}),$$("[data-sp]",e).forEach(p=>p.onclick=()=>go("mailDoc",{kind:"in",y:o.y,svc:p.dataset.sp}))}else $("#mlT").innerHTML=r.length?`<table class="tbl"><thead><tr>${o.dir==="arch"?"<th>رقم الأرشيف</th><th>الصنف</th><th>وارد/صادر</th>":`<th>${o.dir==="in"?"رقم التسجيل":"رقم الإرسال"}</th><th>${o.dir==="in"?"تاريخ الورود":"تاريخ الإرسال"}</th>`}<th>النوع</th><th>${o.dir==="out"?"المرسل إليه":"المصدر"}</th><th>المرجع</th><th>الموضوع</th>${o.dir==="arch"?"<th>مكان الحفظ</th>":"<th>الأرشيف</th>"}<th></th></tr></thead><tbody>
+      ${r.map(a=>`<tr data-id="${a.id}">${o.dir==="arch"?`<td class="num b" dir="ltr">${d(I(a))}</td><td>${d(Y(a.cat))}</td><td>${a.dir==="in"?"وارد ":"صادر "}<span class="muted" dir="ltr">${d(P(a))}</span></td>`:`<td class="num b" dir="ltr">${d(P(a))}</td><td class="num">${d(D.fmtDate(a.regDate))}</td>`}
+        <td>${d(a.kind||"")}</td><td>${d(a.party||"")}</td><td dir="ltr" style="text-align:right">${d(a.ref||"")}${a.refDate?`<br><span class="muted">${d(D.fmtDate(a.refDate))}</span>`:""}</td><td>${d(a.subject||"")}</td>
+        <td>${o.dir==="arch"?d(a.box||""):a.cat?`<span class="tag" dir="ltr">${d(I(a))}</span>`:'<span class="muted">—</span>'}</td>
+        <td class="act">${a.file?`<button class="btn sm" data-f="${a.id}" title="${d(a.file.name)}">📎</button>`:""}<button class="btn sm" data-s="${a.id}" title="بطاقة إحالة">${ic("print")}</button><button class="btn sm" data-e="${a.id}">${ic("edit")}</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty-state">${o.dir==="arch"?"لا توجد وثائق مصنفة في الأرشيف بعد (اختر صنفا عند تسجيل وارد أو صادر).":"لا توجد تسجيلات في هذه السنة."}</div>`;v(),$("#mlY")&&($("#mlY").onchange=a=>{o.y=a.target.value,j(e)}),$("#mlC").onchange=a=>{o.cat=a.target.value,j(e)},$("#mlS").onchange=a=>{o.svc=a.target.value,j(e)},$("#mlSv").onclick=()=>gt(()=>j(e)),$("#mlCov").onclick=()=>go("mailDoc",{kind:"covers"}),$("#mlK")&&($("#mlK").onchange=a=>{o.kind=a.target.value,j(e)}),$("#mlQ").oninput=a=>{o.q=a.target.value,clearTimeout(j.t),j.t=setTimeout(()=>{j(e);const t=$("#mlQ");t.focus(),t.setSelectionRange(t.value.length,t.value.length)},250)},$("#mlNew")&&($("#mlNew").onclick=()=>st(null,o.dir,()=>j(e))),$$("[data-e]",e).forEach(a=>a.onclick=()=>{const t=l.find(p=>p.id===a.dataset.e);st(t,t.dir,()=>j(e))}),$$("[data-f]",e).forEach(a=>a.onclick=()=>{const t=l.find(p=>p.id===a.dataset.f);t&&t.file&&window.api.saveBin(t.file.b64,t.file.name)}),$$("[data-s]",e).forEach(a=>a.onclick=()=>go("mailDoc",{kind:"slip",id:a.dataset.s})),$("#mlPrint").onclick=()=>go("mailDoc",{kind:o.dir==="arch"?"arch":o.dir==="svc"?"in":o.dir,y:o.y,cat:o.cat,svc:o.svc}),$("#mlCats").onclick=()=>bt(()=>j(e))}function gt(e){const s=document.createElement("div");s.innerHTML=`<p class="muted" style="margin-top:0;font-size:12.5px;line-height:1.8">المصالح التي تربط بها الواردات والصادرات (سطر لكل مصلحة). عند تسجيل وارد أو صادر يقترح البرنامج المصلحة تلقائيا. زر «ربط تلقائي» يربط التسجيلات القديمة التي ليس لها مصلحة.</p><textarea class="inp" rows="14" id="svT">${d(m().svcs.join(`
+`))}</textarea>`,modal({title:"المصالح",body:s,actions:[{label:ic("check")+" حفظ",cls:"pri",onClick:()=>{const l=$("#svT",s).value.split(/\n/).map(y).filter(Boolean);if(!l.length)return toast("اكتب مصلحة واحدة على الأقل",!0),!1;m().svcs=Array.from(new Set(l)),persist(),e&&e()}},{label:"ربط تلقائي للتسجيلات بدون مصلحة",onClick:()=>{let l=0;m().items.forEach(u=>{if(!u.svc){const r=W(u);r&&(u.svc=r,l++)}}),persist(),toast(`تم ربط ${l} تسجيلا بمصالحها`),e&&e()}},{label:"إلغاء"}]})}function bt(e){const s=m().cats.map(r=>r.slice()),l=document.createElement("div"),u=()=>{l.innerHTML=`<p class="muted" style="margin-top:0;font-size:12.5px">رمز الصنف يسبق رقم الأرشيف (مثلا 02/7). يمكنك تعديل الأصناف أو إضافة أصناف جديدة.</p>
+        ${s.map((r,i)=>`<div style="display:grid;grid-template-columns:80px 1fr 34px;gap:6px;margin-bottom:5px"><input class="inp" data-c="${i}" value="${d(r[0])}" dir="ltr"><input class="inp" data-n="${i}" value="${d(r[1])}"><button class="btn sm danger icon" data-x="${i}">✕</button></div>`).join("")}
+        <button class="btn sm" id="mcAdd">${ic("plus")} صنف جديد</button>`,$$("[data-c]",l).forEach(r=>r.oninput=()=>{s[+r.dataset.c][0]=r.value.trim()}),$$("[data-n]",l).forEach(r=>r.oninput=()=>{s[+r.dataset.n][1]=r.value.trim()}),$$("[data-x]",l).forEach(r=>r.onclick=()=>{if(m().items.some(i=>i.cat===s[+r.dataset.x][0]))return toast("صنف مستعمل في الأرشيف: لا يمكن حذفه",!0);s.splice(+r.dataset.x,1),u()}),$("#mcAdd",l).onclick=()=>{s.push([String(s.length+1).padStart(2,"0"),""]),u()}};u(),modal({title:"أصناف الأرشيف",body:l,actions:[{label:ic("check")+" حفظ",cls:"pri",onClick:()=>{m().cats=s.filter(r=>r[0]&&r[1]),persist(),e&&e()}},{label:"إلغاء"}]})}function vt(e,s){s=s||{};const l=s.kind||"in",u=m().items.find(c=>c.id===s.id),r={in:"سجل الواردات",out:"سجل الصادرات",arch:"فهرس الأرشيف",slip:"بطاقة إحالة / تأشير",covers:"واجهات ملفات المصالح",dos:"مراسلة الملف المدرسي",dosreg:"سجل الملفات المدرسية"},i=m().dos.find(c=>c.id===s.id);l==="dos"&&i&&(r.dos=`${C[i.type].n} رقم ${i.rno}`),MK.docPage(e,{title:r[l],icon:"🗄️",modes:!1,flow:!0,state:{y:s.y||String(q()),cat:s.cat||"",svc:s.svc||"",to:"",note:"",cdir:"both",per:"4",sel:""},back:()=>go("mail",{dir:l==="slip"?u?u.dir:"in":l==="covers"?"svc":/^dos/.test(l)?"dos":l}),fname:c=>`${r[l]}_${c.y||""}`,form:(c,f,v)=>{const a=Array.from(new Set(m().items.map(t=>+t.year).concat([q()]))).sort((t,p)=>p-t);if(l==="dos"){c.innerHTML=i?`<div class="btn-row"><button type="button" class="btn" id="mdE">${ic("edit")} تعديل المعطيات</button></div><p class="muted" style="font-size:12px;line-height:1.7">رقم الإرسال <b dir="ltr">${d(A(i))}</b> مسجل في سجل الصادرات.</p>`:'<p class="muted">هذا الملف غير موجود.</p>',$("#mdE",c)&&($("#mdE",c).onclick=()=>V(i,null,()=>go("mailDoc",{kind:"dos",id:i.id}))),v();return}if(l==="dosreg"){c.innerHTML=`<div class="fld"><label>السنة</label><select class="inp" id="mdY">${Array.from(new Set(m().dos.map(t=>+t.year).concat([q()]))).sort((t,p)=>p-t).map(t=>`<option ${+f.y===t?"selected":""}>${t}</option>`).join("")}</select></div>
+            <div class="fld"><label>النوع</label><select class="inp" id="mdT"><option value="">الطلبات والإرسالات</option><option value="req" ${f.cat==="req"?"selected":""}>طلبات الملفات (الوافدون)</option><option value="send" ${f.cat==="send"?"selected":""}>الملفات المرسلة (المغادرون)</option></select></div>`,$("#mdY",c).onchange=t=>{f.y=t.target.value,v()},$("#mdT",c).onchange=t=>{f.cat=t.target.value,v()},v();return}if(l==="covers"){c.innerHTML=`<div class="fld"><label>الملفات</label><select class="inp" id="mdD"><option value="both" ${f.cdir==="both"?"selected":""}>الصادرات والواردات</option><option value="in" ${f.cdir==="in"?"selected":""}>الواردات فقط</option><option value="out" ${f.cdir==="out"?"selected":""}>الصادرات فقط</option></select></div>
+            <div class="fld"><label>عدد الواجهات في الصفحة</label><select class="inp" id="mdP">${["1","2","3","4","5"].map(t=>`<option ${f.per===t?"selected":""}>${t}</option>`).join("")}</select></div>
+            <div class="fld"><label>المصلحة</label><select class="inp" id="mdS"><option value="">كل المصالح</option>${m().svcs.map(t=>`<option ${f.sel===t?"selected":""}>${d(t)}</option>`).join("")}</select></div>
+            <p class="muted" style="font-size:12px;line-height:1.7">واجهة (ملصق) لكل ملف: اسم المصلحة بخط كبير، ثم «صادرات / واردات الموسم الدراسي». تعدل لائحة المصالح من زر «المصالح».</p>`,$("#mdD",c).onchange=t=>{f.cdir=t.target.value,v()},$("#mdP",c).onchange=t=>{f.per=t.target.value,v()},$("#mdS",c).onchange=t=>{f.sel=t.target.value,v()},v();return}c.innerHTML=l==="slip"?`<div class="fld"><label>يحال إلى</label><input class="inp" id="mdTo" list="k2Emps"></div><div class="fld"><label>التأشيرة / التعليمات</label><textarea class="inp" id="mdN" rows="3"></textarea></div>${K.dl?K.dl("k2Emps",K.E.names()):""}`:`${l!=="arch"?`<div class="fld"><label>السنة</label><select class="inp" id="mdY">${a.map(t=>`<option ${+f.y===t?"selected":""}>${t}</option>`).join("")}</select></div>`:""}
+            ${l!=="arch"?`<div class="fld"><label>المصلحة</label><select class="inp" id="mdS"><option value="">كل المصالح</option>${m().svcs.map(t=>`<option ${f.svc===t?"selected":""}>${d(t)}</option>`).join("")}<option value="__none" ${f.svc==="__none"?"selected":""}>بدون مصلحة</option></select></div>`:""}
+            <div class="fld"><label>الصنف</label><select class="inp" id="mdC"><option value="">كل الأصناف</option>${m().cats.map(([t,p])=>`<option value="${d(t)}" ${f.cat===t?"selected":""}>${d(t)} — ${d(p)}</option>`).join("")}</select></div>`,$("#mdY",c)&&($("#mdY",c).onchange=t=>{f.y=t.target.value,v()}),$("#mdC",c)&&($("#mdC",c).onchange=t=>{f.cat=t.target.value,v()}),$("#mdS",c)&&($("#mdS",c).onchange=t=>{f.svc=t.target.value,v()}),$("#mdTo",c)&&($("#mdTo",c).oninput=t=>{f.to=t.target.value,v()}),$("#mdN",c)&&($("#mdN",c).oninput=t=>{f.note=t.target.value,v()}),v()},build:c=>{const f=S();if(l==="dos")return{page:"a4",pages:i?$t(f,i):[]};if(l==="dosreg"){const n=m().dos.filter(g=>+g.year==+c.y&&(!c.cat||g.type===c.cat)).sort((g,w)=>String(g.date).localeCompare(String(w.date))||g.type.localeCompare(w.type)||+g.rno-+w.rno),h=[];n.forEach(g=>{const w=T(g);w.forEach((L,M)=>h.push(z((M?[]:[{t:C[g.type].sh,c:"b",r:w.length},{t:String(g.rno||""),r:w.length},{h:`<bdi dir="ltr">${d(A(g))}</bdi>`,r:w.length},{t:F(g.date),c:"sm",r:w.length},{t:g.dest||"",c:"sm",r:w.length}]).concat([{t:L[0],c:"r"},{h:`<bdi dir="ltr">${d(y(L[1]))}</bdi>`,c:"sm"},{t:L[3]||"",c:"sm"},{t:y(L[4])?`${y(L[4])}${L[5]?" — "+D.fmtDate(L[5]):""}`:"",c:"sm"}]).concat(M?[]:[{t:g.done?`${C[g.type].done} ${D.fmtDate(g.doneDate)}`:C[g.type].wait,c:"sm",r:w.length}]))))});for(let g=h.length;g<10;g++)h.push(z(Array.from({length:10},(w,L)=>L===9?{t:"",st:"height:7mm"}:"")));const b=Q(["النوع","الرقم","رقم الإرسال","التاريخ","المؤسسة","التلميذ(ة)","الرقم الوطني","المستوى","شهادة المغادرة","الحالة"].map(g=>({t:g,c:"d"})));return{page:"a4l",pages:B.pages(f,{title:`سجل الملفات المدرسية (طلب وإرسال) — سنة ${c.y}${c.cat?" — "+(c.cat==="req"?"طلبات الملفات":"الملفات المرسلة"):""}`,page:"a4l",blocks:[x(b,h,"cmp")],sign:B.sign(f,{left:"توقيع وطابع مدير(ة) المؤسسة"})})}}if(l==="covers"){const n=MK.curSy(),h=MK.syDash(n).replace("-","/"),b=c.sel?[c.sel]:m().svcs,g=c.cdir==="both"?["out","in"]:[c.cdir],w=[];b.forEach(k=>g.forEach(E=>w.push([k,E])));const L=Math.max(1,+c.per||4),M=[];for(let k=0;k<w.length;k+=L)M.push(`<div class="ml-covs" style="--n:${L}">${w.slice(k,k+L).map(([E,N])=>`<div class="ml-cov"><div class="n" style="font-size:${Math.min(60,Math.max(24,200/L+14-Math.max(0,E.length-18)*(6/L)))}pt">${d(E)}</div><div class="d">${N==="out"?"صادرات":"واردات"} الموسم الدراسي ${d(h)}</div><div class="s">${d(f.school||"")}</div></div>`).join("")}</div>`);return{page:"a4",pages:M}}if(l==="slip"){const n=u||{};return{page:"a4",pages:MK.flowPages({page:"a4",cls:"sb",head:B.head(f,"بطاقة إحالة / تأشير"),blocks:[{table:{cls:"sb-t kv cmp",head:"",colgroup:'<colgroup><col style="width:28%"><col style="width:72%"></colgroup>',rows:[["رقم التسجيل",`<bdi dir="ltr">${d(P(n))}</bdi>`],[n.dir==="out"?"تاريخ الإرسال":"تاريخ الورود",d(D.fmtDate(n.regDate))],["النوع",d(n.kind||"")],[n.dir==="out"?"المرسل إليه":"المصدر",d(n.party||"")],["المرجع",`<bdi dir="ltr">${d(n.ref||"")}</bdi> ${n.refDate?d(D.fmtDate(n.refDate)):""}`],["الموضوع",`<b>${d(n.subject||"")}</b>`],["رقم الأرشيف",`<bdi dir="ltr">${d(I(n))}</bdi> ${n.cat?d(Y(n.cat)):""}`],["يحال إلى",d(c.to||n.action||"")],["التأشيرة / التعليمات",`${d(c.note||"")}<div style="height:26mm"></div>`]].map(([h,b])=>z([{t:h,c:"k"},{h:b}]))}},B.sign(f,{right:'<span class="d">توقيع المعني(ة) بالتسلم</span>',left:"تأشيرة مدير(ة) المؤسسة"})]})}}const v=m().items.filter(n=>(l==="arch"?!!n.cat:n.dir===l&&+n.year==+c.y)&&(!c.cat||n.cat===c.cat)&&(l==="arch"||!c.svc||(c.svc==="__none"?!R(n):R(n)===c.svc))).sort((n,h)=>l==="arch"?String(n.cat).localeCompare(String(h.cat))||(+String(n.arch).split("/").pop()||0)-(+String(h.arch).split("/").pop()||0):+n.no-+h.no);let a,t;l==="arch"?(a=Q(["رقم الأرشيف","الصنف","وارد / صادر","التاريخ","الجهة","المرجع","الموضوع","مكان الحفظ"].map(n=>({t:n,c:"d"}))),t=v.map(n=>z([{h:`<bdi dir="ltr">${d(I(n))}</bdi>`,c:"b"},{t:Y(n.cat),c:"sm"},{h:`${n.dir==="in"?"وارد":"صادر"} <bdi dir="ltr">${d(P(n))}</bdi>`,c:"sm"},{t:F(n.regDate),c:"sm"},{t:n.party||"",c:"sm"},{h:`<bdi dir="ltr">${d(n.ref||"")}</bdi>`,c:"sm"},{t:n.subject||"",c:"r"},{t:n.box||"",c:"sm"}]))):(a=Q([l==="in"?"رقم التسجيل":"رقم الإرسال",l==="in"?"تاريخ الورود":"تاريخ الإرسال","النوع",l==="in"?"المصدر":"المرسل إليه","المرجع وتاريخه","الموضوع",l==="in"?"الإحالة / الإجراء":"المرفقات","رقم الأرشيف"].map(n=>({t:n,c:"d"}))),t=v.map(n=>z([{h:`<bdi dir="ltr">${d(P(n))}</bdi>`,c:"b"},{t:F(n.regDate),c:"sm"},{t:n.kind||"",c:"sm"},{t:n.party||"",c:"sm"},{h:`<bdi dir="ltr">${d(n.ref||"")}</bdi>${n.refDate?" — "+d(F(n.refDate)):""}`,c:"sm"},{t:n.subject||"",c:"r"},{t:n.action||"",c:"sm"},{h:`<bdi dir="ltr">${d(I(n))}</bdi>`,c:"sm"}])));for(let n=t.length;n<10;n++)t.push(z(Array.from({length:8},(h,b)=>b===7?{t:"",st:"height:7mm"}:"")));const p=l==="arch"?`فهرس الأرشيف${c.cat?" — "+c.cat+" "+Y(c.cat):""}`:`${r[l]} — سنة ${c.y}${c.cat?" — "+Y(c.cat):""}${l!=="arch"&&c.svc&&c.svc!=="__none"?" — "+c.svc:""}`;return{page:"a4l",pages:B.pages(f,{title:p,page:"a4l",blocks:[x(a,t,"cmp")],sign:B.sign(f,{left:"توقيع وطابع مدير(ة) المؤسسة"})})}}})}D.modCss+=`.ml-covs{display:flex;flex-direction:column;height:100%;gap:2mm;margin:-4mm -4mm}.ml-cov{flex:1;border:2px solid #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm 4mm;overflow:hidden}
+  .ml-cov .n{font-family:'MAJT','Amiri',serif;font-weight:700;line-height:1.15}.ml-cov .d{font-size:13pt;font-weight:700;margin-top:1.5mm}.ml-cov .s{font-size:9.5pt;color:#555;margin-top:.5mm}`;{const e=document.createElement("style");e.textContent=`
   .ds-tag{display:inline-block;padding:1px 9px;border-radius:20px;font-weight:700;font-size:12px;color:var(--c);background:var(--b);border:1px solid var(--c)}
   .ds-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
   .ds-kpi>div{border-radius:10px;padding:10px 14px;background:var(--b);border-inline-start:5px solid var(--c);display:flex;flex-direction:column}
-  .ds-kpi b{font-size:24px;color:var(--c);line-height:1.1}.ds-kpi span{font-weight:700}.ds-kpi i{font-style:normal;font-size:12px;color:#555}`; document.head.appendChild(c); }
-  window.Mail = { migrate, svcGuess, items: () => ML().items, regNo, archNo, dos: () => ML().dos, dosNo };
-  window.pageMail = (v, a) => { migrate(DB); if (!(a && a.dir) && st.dir === 'dos') st.dir = 'in'; page(v, a); };
-  window.pageMailDoc = (v, a) => { migrate(DB); docPage(v, a); };
-})();
+  .ds-kpi b{font-size:24px;color:var(--c);line-height:1.1}.ds-kpi span{font-weight:700}.ds-kpi i{font-style:normal;font-size:12px;color:#555}`,document.head.appendChild(e)}window.Mail={migrate:U,svcGuess:W,items:()=>m().items,regNo:P,archNo:I,dos:()=>m().dos,dosNo:A},window.pageMail=(e,s)=>{U(DB),!(s&&s.dir)&&o.dir==="dos"&&(o.dir="in"),j(e,s)},window.pageMailDoc=(e,s)=>{U(DB),vt(e,s)}})();

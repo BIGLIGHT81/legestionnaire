@@ -1,886 +1,137 @@
-'use strict';
-/* إدارة العتاد والوسائل التعليمية — equipment (equip.js) and consumables stock: items, sources, arrivals (الواردات), deliveries (الصادرات),
-   balances, receipt report per beneficiary (محضر تسلم), registers and reports. */
-(function () {
-  const Dx = window.Docs;
-  const { esc, fmtDate } = Dx;
-  const today = () => Dx.todayIso();
-  const num = v => MK.num(v), q = v => MK.fmtQty(v);
-
-  const DEFAULT_SOURCES = ['المديرية الإقليمية', 'الأكاديمية الجهوية', 'جمعية دعم مدرسة النجاح', 'الجمعية الرياضية المدرسية', 'التعاونية المدرسية',
-    'الجماعة الترابية', 'السلطة المحلية', 'المحسنون', 'محضر تسلم المهام', 'شركة النظافة', 'شركة الحراسة'];
-  // 1.9.4: more usual sources of the arrivals, grouped (any other source can be typed)
-  const SOURCE_GROUPS = [
-    ['الوزارة والأكاديمية والمديرية', ['المديرية الإقليمية', 'الأكاديمية الجهوية', 'الوزارة (المصالح المركزية)', 'برنامج مؤسسات الريادة', 'برنامج تيسير / مليون محفظة', 'مصلحة الشؤون الإدارية والمالية', 'مركز الموارد / المخزن الإقليمي']],
-    ['الجمعيات المدرسية والشركاء', ['جمعية دعم مدرسة النجاح', 'الجمعية الرياضية المدرسية', 'التعاونية المدرسية', 'جمعية آباء وأمهات وأولياء التلاميذ', 'جمعية مدنية شريكة', 'المؤسسة المغربية للنهوض بالتعليم الأولي']],
-    ['الجماعات والسلطات والمبادرات', ['الجماعة الترابية', 'المجلس الإقليمي', 'المجلس الجهوي', 'السلطة المحلية', 'المبادرة الوطنية للتنمية البشرية']],
-    ['هبات ومصادر أخرى', ['المحسنون', 'مقاولة / شركة مواطنة', 'هبة من موظف(ة) أو ولي(ة) أمر', 'مؤسسة تعليمية أخرى', 'اقتناء بميزانية المؤسسة']],
-    ['التسليم والمناولة', ['محضر تسلم المهام', 'شركة النظافة', 'شركة الحراسة', 'شركة الإطعام المدرسي']]];
-  const ALL_SOURCES = SOURCE_GROUPS.reduce((a, g) => a.concat(g[1]), []);
-  const SUGGESTED = ['Marqueur pour tableau magnétique', "Recharge d'encre pour marqueur", 'Brosse pour tableau magnétique', 'Rame de papier A4 blanc',
-    'Rame de papier A3 blanc', 'Cartouche toner', 'Craie (boîte de 10)', 'Craie (boîte de 100)', 'Brosse pour tableau noir', 'Chemise bulle (paquet de 250)',
-    'Chemise cartonnée (paquet de 100)', 'Règle de tableau', 'Équerre de tableau', "Rapporteur d'angle pour tableau", 'Compas de tableau', 'Drapeau',
-    'Lampe économique', 'Robinet de service', 'Corbeille en plastique', 'Serrure et cadenas', 'Balai en fibre de nylon avec manche', 'Raclette en caoutchouc avec manche'];
-  const OTHER_USE = 'صادر غير مسجل (استعمال المؤسسة)';
-
-  function migrate(db) {
-    const s = db.stock = db.stock || {};
-    s.items = Array.isArray(s.items) ? s.items : [];
-    s.sources = Array.isArray(s.sources) ? s.sources : DEFAULT_SOURCES.slice();
-    if (!s.srcV) { ALL_SOURCES.forEach(x => { if (!s.sources.includes(x)) s.sources.push(x); }); s.srcV = 2; }   // 1.9.4: the new usual sources, once
-    s.benefs = Array.isArray(s.benefs) ? s.benefs : [];
-    s.ins = Array.isArray(s.ins) ? s.ins : [];
-    s.outs = Array.isArray(s.outs) ? s.outs : [];
-    s.equip = Array.isArray(s.equip) ? s.equip : [];
-    s.equipKinds = Array.isArray(s.equipKinds) ? s.equipKinds : [];
-    if (!s.pvTitle) s.pvTitle = 'محضر تسلم المواد واللوازم المدرسية';
-    // one employee list for the whole application: beneficiaries kept apart by early 1.8 builds move to «الموظفون»
-    if (s.benefs.length && Array.isArray(db.employees)) {
-      s.benefs.forEach(b => {
-        const e = empFor(db, b.name, b.ppr, b.role).e;
-        s.outs.forEach(o => { if (o.benef && o.benef.benefId === b.id) { delete o.benef.benefId; Object.assign(o.benef, { empId: e.id }); } });
-      });
-      s.benefs = [];
-    }
-  }
-  window.Stock = { migrate };
-  // employee matching a name (+ pay number), created in the employees list when missing
-  function empFor(db, name, ppr, role) {
-    name = String(name || '').trim(); ppr = String(ppr || '').replace(/\.0+$/, '').trim();
-    const k = MK.hkey(name);
-    let e = (ppr && db.employees.find(x => String(x.ppr || '') === ppr))
-      || (k && db.employees.find(x => MK.hkey(fullName(x)) === k || MK.hkey((x.lastAr || '') + (x.firstAr || '')) === k));
-    if (e) return { e, created: false };
-    const sp = name.indexOf(' ');
-    e = { id: uid('e'), firstAr: sp > 0 ? name.slice(0, sp) : name, lastAr: sp > 0 ? name.slice(sp + 1) : '', ppr };
-    if (role) e.task = role;
-    db.employees.push(e);
-    return { e, created: true };
-  }
-
-  const SD = () => DB.stock;
-  const key = s => MK.hkey(s);
-  const itemById = id => SD().items.find(i => i.id === id);
-  const itemName = id => (itemById(id) || {}).name || '—';
-  const itemUnit = id => (itemById(id) || {}).unit || '';
-  const itemByName = n => { const k = key(n); return k ? SD().items.find(i => key(i.name) === k) : null; };
-  const sortedItems = () => SD().items.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base', numeric: true }));
-
-  /* ---------- balances ---------- */
-  // status of an item for [from, to]: before = opening + movements before `from`
-  function sums(itemId, from, to) {
-    const it = itemById(itemId);
-    let before = num(it && it.opening), inn = 0, out = 0;
-    SD().ins.forEach(r => { if (r.itemId !== itemId) return; const x = num(r.qty); if (from && r.date < from) before += x; else if (!to || r.date <= to) inn += x; });
-    SD().outs.forEach(r => { if (r.itemId !== itemId) return; const x = num(r.qty); if (from && r.date < from) before -= x; else if (!to || r.date <= to) out += x; });
-    return { before, inn, out, after: before + inn - out };
-  }
-  const balance = itemId => sums(itemId).after;
-
-  /* ---------- 1.9.4: indicators of the material management (التدبير المادي) ---------- */
-  const CATS = ['لوازم السبورة والقسم', 'لوازم مكتبية وورق', 'مواد الطباعة والمعلوميات', 'مواد التنظيف والنظافة', 'مواد الصيانة والإصلاح', 'تجهيزات ومعدات صغيرة', 'أعلام ورموز ومناسبات', 'أخرى'];
-  const catGuess = n => { const t = String(n || '').toLowerCase();
-    return /marqueur|craie|brosse|tableau|règle|regle|équerre|equerre|compas|rapporteur|طباشير|سبورة|قلم/.test(t) ? CATS[0] : /papier|rame|chemise|stylo|cahier|classeur|agrafe|ورق|ملف/.test(t) ? CATS[1]
-      : /toner|encre|cartouche|imprim|usb|clé|cle|حبر|طابعة/.test(t) ? CATS[2] : /balai|raclette|savon|javel|détergent|detergent|serpill|corbeille|poubelle|منظف|مكنسة|صابون/.test(t) ? CATS[3]
-      : /robinet|serrure|cadenas|lampe|ampoule|vis|clou|peinture|صنبور|قفل|مصباح|صباغة/.test(t) ? CATS[4] : /drapeau|علم/.test(t) ? CATS[6] : CATS[7]; };
-  const catOf = it => (it && it.cat) || catGuess(it && it.name);
-  const priceOf = it => num(it && it.price) || 0;
-  const dDays = (a, b) => Math.max(1, Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5) + 1);
-  const ymOf = d => String(d || '').slice(0, 7);
-  const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'يونيو', 'يوليوز', 'غشت', 'شتنبر', 'أكتوبر', 'نونبر', 'دجنبر'];
-  const ymName = ym => { const [y, m] = ym.split('-').map(Number); return `${MONTHS_AR[m - 1]} ${String(y).slice(2)}`; };
-  // everything is computed from the registers (opening balance, arrivals, deliveries) for the period [from, to]
-  function analytics(from, to) {
-    const all = SD().ins.concat(SD().outs).map(r => r.date).filter(Boolean).sort();
-    const f = from || all[0] || today(), t = to || today(), months = Math.max(1, dDays(f, t) / 30.44);
-    const inP = r => (!from || r.date >= from) && (!to || r.date <= to);
-    const INS = SD().ins.filter(inP), OUTS = SD().outs.filter(inP);
-    const rows = sortedItems().filter(it => used(it) || SD().outs.some(r => r.itemId === it.id)).map(it => {
-      const x = sums(it.id, from, to), ins = INS.filter(r => r.itemId === it.id), outs = OUTS.filter(r => r.itemId === it.id);
-      const avgM = x.out / months, cover = avgM > 0 ? x.after / avgM : (x.after > 0 ? Infinity : 0), stockAvg = (x.before + x.after) / 2;
-      const lastIn = (SD().ins.filter(r => r.itemId === it.id).map(r => r.date).sort().pop()) || '', lastOut = (SD().outs.filter(r => r.itemId === it.id).map(r => r.date).sort().pop()) || '';
-      const benefs = new Set(outs.map(r => benefKeyOf(r.benef))).size, avail = x.before + x.inn;
-      const ck = check(it.id, SD().ins, SD().outs);
-      const status = x.after <= 0 ? 'out' : (num(it.min) > 0 && x.after <= num(it.min)) || cover < 1 ? 'crit' : cover < 2 ? 'low' : !x.out ? 'idle' : 'ok';
-      return { it, ...x, nIn: ins.length, nOut: outs.length, avgM, cover, turn: stockAvg > 0 ? x.out / stockAvg : 0, use: avail > 0 ? x.out / avail : 0, lastIn, lastOut, benefs, status, ck, price: priceOf(it), cat: catOf(it) };
-    });
-    // months of the period (at most the last 12)
-    const yms = []; { let d = new Date(f.slice(0, 7) + '-01T00:00:00Z'); const e = new Date(t.slice(0, 7) + '-01T00:00:00Z'); for (let i = 0; d <= e && i < 60; i++, d.setUTCMonth(d.getUTCMonth() + 1)) yms.push(d.toISOString().slice(0, 7)); }
-    const M = yms.slice(-12).map(ym => ({ ym, inn: INS.filter(r => ymOf(r.date) === ym).reduce((a, r) => a + num(r.qty), 0), out: OUTS.filter(r => ymOf(r.date) === ym).reduce((a, r) => a + num(r.qty), 0) }));
-    const by = (list, keyF, valF) => { const m = new Map(); list.forEach(r => { const k = keyF(r); if (!k) return; const o = m.get(k) || { k, q: 0, n: 0, items: new Set(), v: 0 }; o.q += num(r.qty); o.n++; o.items.add(r.itemId); o.v += num(r.qty) * priceOf(itemById(r.itemId)); m.set(k, o); }); return Array.from(m.values()).sort((a, b) => b.q - a.q); };
-    const src = by(INS, r => r.source || 'غير محدد');
-    const ben = by(OUTS, r => benefLive(r.benef).name || '—');
-    const cats = CATS.map(c => { const R = rows.filter(r => r.cat === c); return { c, n: R.length, inn: R.reduce((a, r) => a + r.inn, 0), out: R.reduce((a, r) => a + r.out, 0), val: R.reduce((a, r) => a + r.after * r.price, 0) }; }).filter(x => x.n);
-    // unusual consumption: a beneficiary who took more than twice the average quantity of an item
-    const unusual = [];
-    rows.forEach(r => { const per = new Map(); OUTS.filter(o => o.itemId === r.it.id).forEach(o => { const k = benefLive(o.benef).name; per.set(k, (per.get(k) || 0) + num(o.qty)); });
-      if (per.size < 3) return; const avg = Array.from(per.values()).reduce((a, b) => a + b, 0) / per.size; per.forEach((v, k) => { if (v > 2 * avg && v - avg >= 2) unusual.push({ it: r.it, who: k, q: v, avg }); }); });
-    const T = { items: rows.length, inn: rows.reduce((a, r) => a + r.inn, 0), out: rows.reduce((a, r) => a + r.out, 0), nIn: INS.length, nOut: OUTS.length,
-      out0: rows.filter(r => r.status === 'out').length, crit: rows.filter(r => r.status === 'crit').length, low: rows.filter(r => r.status === 'low').length, idle: rows.filter(r => r.status === 'idle').length,
-      benefs: ben.length, sources: src.length, val: rows.reduce((a, r) => a + Math.max(0, r.after) * r.price, 0), valOut: OUTS.reduce((a, r) => a + num(r.qty) * priceOf(itemById(r.itemId)), 0),
-      priced: rows.some(r => r.price > 0), neg: rows.filter(r => !r.ck.ok).length, months, from: f, to: t };
-    T.use = T.inn + rows.reduce((a, r) => a + r.before, 0) > 0 ? T.out / (T.inn + rows.reduce((a, r) => a + r.before, 0)) : 0;
-    T.health = rows.length ? Math.round(rows.filter(r => r.status === 'ok' || r.status === 'idle').length * 100 / rows.length) : 0;
-    return { rows, M, src, ben, cats, unusual, T };
-  }
-  const STATUS = { out: ['نفد', '#c62828', '#fdecea'], crit: ['حرج', '#d35400', '#fdf0e6'], low: ['منخفض', '#b9770e', '#fdf7e3'], ok: ['كاف', '#1e8449', '#e8f6ee'], idle: ['راكد', '#607d8b', '#eef1f3'] };
-  const avgTxt = v => (!v ? '—' : v < 1 ? v.toFixed(2).replace('.', ',') : q(+v.toFixed(1)));
-  const covTxt = c => (c === Infinity ? '∞' : c <= 0 ? '0' : c >= 24 ? '+24' : c.toFixed(1));
-  const dh = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د';
-  // small SVG charts (no external library)
-  function hbarsSvg(list, o) {
-    o = o || {}; const W = o.w || 520, rowH = 22, lab = o.lab || 170, max = Math.max(1, ...list.map(x => x.v));
-    return `<svg viewBox="0 0 ${W} ${list.length * rowH + 6}" width="100%" style="max-width:${W}px;direction:ltr" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal,Arial" font-size="11">${list.map((x, i) => { const w = Math.max(1, (W - lab - 60) * x.v / max), y = i * rowH + 3;
-      return `<text x="${W - 4}" y="${y + 14}" text-anchor="end" fill="#333">${esc(String(x.l).slice(0, 34))}</text><rect x="${W - lab - 8 - w}" y="${y + 3}" width="${w}" height="${rowH - 8}" rx="3" fill="${x.c || o.c || '#2e75b6'}"/><text x="${W - lab - 12 - w}" y="${y + 14}" text-anchor="end" fill="#333" font-weight="700">${esc(o.fmt ? o.fmt(x.v) : q(x.v))}</text>`; }).join('')}</svg>`;
-  }
-  function monthsSvg(M) {
-    const W = 560, H = 190, pad = 26, n = Math.max(1, M.length), max = Math.max(1, ...M.map(x => Math.max(x.inn, x.out))), bw = (W - 2 * pad) / n;
-    const y = v => H - pad - (H - 2 * pad - 8) * v / max;
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;direction:ltr" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal,Arial" font-size="10">
-      <line x1="${pad}" y1="${H - pad}" x2="${W - pad}" y2="${H - pad}" stroke="#bbb"/>${M.map((x, i) => { const x0 = pad + i * bw + bw * .12, w = bw * .36;
-        return `<rect x="${x0}" y="${y(x.inn)}" width="${w}" height="${H - pad - y(x.inn)}" fill="#2e75b6" rx="2"/><rect x="${x0 + w + 2}" y="${y(x.out)}" width="${w}" height="${H - pad - y(x.out)}" fill="#e67e22" rx="2"/>
-        ${x.inn ? `<text x="${x0 + w / 2}" y="${y(x.inn) - 2}" text-anchor="middle" fill="#2e75b6">${q(x.inn)}</text>` : ''}${x.out ? `<text x="${x0 + w * 1.5 + 2}" y="${y(x.out) - 2}" text-anchor="middle" fill="#c0581a">${q(x.out)}</text>` : ''}
-        <text x="${pad + i * bw + bw / 2}" y="${H - 9}" text-anchor="middle" fill="#444">${ymName(x.ym)}</text>`; }).join('')}
-      <rect x="${W - 160}" y="4" width="10" height="10" fill="#2e75b6"/><text x="${W - 146}" y="13" text-anchor="start">الوارد</text><rect x="${W - 90}" y="4" width="10" height="10" fill="#e67e22"/><text x="${W - 76}" y="13" text-anchor="start">المنصرف</text></svg>`;
-  }
-  function donutSvg(list) {
-    const PAL = ['#2e75b6', '#e67e22', '#27ae60', '#8e44ad', '#c0392b', '#16a085', '#d4ac0d', '#7f8c8d'], tot = list.reduce((a, x) => a + x.v, 0) || 1;
-    let a0 = -Math.PI / 2; const R = 70, r = 42, cx = 90, cy = 90;
-    const arcs = list.map((x, i) => { const a1 = a0 + 2 * Math.PI * x.v / tot, big = a1 - a0 > Math.PI ? 1 : 0, p = (ang, rr) => `${cx + rr * Math.cos(ang)} ${cy + rr * Math.sin(ang)}`;
-      const d = x.v / tot >= .9999 ? `M ${cx - R} ${cy} a ${R} ${R} 0 1 0 ${2 * R} 0 a ${R} ${R} 0 1 0 ${-2 * R} 0 M ${cx - r} ${cy} a ${r} ${r} 0 1 1 ${2 * r} 0 a ${r} ${r} 0 1 1 ${-2 * r} 0`
-        : `M ${p(a0, R)} A ${R} ${R} 0 ${big} 1 ${p(a1, R)} L ${p(a1, r)} A ${r} ${r} 0 ${big} 0 ${p(a0, r)} Z`; a0 = a1; return `<path d="${d}" fill="${PAL[i % PAL.length]}" fill-rule="evenodd"/>`; });
-    return `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><svg viewBox="0 0 180 180" width="160" height="160" xmlns="http://www.w3.org/2000/svg">${arcs.join('')}<text x="90" y="95" text-anchor="middle" font-size="14" font-weight="700" font-family="Tajawal,Arial">${q(tot)}</text></svg>
-      <div style="font-size:12px;line-height:1.9">${list.map((x, i) => `<div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${PAL[i % PAL.length]};margin-left:6px"></span>${esc(x.l)}: <b>${q(x.v)}</b> (${Math.round(x.v * 100 / tot)}%)</div>`).join('')}</div></div>`;
-  }
-  // dashboard figures
-  window.Stock.summary = () => {
-    migrate(DB);
-    const items = SD().items.filter(used);
-    const eq = SD().equip || [];
-    return { items: items.length, empty: items.filter(it => balance(it.id) <= 0).length, ins: SD().ins.length, outs: SD().outs.length,
-      equip: eq.length, assigned: eq.filter(r => r.empId).length, broken: eq.filter(r => r.status === 'panne').length };
-  };
-  // an item that was in stock at some point (opening balance or arrivals)
-  const used = it => num(it.opening) > 0 || SD().ins.some(r => r.itemId === it.id);
-  // the running balance (by date) must never go below zero
-  function check(itemId, ins, outs, opening) {
-    const it = itemById(itemId);
-    let bal = opening != null ? num(opening) : num(it && it.opening);
-    const ev = [];
-    ins.forEach(r => { if (r.itemId === itemId) ev.push([r.date || '', 0, num(r.qty)]); });
-    outs.forEach(r => { if (r.itemId === itemId) ev.push([r.date || '', 1, -num(r.qty)]); });
-    ev.sort((a, b) => a[0].localeCompare(b[0]) || a[1] - b[1]);
-    for (const e of ev) { bal += e[2]; if (bal < -1e-9) return { ok: false, date: e[0], bal }; }
-    return { ok: true, bal };
-  }
-  const checkMsg = (itemId, c) => `لا توجد كمية كافية من «${esc(itemName(itemId))}»: الرصيد سيصبح ${q(c.bal)} بتاريخ ${fmtDate(c.date)}`;
-
-  /* ---------- beneficiaries ---------- */
-  // options: employees, other beneficiaries, unregistered use
-  function benefOptions() {
-    const emps = sortedEmps().map(e => ({ k: 'e:' + e.id, name: fullName(e), ppr: e.ppr || '', role: e.cadre || e.task || '' }));
-    return { emps };
-  }
-  const benefFromKey = k => {
-    if (!k) return null;
-    if (k === 'x:other') return { name: OTHER_USE, ppr: '', role: '' };
-    const [t, id] = k.split(':');
-    if (t === 'e') { const e = empById(id); return e ? { empId: e.id, name: fullName(e), ppr: e.ppr || '', role: e.cadre || e.task || '' } : null; }
-    if (t === 'b') { const b = SD().benefs.find(x => x.id === id); return b ? { benefId: b.id, name: b.name, ppr: b.ppr || '', role: b.role || '' } : null; }
-    return null;
-  };
-  const benefKeyOf = b => !b ? '' : b.empId ? 'e:' + b.empId : b.benefId ? 'b:' + b.benefId : b.name === OTHER_USE ? 'x:other' : 'n:' + b.name;
-  // current name/ppr (employee data may have been edited since)
-  const benefLive = b => {
-    if (b && b.empId) { const e = empById(b.empId); if (e) return { name: fullName(e), ppr: e.ppr || '', role: e.cadre || e.task || '' }; }
-    if (b && b.benefId) { const x = SD().benefs.find(y => y.id === b.benefId); if (x) return { name: x.name, ppr: x.ppr || '', role: x.role || '' }; }
-    return b || { name: '—', ppr: '' };
-  };
-  const benefSelect = (id, sel) => {
-    const { emps } = benefOptions();
-    const o = x => `<option value="${esc(x.k)}" ${x.k === sel ? 'selected' : ''}>${esc(x.name)}${x.ppr ? ' — ' + esc(x.ppr) : ''}</option>`;
-    const free = sel && sel.startsWith('n:') ? `<option value="${esc(sel)}" selected>${esc(sel.slice(2))}</option>` : '';
-    return `<select class="inp" id="${id}"><option value=""></option>
-      ${emps.length ? `<optgroup label="الموظفون">${emps.map(o).join('')}</optgroup>` : ''}
-      <optgroup label="أخرى">${free}<option value="x:other" ${sel === 'x:other' ? 'selected' : ''}>${OTHER_USE}</option><option value="x:new">+ إضافة موظف(ة) جديد(ة) إلى لائحة الموظفين...</option></optgroup></select>`;
-  };
-
-  /* ================================================================= */
-  let tab = 'dash';
-  const flt = { from: '', to: '', item: '', src: '', q: '' };
-  const resetPeriod = () => { const b = MK.syBoundsOf(MK.curSy()); flt.from = b.from; flt.to = MK.syRef(); };
-
-  window.pageStock = function (v, arg) {
-    migrate(DB);
-    if (arg && arg.tab) tab = arg.tab;
-    if (!flt.from && !flt.to && !flt.all) resetPeriod();
-    if (window.Equip) Equip.migrate(DB);
-    const TABS = [['dash', 'لوحة المؤشرات والتحليل'], ['equip', 'العتاد والأجهزة'], ['status', 'وضعية المخزون'], ['ins', 'سجل الواردات'], ['outs', 'سجل الصادرات'], ['settings', 'المواد والإعدادات']];
-    const eq = tab === 'equip';
-    v.innerHTML = `
-      <div class="page-h"><h1>إدارة العتاد والوسائل التعليمية</h1><span class="sub">${eq ? `${(SD().equip || []).length} جهاز — ${(SD().equip || []).filter(r => r.empId).length} مسلم` : `${SD().items.length} مادة — ${SD().ins.length} وارد — ${SD().outs.length} صادر`}</span><span class="sp"></span>
-        ${eq ? '' : `<button class="btn" id="sRep">${ic('print')} المحاضر والتقارير</button>
-        <button class="btn" id="sIn">${ic('inbox')} تسجيل وارد</button>
-        <button class="btn pri" id="sOut">${ic('outbox')} تسليم مواد</button>`}</div>
-      <div class="mk-tabs"><div class="seg" id="sTabs">${TABS.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-      <div id="sBody"></div>`;
-    $$('#sTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; go('stock'); });
-    const body = $('#sBody');
-    if (eq) return window.Equip.tab(body);
-    $('#sIn').onclick = () => inForm(null, () => go('stock'));
-    $('#sOut').onclick = () => outForm(null, () => go('stock'));
-    $('#sRep').onclick = () => go('stockDoc', { kind: tab === 'ins' ? 'ins' : tab === 'outs' ? 'outs' : tab === 'dash' ? 'analytic' : 'status' });
-    ({ dash: tabDash, status: tabStatus, ins: tabIns, outs: tabOuts, settings: tabSettings })[tab](body);
-  };
-
-  const periodBar = extra => `<div class="toolbar mk-period">
-      <label>الفترة من</label><input type="date" class="inp" id="pFrom" value="${esc(flt.from)}">
-      <label>إلى</label><input type="date" class="inp" id="pTo" value="${esc(flt.to)}">
+"use strict";(function(){const N=window.Docs,{esc:p,fmtDate:O}=N,K=()=>N.todayIso(),q=e=>MK.num(e),v=e=>MK.fmtQty(e),jt=["المديرية الإقليمية","الأكاديمية الجهوية","جمعية دعم مدرسة النجاح","الجمعية الرياضية المدرسية","التعاونية المدرسية","الجماعة الترابية","السلطة المحلية","المحسنون","محضر تسلم المهام","شركة النظافة","شركة الحراسة"],ht=[["الوزارة والأكاديمية والمديرية",["المديرية الإقليمية","الأكاديمية الجهوية","الوزارة (المصالح المركزية)","برنامج مؤسسات الريادة","برنامج تيسير / مليون محفظة","مصلحة الشؤون الإدارية والمالية","مركز الموارد / المخزن الإقليمي"]],["الجمعيات المدرسية والشركاء",["جمعية دعم مدرسة النجاح","الجمعية الرياضية المدرسية","التعاونية المدرسية","جمعية آباء وأمهات وأولياء التلاميذ","جمعية مدنية شريكة","المؤسسة المغربية للنهوض بالتعليم الأولي"]],["الجماعات والسلطات والمبادرات",["الجماعة الترابية","المجلس الإقليمي","المجلس الجهوي","السلطة المحلية","المبادرة الوطنية للتنمية البشرية"]],["هبات ومصادر أخرى",["المحسنون","مقاولة / شركة مواطنة","هبة من موظف(ة) أو ولي(ة) أمر","مؤسسة تعليمية أخرى","اقتناء بميزانية المؤسسة"]],["التسليم والمناولة",["محضر تسلم المهام","شركة النظافة","شركة الحراسة","شركة الإطعام المدرسي"]]],bt=ht.reduce((e,t)=>e.concat(t[1]),[]),vt=["Marqueur pour tableau magnétique","Recharge d'encre pour marqueur","Brosse pour tableau magnétique","Rame de papier A4 blanc","Rame de papier A3 blanc","Cartouche toner","Craie (boîte de 10)","Craie (boîte de 100)","Brosse pour tableau noir","Chemise bulle (paquet de 250)","Chemise cartonnée (paquet de 100)","Règle de tableau","Équerre de tableau","Rapporteur d'angle pour tableau","Compas de tableau","Drapeau","Lampe économique","Robinet de service","Corbeille en plastique","Serrure et cadenas","Balai en fibre de nylon avec manche","Raclette en caoutchouc avec manche"],G="صادر غير مسجل (استعمال المؤسسة)";function tt(e){const t=e.stock=e.stock||{};t.items=Array.isArray(t.items)?t.items:[],t.sources=Array.isArray(t.sources)?t.sources:jt.slice(),t.srcV||(bt.forEach(o=>{t.sources.includes(o)||t.sources.push(o)}),t.srcV=2),t.benefs=Array.isArray(t.benefs)?t.benefs:[],t.ins=Array.isArray(t.ins)?t.ins:[],t.outs=Array.isArray(t.outs)?t.outs:[],t.equip=Array.isArray(t.equip)?t.equip:[],t.equipKinds=Array.isArray(t.equipKinds)?t.equipKinds:[],t.pvTitle||(t.pvTitle="محضر تسلم المواد واللوازم المدرسية"),t.benefs.length&&Array.isArray(e.employees)&&(t.benefs.forEach(o=>{const n=gt(e,o.name,o.ppr,o.role).e;t.outs.forEach(a=>{a.benef&&a.benef.benefId===o.id&&(delete a.benef.benefId,Object.assign(a.benef,{empId:n.id}))})}),t.benefs=[])}window.Stock={migrate:tt};function gt(e,t,o,n){t=String(t||"").trim(),o=String(o||"").replace(/\.0+$/,"").trim();const a=MK.hkey(t);let s=o&&e.employees.find(d=>String(d.ppr||"")===o)||a&&e.employees.find(d=>MK.hkey(fullName(d))===a||MK.hkey((d.lastAr||"")+(d.firstAr||""))===a);if(s)return{e:s,created:!1};const i=t.indexOf(" ");return s={id:uid("e"),firstAr:i>0?t.slice(0,i):t,lastAr:i>0?t.slice(i+1):"",ppr:o},n&&(s.task=n),e.employees.push(s),{e:s,created:!0}}const f=()=>DB.stock,A=e=>MK.hkey(e),P=e=>f().items.find(t=>t.id===e),j=e=>(P(e)||{}).name||"—",F=e=>(P(e)||{}).unit||"",Q=e=>{const t=A(e);return t?f().items.find(o=>A(o.name)===t):null},H=()=>f().items.slice().sort((e,t)=>e.name.localeCompare(t.name,"fr",{sensitivity:"base",numeric:!0}));function dt(e,t,o){const n=P(e);let a=q(n&&n.opening),s=0,i=0;return f().ins.forEach(d=>{if(d.itemId!==e)return;const c=q(d.qty);t&&d.date<t?a+=c:(!o||d.date<=o)&&(s+=c)}),f().outs.forEach(d=>{if(d.itemId!==e)return;const c=q(d.qty);t&&d.date<t?a-=c:(!o||d.date<=o)&&(i+=c)}),{before:a,inn:s,out:i,after:a+s-i}}const lt=e=>dt(e).after,_=["لوازم السبورة والقسم","لوازم مكتبية وورق","مواد الطباعة والمعلوميات","مواد التنظيف والنظافة","مواد الصيانة والإصلاح","تجهيزات ومعدات صغيرة","أعلام ورموز ومناسبات","أخرى"],yt=e=>{const t=String(e||"").toLowerCase();return/marqueur|craie|brosse|tableau|règle|regle|équerre|equerre|compas|rapporteur|طباشير|سبورة|قلم/.test(t)?_[0]:/papier|rame|chemise|stylo|cahier|classeur|agrafe|ورق|ملف/.test(t)?_[1]:/toner|encre|cartouche|imprim|usb|clé|cle|حبر|طابعة/.test(t)?_[2]:/balai|raclette|savon|javel|détergent|detergent|serpill|corbeille|poubelle|منظف|مكنسة|صابون/.test(t)?_[3]:/robinet|serrure|cadenas|lampe|ampoule|vis|clou|peinture|صنبور|قفل|مصباح|صباغة/.test(t)?_[4]:/drapeau|علم/.test(t)?_[6]:_[7]},wt=e=>e&&e.cat||yt(e&&e.name),ct=e=>q(e&&e.price)||0,Dt=(e,t)=>Math.max(1,Math.round((new Date(t+"T00:00:00Z")-new Date(e+"T00:00:00Z"))/864e5)+1),xt=e=>String(e||"").slice(0,7),Kt=["يناير","فبراير","مارس","أبريل","ماي","يونيو","يوليوز","غشت","شتنبر","أكتوبر","نونبر","دجنبر"],Ct=e=>{const[t,o]=e.split("-").map(Number);return`${Kt[o-1]} ${String(t).slice(2)}`};function rt(e,t){const o=f().ins.concat(f().outs).map(u=>u.date).filter(Boolean).sort(),n=e||o[0]||K(),a=t||K(),s=Math.max(1,Dt(n,a)/30.44),i=u=>(!e||u.date>=e)&&(!t||u.date<=t),d=f().ins.filter(i),c=f().outs.filter(i),y=H().filter(u=>et(u)||f().outs.some(r=>r.itemId===u.id)).map(u=>{const r=dt(u.id,e,t),k=d.filter(B=>B.itemId===u.id),E=c.filter(B=>B.itemId===u.id),T=r.out/s,C=T>0?r.after/T:r.after>0?1/0:0,L=(r.before+r.after)/2,$t=f().ins.filter(B=>B.itemId===u.id).map(B=>B.date).sort().pop()||"",Jt=f().outs.filter(B=>B.itemId===u.id).map(B=>B.date).sort().pop()||"",te=new Set(E.map(B=>Z(B.benef))).size,Ot=r.before+r.inn,ee=X(u.id,f().ins,f().outs),ie=r.after<=0?"out":q(u.min)>0&&r.after<=q(u.min)||C<1?"crit":C<2?"low":r.out?"ok":"idle";return{it:u,...r,nIn:k.length,nOut:E.length,avgM:T,cover:C,turn:L>0?r.out/L:0,use:Ot>0?r.out/Ot:0,lastIn:$t,lastOut:Jt,benefs:te,status:ie,ck:ee,price:ct(u),cat:wt(u)}}),x=[];{let u=new Date(n.slice(0,7)+"-01T00:00:00Z");const r=new Date(a.slice(0,7)+"-01T00:00:00Z");for(let k=0;u<=r&&k<60;k++,u.setUTCMonth(u.getUTCMonth()+1))x.push(u.toISOString().slice(0,7))}const h=x.slice(-12).map(u=>({ym:u,inn:d.filter(r=>xt(r.date)===u).reduce((r,k)=>r+q(k.qty),0),out:c.filter(r=>xt(r.date)===u).reduce((r,k)=>r+q(k.qty),0)})),l=(u,r,k)=>{const E=new Map;return u.forEach(T=>{const C=r(T);if(!C)return;const L=E.get(C)||{k:C,q:0,n:0,items:new Set,v:0};L.q+=q(T.qty),L.n++,L.items.add(T.itemId),L.v+=q(T.qty)*ct(P(T.itemId)),E.set(C,L)}),Array.from(E.values()).sort((T,C)=>C.q-T.q)},w=l(d,u=>u.source||"غير محدد"),g=l(c,u=>D(u.benef).name||"—"),m=_.map(u=>{const r=y.filter(k=>k.cat===u);return{c:u,n:r.length,inn:r.reduce((k,E)=>k+E.inn,0),out:r.reduce((k,E)=>k+E.out,0),val:r.reduce((k,E)=>k+E.after*E.price,0)}}).filter(u=>u.n),b=[];y.forEach(u=>{const r=new Map;if(c.filter(E=>E.itemId===u.it.id).forEach(E=>{const T=D(E.benef).name;r.set(T,(r.get(T)||0)+q(E.qty))}),r.size<3)return;const k=Array.from(r.values()).reduce((E,T)=>E+T,0)/r.size;r.forEach((E,T)=>{E>2*k&&E-k>=2&&b.push({it:u.it,who:T,q:E,avg:k})})});const M={items:y.length,inn:y.reduce((u,r)=>u+r.inn,0),out:y.reduce((u,r)=>u+r.out,0),nIn:d.length,nOut:c.length,out0:y.filter(u=>u.status==="out").length,crit:y.filter(u=>u.status==="crit").length,low:y.filter(u=>u.status==="low").length,idle:y.filter(u=>u.status==="idle").length,benefs:g.length,sources:w.length,val:y.reduce((u,r)=>u+Math.max(0,r.after)*r.price,0),valOut:c.reduce((u,r)=>u+q(r.qty)*ct(P(r.itemId)),0),priced:y.some(u=>u.price>0),neg:y.filter(u=>!u.ck.ok).length,months:s,from:n,to:a};return M.use=M.inn+y.reduce((u,r)=>u+r.before,0)>0?M.out/(M.inn+y.reduce((u,r)=>u+r.before,0)):0,M.health=y.length?Math.round(y.filter(u=>u.status==="ok"||u.status==="idle").length*100/y.length):0,{rows:y,M:h,src:w,ben:g,cats:m,unusual:b,T:M}}const z={out:["نفد","#c62828","#fdecea"],crit:["حرج","#d35400","#fdf0e6"],low:["منخفض","#b9770e","#fdf7e3"],ok:["كاف","#1e8449","#e8f6ee"],idle:["راكد","#607d8b","#eef1f3"]},kt=e=>e?e<1?e.toFixed(2).replace(".",","):v(+e.toFixed(1)):"—",W=e=>e===1/0?"∞":e<=0?"0":e>=24?"+24":e.toFixed(1),V=e=>(Math.round(e*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" د";function It(e,t){t=t||{};const o=t.w||520,n=22,a=t.lab||170,s=Math.max(1,...e.map(i=>i.v));return`<svg viewBox="0 0 ${o} ${e.length*n+6}" width="100%" style="max-width:${o}px;direction:ltr" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal,Arial" font-size="11">${e.map((i,d)=>{const c=Math.max(1,(o-a-60)*i.v/s),y=d*n+3;return`<text x="${o-4}" y="${y+14}" text-anchor="end" fill="#333">${p(String(i.l).slice(0,34))}</text><rect x="${o-a-8-c}" y="${y+3}" width="${c}" height="${n-8}" rx="3" fill="${i.c||t.c||"#2e75b6"}"/><text x="${o-a-12-c}" y="${y+14}" text-anchor="end" fill="#333" font-weight="700">${p(t.fmt?t.fmt(i.v):v(i.v))}</text>`}).join("")}</svg>`}function qt(e){const a=Math.max(1,e.length),s=Math.max(1,...e.map(c=>Math.max(c.inn,c.out))),i=508/a,d=c=>164-130*c/s;return`<svg viewBox="0 0 560 190" width="100%" style="max-width:560px;direction:ltr" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal,Arial" font-size="10">
+      <line x1="26" y1="164" x2="534" y2="164" stroke="#bbb"/>${e.map((c,y)=>{const x=26+y*i+i*.12,h=i*.36;return`<rect x="${x}" y="${d(c.inn)}" width="${h}" height="${164-d(c.inn)}" fill="#2e75b6" rx="2"/><rect x="${x+h+2}" y="${d(c.out)}" width="${h}" height="${164-d(c.out)}" fill="#e67e22" rx="2"/>
+        ${c.inn?`<text x="${x+h/2}" y="${d(c.inn)-2}" text-anchor="middle" fill="#2e75b6">${v(c.inn)}</text>`:""}${c.out?`<text x="${x+h*1.5+2}" y="${d(c.out)-2}" text-anchor="middle" fill="#c0581a">${v(c.out)}</text>`:""}
+        <text x="${26+y*i+i/2}" y="181" text-anchor="middle" fill="#444">${Ct(c.ym)}</text>`}).join("")}
+      <rect x="400" y="4" width="10" height="10" fill="#2e75b6"/><text x="414" y="13" text-anchor="start">الوارد</text><rect x="470" y="4" width="10" height="10" fill="#e67e22"/><text x="484" y="13" text-anchor="start">المنصرف</text></svg>`}function Bt(e){const t=["#2e75b6","#e67e22","#27ae60","#8e44ad","#c0392b","#16a085","#d4ac0d","#7f8c8d"],o=e.reduce((y,x)=>y+x.v,0)||1;let n=-Math.PI/2;const a=70,s=42,i=90,d=90;return`<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><svg viewBox="0 0 180 180" width="160" height="160" xmlns="http://www.w3.org/2000/svg">${e.map((y,x)=>{const h=n+2*Math.PI*y.v/o,l=h-n>Math.PI?1:0,w=(m,b)=>`${i+b*Math.cos(m)} ${d+b*Math.sin(m)}`,g=y.v/o>=.9999?`M ${i-a} ${d} a ${a} ${a} 0 1 0 ${2*a} 0 a ${a} ${a} 0 1 0 ${-2*a} 0 M ${i-s} ${d} a ${s} ${s} 0 1 1 ${2*s} 0 a ${s} ${s} 0 1 1 ${-2*s} 0`:`M ${w(n,a)} A ${a} ${a} 0 ${l} 1 ${w(h,a)} L ${w(h,s)} A ${s} ${s} 0 ${l} 0 ${w(n,s)} Z`;return n=h,`<path d="${g}" fill="${t[x%t.length]}" fill-rule="evenodd"/>`}).join("")}<text x="90" y="95" text-anchor="middle" font-size="14" font-weight="700" font-family="Tajawal,Arial">${v(o)}</text></svg>
+      <div style="font-size:12px;line-height:1.9">${e.map((y,x)=>`<div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${t[x%t.length]};margin-left:6px"></span>${p(y.l)}: <b>${v(y.v)}</b> (${Math.round(y.v*100/o)}%)</div>`).join("")}</div></div>`}window.Stock.summary=()=>{tt(DB);const e=f().items.filter(et),t=f().equip||[];return{items:e.length,empty:e.filter(o=>lt(o.id)<=0).length,ins:f().ins.length,outs:f().outs.length,equip:t.length,assigned:t.filter(o=>o.empId).length,broken:t.filter(o=>o.status==="panne").length}};const et=e=>q(e.opening)>0||f().ins.some(t=>t.itemId===e.id);function X(e,t,o,n){const a=P(e);let s=n!=null?q(n):q(a&&a.opening);const i=[];t.forEach(d=>{d.itemId===e&&i.push([d.date||"",0,q(d.qty)])}),o.forEach(d=>{d.itemId===e&&i.push([d.date||"",1,-q(d.qty)])}),i.sort((d,c)=>d[0].localeCompare(c[0])||d[1]-c[1]);for(const d of i)if(s+=d[2],s<-1e-9)return{ok:!1,date:d[0],bal:s};return{ok:!0,bal:s}}const it=(e,t)=>`لا توجد كمية كافية من «${p(j(e))}»: الرصيد سيصبح ${v(t.bal)} بتاريخ ${O(t.date)}`;function Lt(){return{emps:sortedEmps().map(t=>({k:"e:"+t.id,name:fullName(t),ppr:t.ppr||"",role:t.cadre||t.task||""}))}}const ut=e=>{if(!e)return null;if(e==="x:other")return{name:G,ppr:"",role:""};const[t,o]=e.split(":");if(t==="e"){const n=empById(o);return n?{empId:n.id,name:fullName(n),ppr:n.ppr||"",role:n.cadre||n.task||""}:null}if(t==="b"){const n=f().benefs.find(a=>a.id===o);return n?{benefId:n.id,name:n.name,ppr:n.ppr||"",role:n.role||""}:null}return null},Z=e=>e?e.empId?"e:"+e.empId:e.benefId?"b:"+e.benefId:e.name===G?"x:other":"n:"+e.name:"",D=e=>{if(e&&e.empId){const t=empById(e.empId);if(t)return{name:fullName(t),ppr:t.ppr||"",role:t.cadre||t.task||""}}if(e&&e.benefId){const t=f().benefs.find(o=>o.id===e.benefId);if(t)return{name:t.name,ppr:t.ppr||"",role:t.role||""}}return e||{name:"—",ppr:""}},Nt=(e,t)=>{const{emps:o}=Lt(),n=s=>`<option value="${p(s.k)}" ${s.k===t?"selected":""}>${p(s.name)}${s.ppr?" — "+p(s.ppr):""}</option>`,a=t&&t.startsWith("n:")?`<option value="${p(t)}" selected>${p(t.slice(2))}</option>`:"";return`<select class="inp" id="${e}"><option value=""></option>
+      ${o.length?`<optgroup label="الموظفون">${o.map(n).join("")}</optgroup>`:""}
+      <optgroup label="أخرى">${a}<option value="x:other" ${t==="x:other"?"selected":""}>${G}</option><option value="x:new">+ إضافة موظف(ة) جديد(ة) إلى لائحة الموظفين...</option></optgroup></select>`};let U="dash";const I={from:"",to:"",item:"",src:"",q:""},St=()=>{const e=MK.syBoundsOf(MK.curSy());I.from=e.from,I.to=MK.syRef()};window.pageStock=function(e,t){tt(DB),t&&t.tab&&(U=t.tab),!I.from&&!I.to&&!I.all&&St(),window.Equip&&Equip.migrate(DB);const o=[["dash","لوحة المؤشرات والتحليل"],["equip","العتاد والأجهزة"],["status","وضعية المخزون"],["ins","سجل الواردات"],["outs","سجل الصادرات"],["settings","المواد والإعدادات"]],n=U==="equip";e.innerHTML=`
+      <div class="page-h"><h1>إدارة العتاد والوسائل التعليمية</h1><span class="sub">${n?`${(f().equip||[]).length} جهاز — ${(f().equip||[]).filter(s=>s.empId).length} مسلم`:`${f().items.length} مادة — ${f().ins.length} وارد — ${f().outs.length} صادر`}</span><span class="sp"></span>
+        ${n?"":`<button class="btn" id="sRep">${ic("print")} المحاضر والتقارير</button>
+        <button class="btn" id="sIn">${ic("inbox")} تسجيل وارد</button>
+        <button class="btn pri" id="sOut">${ic("outbox")} تسليم مواد</button>`}</div>
+      <div class="mk-tabs"><div class="seg" id="sTabs">${o.map(([s,i])=>`<button data-t="${s}" class="${U===s?"on":""}">${i}</button>`).join("")}</div></div>
+      <div id="sBody"></div>`,$$("#sTabs button").forEach(s=>s.onclick=()=>{U=s.dataset.t,go("stock")});const a=$("#sBody");if(n)return window.Equip.tab(a);$("#sIn").onclick=()=>mt(null,()=>go("stock")),$("#sOut").onclick=()=>ft(null,()=>go("stock")),$("#sRep").onclick=()=>go("stockDoc",{kind:U==="ins"?"ins":U==="outs"?"outs":U==="dash"?"analytic":"status"}),{dash:Ht,status:_t,ins:Rt,outs:Pt,settings:zt}[U](a)};const st=e=>`<div class="toolbar mk-period">
+      <label>الفترة من</label><input type="date" class="inp" id="pFrom" value="${p(I.from)}">
+      <label>إلى</label><input type="date" class="inp" id="pTo" value="${p(I.to)}">
       <button class="btn sm" id="pSy">الموسم الحالي</button><button class="btn sm" id="pAll">كل الفترات</button>
-      ${extra || ''}</div>`;
-  const bindPeriod = (root, draw) => {
-    $('#pFrom', root).onchange = e => { flt.from = e.target.value; flt.all = !flt.from && !flt.to; draw(); };
-    $('#pTo', root).onchange = e => { flt.to = e.target.value; flt.all = !flt.from && !flt.to; draw(); };
-    $('#pSy', root).onclick = () => { flt.all = false; resetPeriod(); $('#pFrom', root).value = flt.from; $('#pTo', root).value = flt.to; draw(); };
-    $('#pAll', root).onclick = () => { flt.from = ''; flt.to = ''; flt.all = true; $('#pFrom', root).value = ''; $('#pTo', root).value = ''; draw(); };
-  };
-  const inPeriod = d => (!flt.from || d >= flt.from) && (!flt.to || d <= flt.to);
-  const itemFilterSel = () => `<select class="inp" id="fItem" style="width:auto;max-width:260px"><option value="">كل المواد</option>${sortedItems().map(i => `<option value="${i.id}" ${flt.item === i.id ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select>`;
-
-  /* ---------- 1.9.4: dashboard of indicators ---------- */
-  const dst = { st: '' };
-  const tile = (v, l, c, sub2) => `<div class="card" style="padding:12px 14px;border-top:4px solid ${c || 'var(--sec, #0f6e5a)'}"><div style="font-size:24px;font-weight:800;color:${c || 'inherit'}">${v}</div><div style="font-size:12.5px;font-weight:700">${l}</div>${sub2 ? `<div class="muted" style="font-size:11.5px">${sub2}</div>` : ''}</div>`;
-  const badge = k => `<span style="display:inline-block;padding:1px 9px;border-radius:10px;font-size:11.5px;font-weight:700;color:${STATUS[k][1]};background:${STATUS[k][2]}">${STATUS[k][0]}</span>`;
-  function tabDash(b) {
-    b.innerHTML = `<div class="card" style="margin-bottom:12px">${periodBar(`<span class="sp" style="flex:1"></span><button class="btn sm" id="xAn">${ic('down')} تصدير المؤشرات Excel</button><button class="btn sm pri" id="pAn">${ic('print')} التقرير التحليلي</button>`)}</div><div id="anB"></div>`;
-    const draw = () => {
-      const A = analytics(flt.from, flt.to), T = A.T;
-      if (!A.rows.length) { $('#anB', b).innerHTML = '<div class="empty-state">لا توجد معطيات بعد: أضف المواد وسجل الواردات والصادرات (أو استورد ملف برنامج تدبير المخزون من «المواد والإعدادات»).</div>'; return; }
-      const al = [];
-      A.rows.filter(r => r.status === 'out').forEach(r => al.push(['#c62828', `نفدت المادة <b>${esc(r.it.name)}</b>${r.avgM ? ` (معدل الاستهلاك ${q(r.avgM.toFixed(1))} ${esc(r.it.unit || '')} في الشهر)` : ''}: يلزم التزود.`]));
-      A.rows.filter(r => r.status === 'crit').forEach(r => al.push(['#d35400', `<b>${esc(r.it.name)}</b>: الرصيد ${q(r.after)} ${esc(r.it.unit || '')} يكفي ${covTxt(r.cover)} شهر${num(r.it.min) > 0 && r.after <= num(r.it.min) ? ` — تحت الحد الأدنى (${q(r.it.min)})` : ''}.`]));
-      A.rows.filter(r => !r.ck.ok).forEach(r => al.push(['#8e44ad', `<b>${esc(r.it.name)}</b>: صادر قبل وصول الكمية (الرصيد ${q(r.ck.bal)} بتاريخ ${fmtDate(r.ck.date)}) — راجع التواريخ أو أدخل الرصيد الأولي.`]));
-      A.unusual.slice(0, 8).forEach(u => al.push(['#b9770e', `استهلاك مرتفع: <b>${esc(u.who)}</b> تسلم ${q(u.q)} من «${esc(u.it.name)}» (المعدل ${q(u.avg.toFixed(1))}).`]));
-      A.rows.filter(r => r.status === 'idle' && r.after > 0).slice(0, 6).forEach(r => al.push(['#607d8b', `مادة راكدة: <b>${esc(r.it.name)}</b> (${q(r.after)} ${esc(r.it.unit || '')}) لم تُسلم خلال الفترة.`]));
-      const L = A.rows.filter(r => !dst.st || r.status === dst.st).sort((x, y) => ['out', 'crit', 'low', 'ok', 'idle'].indexOf(x.status) - ['out', 'crit', 'low', 'ok', 'idle'].indexOf(y.status) || x.cover - y.cover);
-      $('#anB', b).innerHTML = `
+      ${e||""}</div>`,nt=(e,t)=>{$("#pFrom",e).onchange=o=>{I.from=o.target.value,I.all=!I.from&&!I.to,t()},$("#pTo",e).onchange=o=>{I.to=o.target.value,I.all=!I.from&&!I.to,t()},$("#pSy",e).onclick=()=>{I.all=!1,St(),$("#pFrom",e).value=I.from,$("#pTo",e).value=I.to,t()},$("#pAll",e).onclick=()=>{I.from="",I.to="",I.all=!0,$("#pFrom",e).value="",$("#pTo",e).value="",t()}},at=e=>(!I.from||e>=I.from)&&(!I.to||e<=I.to),Mt=()=>`<select class="inp" id="fItem" style="width:auto;max-width:260px"><option value="">كل المواد</option>${H().map(e=>`<option value="${e.id}" ${I.item===e.id?"selected":""}>${p(e.name)}</option>`).join("")}</select>`,ot={st:""},R=(e,t,o,n)=>`<div class="card" style="padding:12px 14px;border-top:4px solid ${o||"var(--sec, #0f6e5a)"}"><div style="font-size:24px;font-weight:800;color:${o||"inherit"}">${e}</div><div style="font-size:12.5px;font-weight:700">${t}</div>${n?`<div class="muted" style="font-size:11.5px">${n}</div>`:""}</div>`,Ft=e=>`<span style="display:inline-block;padding:1px 9px;border-radius:10px;font-size:11.5px;font-weight:700;color:${z[e][1]};background:${z[e][2]}">${z[e][0]}</span>`;function Ht(e){e.innerHTML=`<div class="card" style="margin-bottom:12px">${st(`<span class="sp" style="flex:1"></span><button class="btn sm" id="xAn">${ic("down")} تصدير المؤشرات Excel</button><button class="btn sm pri" id="pAn">${ic("print")} التقرير التحليلي</button>`)}</div><div id="anB"></div>`;const t=()=>{const o=rt(I.from,I.to),n=o.T;if(!o.rows.length){$("#anB",e).innerHTML='<div class="empty-state">لا توجد معطيات بعد: أضف المواد وسجل الواردات والصادرات (أو استورد ملف برنامج تدبير المخزون من «المواد والإعدادات»).</div>';return}const a=[];o.rows.filter(i=>i.status==="out").forEach(i=>a.push(["#c62828",`نفدت المادة <b>${p(i.it.name)}</b>${i.avgM?` (معدل الاستهلاك ${v(i.avgM.toFixed(1))} ${p(i.it.unit||"")} في الشهر)`:""}: يلزم التزود.`])),o.rows.filter(i=>i.status==="crit").forEach(i=>a.push(["#d35400",`<b>${p(i.it.name)}</b>: الرصيد ${v(i.after)} ${p(i.it.unit||"")} يكفي ${W(i.cover)} شهر${q(i.it.min)>0&&i.after<=q(i.it.min)?` — تحت الحد الأدنى (${v(i.it.min)})`:""}.`])),o.rows.filter(i=>!i.ck.ok).forEach(i=>a.push(["#8e44ad",`<b>${p(i.it.name)}</b>: صادر قبل وصول الكمية (الرصيد ${v(i.ck.bal)} بتاريخ ${O(i.ck.date)}) — راجع التواريخ أو أدخل الرصيد الأولي.`])),o.unusual.slice(0,8).forEach(i=>a.push(["#b9770e",`استهلاك مرتفع: <b>${p(i.who)}</b> تسلم ${v(i.q)} من «${p(i.it.name)}» (المعدل ${v(i.avg.toFixed(1))}).`])),o.rows.filter(i=>i.status==="idle"&&i.after>0).slice(0,6).forEach(i=>a.push(["#607d8b",`مادة راكدة: <b>${p(i.it.name)}</b> (${v(i.after)} ${p(i.it.unit||"")}) لم تُسلم خلال الفترة.`]));const s=o.rows.filter(i=>!ot.st||i.status===ot.st).sort((i,d)=>["out","crit","low","ok","idle"].indexOf(i.status)-["out","crit","low","ok","idle"].indexOf(d.status)||i.cover-d.cover);$("#anB",e).innerHTML=`
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
-          ${tile(T.items, 'مواد متداولة', '#0f6e5a', `${A.cats.length} صنف`)}
-          ${tile(q(T.inn), 'الكمية الواردة', '#2e75b6', `${T.nIn} عملية — ${T.sources} مصدر`)}
-          ${tile(q(T.out), 'الكمية المنصرفة', '#e67e22', `${T.nOut} عملية — ${T.benefs} مستفيد(ة)`)}
-          ${tile(Math.round(T.use * 100) + '%', 'نسبة الاستهلاك', '#8e44ad', 'المنصرف ÷ (الرصيد السابق + الوارد)')}
-          ${tile(T.health + '%', 'مؤشر سلامة المخزون', T.health >= 70 ? '#1e8449' : T.health >= 40 ? '#b9770e' : '#c62828', 'مواد بوضعية كافية')}
-          ${tile(T.out0, 'مواد نفدت', T.out0 ? '#c62828' : '#1e8449')}
-          ${tile(T.crit, 'مواد في وضعية حرجة', T.crit ? '#d35400' : '#1e8449', 'تكفي أقل من شهر أو تحت الحد الأدنى')}
-          ${tile(T.low, 'مواد منخفضة', T.low ? '#b9770e' : '#1e8449', 'تكفي أقل من شهرين')}
-          ${T.priced ? tile(dh(T.val), 'قيمة المخزون الحالي', '#16a085', `قيمة المنصرف: ${dh(T.valOut)}`) : ''}
+          ${R(n.items,"مواد متداولة","#0f6e5a",`${o.cats.length} صنف`)}
+          ${R(v(n.inn),"الكمية الواردة","#2e75b6",`${n.nIn} عملية — ${n.sources} مصدر`)}
+          ${R(v(n.out),"الكمية المنصرفة","#e67e22",`${n.nOut} عملية — ${n.benefs} مستفيد(ة)`)}
+          ${R(Math.round(n.use*100)+"%","نسبة الاستهلاك","#8e44ad","المنصرف ÷ (الرصيد السابق + الوارد)")}
+          ${R(n.health+"%","مؤشر سلامة المخزون",n.health>=70?"#1e8449":n.health>=40?"#b9770e":"#c62828","مواد بوضعية كافية")}
+          ${R(n.out0,"مواد نفدت",n.out0?"#c62828":"#1e8449")}
+          ${R(n.crit,"مواد في وضعية حرجة",n.crit?"#d35400":"#1e8449","تكفي أقل من شهر أو تحت الحد الأدنى")}
+          ${R(n.low,"مواد منخفضة",n.low?"#b9770e":"#1e8449","تكفي أقل من شهرين")}
+          ${n.priced?R(V(n.val),"قيمة المخزون الحالي","#16a085",`قيمة المنصرف: ${V(n.valOut)}`):""}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin-bottom:12px">
-          <div class="card"><div class="card-h"><h3>الوارد والمنصرف حسب الشهر</h3></div><div class="card-b">${monthsSvg(A.M)}</div></div>
-          <div class="card"><div class="card-h"><h3>أكثر المواد استهلاكا</h3></div><div class="card-b">${hbarsSvg(A.rows.filter(r => r.out).sort((x, y) => y.out - x.out).slice(0, 8).map(r => ({ l: r.it.name, v: r.out })), { c: '#e67e22' }) || '<span class="muted">لا صادرات</span>'}</div></div>
-          <div class="card"><div class="card-h"><h3>الواردات حسب المصدر</h3></div><div class="card-b">${A.src.length ? donutSvg(A.src.slice(0, 7).map(x => ({ l: x.k, v: x.q })).concat(A.src.length > 7 ? [{ l: 'مصادر أخرى', v: A.src.slice(7).reduce((a, x) => a + x.q, 0) }] : [])) : '<span class="muted">لا واردات</span>'}</div></div>
-          <div class="card"><div class="card-h"><h3>المستفيدون الأكثر تسلما</h3></div><div class="card-b">${A.ben.length ? hbarsSvg(A.ben.slice(0, 8).map(x => ({ l: x.k, v: x.q })), { c: '#8e44ad' }) : '<span class="muted">لا صادرات</span>'}</div></div>
+          <div class="card"><div class="card-h"><h3>الوارد والمنصرف حسب الشهر</h3></div><div class="card-b">${qt(o.M)}</div></div>
+          <div class="card"><div class="card-h"><h3>أكثر المواد استهلاكا</h3></div><div class="card-b">${It(o.rows.filter(i=>i.out).sort((i,d)=>d.out-i.out).slice(0,8).map(i=>({l:i.it.name,v:i.out})),{c:"#e67e22"})||'<span class="muted">لا صادرات</span>'}</div></div>
+          <div class="card"><div class="card-h"><h3>الواردات حسب المصدر</h3></div><div class="card-b">${o.src.length?Bt(o.src.slice(0,7).map(i=>({l:i.k,v:i.q})).concat(o.src.length>7?[{l:"مصادر أخرى",v:o.src.slice(7).reduce((i,d)=>i+d.q,0)}]:[])):'<span class="muted">لا واردات</span>'}</div></div>
+          <div class="card"><div class="card-h"><h3>المستفيدون الأكثر تسلما</h3></div><div class="card-b">${o.ben.length?It(o.ben.slice(0,8).map(i=>({l:i.k,v:i.q})),{c:"#8e44ad"}):'<span class="muted">لا صادرات</span>'}</div></div>
         </div>
-        ${al.length ? `<div class="card" style="margin-bottom:12px;border-color:#f0c36d"><div class="card-h"><h3>⚠️ تنبيهات وتوصيات (${al.length})</h3></div><div class="card-b" style="line-height:1.9;font-size:13px">${al.map(([c, t]) => `<div style="border-right:4px solid ${c};padding:2px 10px;margin-bottom:4px">${t}</div>`).join('')}</div></div>` : ''}
-        <div class="card"><div class="card-h"><h3>مؤشرات كل مادة</h3><span class="sp"></span><div class="seg" id="anSt">${[['', 'الكل']].concat(Object.keys(STATUS).map(k => [k, STATUS[k][0]])).map(([k, l]) => `<button data-s="${k}" class="${dst.st === k ? 'on' : ''}">${l} (${k ? A.rows.filter(r => r.status === k).length : A.rows.length})</button>`).join('')}</div></div>
-          <div style="overflow:auto"><table class="tbl compact"><thead><tr><th>المادة</th><th>الصنف</th><th>الرصيد السابق</th><th>الوارد</th><th>المنصرف</th><th>الرصيد الحالي</th><th>معدل الاستهلاك الشهري</th><th>التغطية (شهر)</th><th>معدل الدوران</th><th>المستفيدون</th><th>آخر وارد</th><th>آخر تسليم</th>${T.priced ? '<th>القيمة</th>' : ''}<th>الوضعية</th></tr></thead><tbody>
-          ${L.map(r => `<tr data-id="${r.it.id}"><td><b>${esc(r.it.name)}</b> <small class="muted">${esc(r.it.unit || '')}</small></td><td class="muted" style="font-size:11.5px">${esc(r.cat)}</td><td class="num">${q(r.before)}</td><td class="num" style="color:#2e75b6">${q(r.inn)}</td><td class="num" style="color:#c0581a">${q(r.out)}</td><td class="num"><b>${q(r.after)}</b></td>
-            <td class="num">${avgTxt(r.avgM)}</td><td class="num"><b>${covTxt(r.cover)}</b></td><td class="num">${r.turn ? r.turn.toFixed(2) : '—'}</td><td class="num">${r.benefs || '—'}</td><td class="num" style="font-size:11.5px">${r.lastIn ? fmtDate(r.lastIn) : '—'}</td><td class="num" style="font-size:11.5px">${r.lastOut ? fmtDate(r.lastOut) : '—'}</td>${T.priced ? `<td class="num">${r.price ? dh(Math.max(0, r.after) * r.price) : '—'}</td>` : ''}<td>${badge(r.status)}</td></tr>`).join('')}
+        ${a.length?`<div class="card" style="margin-bottom:12px;border-color:#f0c36d"><div class="card-h"><h3>⚠️ تنبيهات وتوصيات (${a.length})</h3></div><div class="card-b" style="line-height:1.9;font-size:13px">${a.map(([i,d])=>`<div style="border-right:4px solid ${i};padding:2px 10px;margin-bottom:4px">${d}</div>`).join("")}</div></div>`:""}
+        <div class="card"><div class="card-h"><h3>مؤشرات كل مادة</h3><span class="sp"></span><div class="seg" id="anSt">${[["","الكل"]].concat(Object.keys(z).map(i=>[i,z[i][0]])).map(([i,d])=>`<button data-s="${i}" class="${ot.st===i?"on":""}">${d} (${i?o.rows.filter(c=>c.status===i).length:o.rows.length})</button>`).join("")}</div></div>
+          <div style="overflow:auto"><table class="tbl compact"><thead><tr><th>المادة</th><th>الصنف</th><th>الرصيد السابق</th><th>الوارد</th><th>المنصرف</th><th>الرصيد الحالي</th><th>معدل الاستهلاك الشهري</th><th>التغطية (شهر)</th><th>معدل الدوران</th><th>المستفيدون</th><th>آخر وارد</th><th>آخر تسليم</th>${n.priced?"<th>القيمة</th>":""}<th>الوضعية</th></tr></thead><tbody>
+          ${s.map(i=>`<tr data-id="${i.it.id}"><td><b>${p(i.it.name)}</b> <small class="muted">${p(i.it.unit||"")}</small></td><td class="muted" style="font-size:11.5px">${p(i.cat)}</td><td class="num">${v(i.before)}</td><td class="num" style="color:#2e75b6">${v(i.inn)}</td><td class="num" style="color:#c0581a">${v(i.out)}</td><td class="num"><b>${v(i.after)}</b></td>
+            <td class="num">${kt(i.avgM)}</td><td class="num"><b>${W(i.cover)}</b></td><td class="num">${i.turn?i.turn.toFixed(2):"—"}</td><td class="num">${i.benefs||"—"}</td><td class="num" style="font-size:11.5px">${i.lastIn?O(i.lastIn):"—"}</td><td class="num" style="font-size:11.5px">${i.lastOut?O(i.lastOut):"—"}</td>${n.priced?`<td class="num">${i.price?V(Math.max(0,i.after)*i.price):"—"}</td>`:""}<td>${Ft(i.status)}</td></tr>`).join("")}
           </tbody></table></div>
-          <div class="muted" style="font-size:11.5px;padding:8px 14px;line-height:1.8">معدل الاستهلاك الشهري = المنصرف خلال الفترة ÷ عدد أشهرها (${T.months.toFixed(1)} شهر). التغطية = الرصيد الحالي ÷ معدل الاستهلاك الشهري. معدل الدوران = المنصرف ÷ متوسط الرصيد. الوضعية: نفد (الرصيد صفر)، حرج (تكفي أقل من شهر أو تحت الحد الأدنى)، منخفض (أقل من شهرين)، كاف، راكد (لم تُسلم خلال الفترة).</div></div>`;
-      $$('#anSt [data-s]', b).forEach(x => x.onclick = () => { dst.st = x.dataset.s; draw(); });
-      $$('#anB tr[data-id]', b).forEach(x => x.ondblclick = () => go('stockDoc', { kind: 'card', itemId: x.dataset.id }));
-    };
-    bindPeriod(b, draw); draw();
-    $('#pAn', b).onclick = () => go('stockDoc', { kind: 'analytic' });
-    $('#xAn', b).onclick = async () => {
-      const A = analytics(flt.from, flt.to);
-      const rows = [['المادة', 'الوحدة', 'الصنف', 'الرصيد السابق', 'الوارد', 'المنصرف', 'الرصيد الحالي', 'معدل الاستهلاك الشهري', 'التغطية (شهر)', 'معدل الدوران', 'المستفيدون', 'آخر وارد', 'آخر تسليم', 'ثمن الوحدة', 'القيمة', 'الوضعية']]
-        .concat(A.rows.map(r => [r.it.name, r.it.unit || '', r.cat, q(r.before), q(r.inn), q(r.out), q(r.after), r.avgM.toFixed(2), covTxt(r.cover), r.turn.toFixed(2), String(r.benefs), r.lastIn ? fmtDate(r.lastIn) : '', r.lastOut ? fmtDate(r.lastOut) : '', r.price ? String(r.price) : '', r.price ? (Math.max(0, r.after) * r.price).toFixed(2) : '', STATUS[r.status][0]]));
-      const x = await window.api.saveXlsx(rows, `مؤشرات_المخزون_${flt.to || today()}.xlsx`, 'المؤشرات', [34, 10, 22, 12, 10, 10, 12, 14, 12, 12, 11, 13, 13, 11, 12, 10]);
-      if (x && x.ok) toast('تم التصدير إلى Excel');
-    };
-  }
-
-  /* ---------- status ---------- */
-  function statusRows(from, to) {
-    return sortedItems().map(i => ({ it: i, ...sums(i.id, from, to) }));
-  }
-  function tabStatus(b) {
-    b.innerHTML = `<div class="card">${periodBar(`<span class="sp" style="flex:1"></span><button class="btn sm" id="xSt">${ic('down')} تصدير Excel</button><button class="btn sm" id="pSt">${ic('print')} طباعة الوضعية</button>`)}
-      <div class="card-b kpis" id="stK"></div><div id="stT"></div></div>`;
-    const draw = () => {
-      const rows = statusRows(flt.from, flt.to);
-      const out0 = rows.filter(r => r.after <= 0 && used(r.it)).length, low = rows.filter(r => r.after > 0 && num(r.it.min) > 0 && r.after <= num(r.it.min)).length;
-      $('#stK').innerHTML = `<div>عدد المواد: <b>${rows.length}</b></div><div>الوارد خلال الفترة: <b>${q(rows.reduce((s, r) => s + r.inn, 0))}</b></div>
-        <div>المنصرف خلال الفترة: <b>${q(rows.reduce((s, r) => s + r.out, 0))}</b></div><div>مواد نفدت: <b style="color:var(--red)">${out0}</b></div>${low ? `<div>تحت الحد الأدنى: <b style="color:var(--gold)">${low}</b></div>` : ''}`;
-      $('#stT').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th style="width:40px">#</th><th>المادة</th><th>الوحدة</th><th>الرصيد السابق</th><th>الوارد</th><th>المنصرف</th><th>الرصيد الحالي</th><th></th></tr></thead><tbody>
-        ${rows.map((r, i) => `<tr data-id="${r.it.id}"><td class="muted num">${i + 1}</td><td><b>${esc(r.it.name)}</b></td><td class="muted">${esc(r.it.unit || '')}</td>
-          <td class="num">${q(r.before)}</td><td class="num" style="color:${r.inn ? 'var(--pri)' : 'inherit'}">${q(r.inn)}</td><td class="num" style="color:${r.out ? 'var(--red)' : 'inherit'}">${q(r.out)}</td>
-          <td class="num"><b>${q(r.after)}</b> ${r.after <= 0 && used(r.it) ? '<span class="tag inquiry">نفد</span>' : (num(r.it.min) > 0 && r.after <= num(r.it.min) ? '<span class="tag certificate">منخفض</span>' : '')}</td>
-          <td class="act"><button class="btn sm" data-a="in">${ic('inbox')} وارد</button> <button class="btn sm" data-a="out">${ic('outbox')} تسليم</button> <button class="btn sm" data-a="who">المستفيدون</button></td></tr>`).join('')}
-        </tbody></table>` : `<div class="empty-state">لا توجد مواد بعد. أضف المواد من «المواد والإعدادات» أو سجل وارداً جديداً، أو استورد بياناتك من Excel.</div>`;
-      $$('#stT tr[data-id]').forEach(tr => $$('[data-a]', tr).forEach(btn => btn.onclick = () => {
-        const id = tr.dataset.id;
-        if (btn.dataset.a === 'in') inForm(null, draw, { itemId: id });
-        if (btn.dataset.a === 'out') outForm(null, draw, { itemId: id });
-        if (btn.dataset.a === 'who') go('stockDoc', { kind: 'item', itemId: id });
-      }));
-    };
-    bindPeriod(b, draw);
-    $('#xSt').onclick = exportStatus;
-    $('#pSt').onclick = () => go('stockDoc', { kind: 'status' });
-    draw();
-  }
-
-  /* ---------- arrivals ---------- */
-  function tabIns(b) {
-    b.innerHTML = `<div class="card">${periodBar()}
-      <div class="toolbar">${itemFilterSel()}
-        <select class="inp" id="fSrc" style="width:auto;max-width:240px"><option value="">كل المصادر</option>${SD().sources.map(s => `<option ${flt.src === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-        <span style="flex:1"></span><button class="btn sm" id="xIn">${ic('down')} تصدير Excel</button><button class="btn sm" id="pIn">${ic('print')} طباعة السجل</button></div>
-      <div id="inT"></div></div>`;
-    const draw = () => {
-      const list = SD().ins.filter(r => inPeriod(r.date) && (!flt.item || r.itemId === flt.item) && (!flt.src || r.source === flt.src))
-        .sort((a, c) => (c.date || '').localeCompare(a.date || '') || (c.created || '').localeCompare(a.created || ''));
-      $('#inT').innerHTML = list.length ? `<table class="tbl"><thead><tr><th style="width:40px">#</th><th>تاريخ الوصول</th><th>المادة</th><th>المصدر</th><th>الكمية</th><th>المرجع</th><th></th></tr></thead><tbody>
-        ${list.map((r, i) => `<tr data-id="${r.id}"><td class="muted num">${list.length - i}</td><td class="num">${fmtDate(r.date)}</td><td><b>${esc(itemName(r.itemId))}</b></td><td>${esc(r.source || '')}</td>
-          <td class="num"><b>${q(r.qty)}</b> <small class="muted">${esc(itemUnit(r.itemId))}</small></td><td class="muted">${esc(r.ref || '')}${r.note ? ` <small>(${esc(r.note)})</small>` : ''}</td>
-          <td class="act"><button class="btn sm" data-a="edit">${ic('edit')}</button> <button class="btn sm danger icon" data-a="del">${ic('trash')}</button></td></tr>`).join('')}</tbody></table>`
-        : '<div class="empty-state">لا توجد واردات خلال هذه الفترة</div>';
-      $$('#inT tr[data-id]').forEach(tr => {
-        const r = SD().ins.find(x => x.id === tr.dataset.id);
-        $$('[data-a]', tr).forEach(btn => btn.onclick = async () => {
-          if (btn.dataset.a === 'edit') inForm(r, draw);
-          if (btn.dataset.a === 'del') {
-            const c = check(r.itemId, SD().ins.filter(x => x.id !== r.id), SD().outs);
-            if (!c.ok) return toast('لا يمكن حذف هذا الوارد: ' + checkMsg(r.itemId, c).replace(/<[^>]+>/g, ''), true);
-            if (!await confirmBox(`حذف وارد <b>${esc(itemName(r.itemId))}</b> (${q(r.qty)}) بتاريخ ${fmtDate(r.date)}؟`, 'حذف')) return;
-            SD().ins = SD().ins.filter(x => x.id !== r.id); persist(); draw(); toast('تم الحذف');
-          }
-        });
-      });
-    };
-    bindPeriod(b, draw);
-    $('#fItem').onchange = e => { flt.item = e.target.value; draw(); };
-    $('#fSrc').onchange = e => { flt.src = e.target.value; draw(); };
-    $('#xIn').onclick = exportIns;
-    $('#pIn').onclick = () => go('stockDoc', { kind: 'ins', itemId: flt.item, src: flt.src });
-    draw();
-  }
-
-  /* ---------- deliveries ---------- */
-  function tabOuts(b) {
-    b.innerHTML = `<div class="card">${periodBar()}
-      <div class="toolbar">${itemFilterSel()}
-        <div class="search">${ic('search')}<input class="inp" id="fQ" placeholder="بحث باسم المستفيد أو رقم التأجير..." value="${esc(flt.q)}"></div>
-        <span style="flex:1"></span><button class="btn sm" id="xOut">${ic('down')} تصدير Excel</button><button class="btn sm" id="pOut">${ic('print')} تقرير المواد المسلمة</button></div>
-      <div id="outT"></div></div>`;
-    const draw = () => {
-      const qq = flt.q.trim().toLowerCase();
-      const list = SD().outs.filter(r => inPeriod(r.date) && (!flt.item || r.itemId === flt.item) && (!qq || (benefLive(r.benef).name + ' ' + (benefLive(r.benef).ppr || '')).toLowerCase().includes(qq)))
-        .sort((a, c) => (c.date || '').localeCompare(a.date || '') || (c.created || '').localeCompare(a.created || ''));
-      $('#outT').innerHTML = list.length ? `<table class="tbl"><thead><tr><th style="width:40px">#</th><th>تاريخ التسليم</th><th>المستفيد(ة)</th><th>رقم التأجير</th><th>المادة</th><th>الكمية</th><th></th></tr></thead><tbody>
-        ${list.map((r, i) => { const bl = benefLive(r.benef); return `<tr data-id="${r.id}"><td class="muted num">${list.length - i}</td><td class="num">${fmtDate(r.date)}</td><td><b>${esc(bl.name)}</b></td><td class="num">${esc(bl.ppr || '')}</td>
-          <td>${esc(itemName(r.itemId))}</td><td class="num"><b>${q(r.qty)}</b> <small class="muted">${esc(itemUnit(r.itemId))}</small></td>
-          <td class="act"><button class="btn sm" data-a="pv">${ic('print')} المحضر</button> <button class="btn sm" data-a="edit">${ic('edit')}</button> <button class="btn sm danger icon" data-a="del">${ic('trash')}</button></td></tr>`; }).join('')}</tbody></table>`
-        : '<div class="empty-state">لا توجد مواد مسلمة خلال هذه الفترة</div>';
-      $$('#outT tr[data-id]').forEach(tr => {
-        const r = SD().outs.find(x => x.id === tr.dataset.id);
-        $$('[data-a]', tr).forEach(btn => btn.onclick = async () => {
-          if (btn.dataset.a === 'pv') go('stockDoc', { kind: 'pv', benefKey: benefKeyOf(r.benef), from: r.date, to: r.date, batch: r.batch });
-          if (btn.dataset.a === 'edit') outForm(r, draw);
-          if (btn.dataset.a === 'del') {
-            if (!await confirmBox(`حذف تسليم <b>${esc(itemName(r.itemId))}</b> (${q(r.qty)}) إلى ${esc(benefLive(r.benef).name)}؟`, 'حذف')) return;
-            SD().outs = SD().outs.filter(x => x.id !== r.id); persist(); draw(); toast('تم الحذف');
-          }
-        });
-      });
-    };
-    bindPeriod(b, draw);
-    $('#fItem').onchange = e => { flt.item = e.target.value; draw(); };
-    $('#fQ').oninput = e => { flt.q = e.target.value; draw(); };
-    $('#xOut').onclick = exportOuts;
-    $('#pOut').onclick = () => go('stockDoc', { kind: 'outs', itemId: flt.item });
-    draw();
-  }
-
-  /* ---------- arrival form (several items at once) ---------- */
-  function inForm(rec, after, preset) {
-    const body = document.createElement('div');
-    const lines = rec ? [{ item: itemName(rec.itemId), qty: rec.qty }] : [{ item: preset && preset.itemId ? itemName(preset.itemId) : '', qty: '' }];
-    body.innerHTML = `<div class="fgrid">
-      <div class="fld"><label>تاريخ الوصول <span style="color:var(--red)">*</span></label><input class="inp" type="date" id="iDate" value="${esc(rec ? rec.date : today())}"></div>
-      <div class="fld"><label>المصدر <span style="color:var(--red)">*</span></label>${(() => {
-        const cur = rec ? rec.source || '' : '', known = SD().sources, other = known.filter(x => !ALL_SOURCES.includes(x));
-        const sec = !!(window.Cyc && Cyc.isSec()), grp = SOURCE_GROUPS.map(([g, L]) => [g, L.filter(x => known.includes(x) && !(sec && x !== cur && /التعاونية المدرسية|التعليم الأولي/.test(x)))]).filter(([, L]) => L.length).concat(other.length ? [['مصادر أضفتها', other]] : []);
-        const isOther = !!cur && !known.includes(cur);
-        return `<select class="inp" id="iSrcS"><option value="">— اختر المصدر —</option>${grp.map(([g, L]) => `<optgroup label="${esc(g)}">${L.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>`).join('')}<option value="__other" ${isOther ? 'selected' : ''}>✎ مصدر آخر (يكتب)…</option></select>
-          <input class="inp" id="iSrc" placeholder="اكتب المصدر الآخر" value="${esc(isOther ? cur : '')}" style="margin-top:6px;${isOther ? '' : 'display:none'}">`;
-      })()}</div>
-      <div class="fld"><label>المرجع (رقم الإرسالية / المحضر...)</label><input class="inp" id="iRef" value="${esc(rec ? rec.ref || '' : '')}"></div>
-      <div class="fld"><label>ملاحظة</label><input class="inp" id="iNote" value="${esc(rec ? rec.note || '' : '')}"></div>
+          <div class="muted" style="font-size:11.5px;padding:8px 14px;line-height:1.8">معدل الاستهلاك الشهري = المنصرف خلال الفترة ÷ عدد أشهرها (${n.months.toFixed(1)} شهر). التغطية = الرصيد الحالي ÷ معدل الاستهلاك الشهري. معدل الدوران = المنصرف ÷ متوسط الرصيد. الوضعية: نفد (الرصيد صفر)، حرج (تكفي أقل من شهر أو تحت الحد الأدنى)، منخفض (أقل من شهرين)، كاف، راكد (لم تُسلم خلال الفترة).</div></div>`,$$("#anSt [data-s]",e).forEach(i=>i.onclick=()=>{ot.st=i.dataset.s,t()}),$$("#anB tr[data-id]",e).forEach(i=>i.ondblclick=()=>go("stockDoc",{kind:"card",itemId:i.dataset.id}))};nt(e,t),t(),$("#pAn",e).onclick=()=>go("stockDoc",{kind:"analytic"}),$("#xAn",e).onclick=async()=>{const o=rt(I.from,I.to),n=[["المادة","الوحدة","الصنف","الرصيد السابق","الوارد","المنصرف","الرصيد الحالي","معدل الاستهلاك الشهري","التغطية (شهر)","معدل الدوران","المستفيدون","آخر وارد","آخر تسليم","ثمن الوحدة","القيمة","الوضعية"]].concat(o.rows.map(s=>[s.it.name,s.it.unit||"",s.cat,v(s.before),v(s.inn),v(s.out),v(s.after),s.avgM.toFixed(2),W(s.cover),s.turn.toFixed(2),String(s.benefs),s.lastIn?O(s.lastIn):"",s.lastOut?O(s.lastOut):"",s.price?String(s.price):"",s.price?(Math.max(0,s.after)*s.price).toFixed(2):"",z[s.status][0]])),a=await window.api.saveXlsx(n,`مؤشرات_المخزون_${I.to||K()}.xlsx`,"المؤشرات",[34,10,22,12,10,10,12,14,12,12,11,13,13,11,12,10]);a&&a.ok&&toast("تم التصدير إلى Excel")}}function pt(e,t){return H().map(o=>({it:o,...dt(o.id,e,t)}))}function _t(e){e.innerHTML=`<div class="card">${st(`<span class="sp" style="flex:1"></span><button class="btn sm" id="xSt">${ic("down")} تصدير Excel</button><button class="btn sm" id="pSt">${ic("print")} طباعة الوضعية</button>`)}
+      <div class="card-b kpis" id="stK"></div><div id="stT"></div></div>`;const t=()=>{const o=pt(I.from,I.to),n=o.filter(s=>s.after<=0&&et(s.it)).length,a=o.filter(s=>s.after>0&&q(s.it.min)>0&&s.after<=q(s.it.min)).length;$("#stK").innerHTML=`<div>عدد المواد: <b>${o.length}</b></div><div>الوارد خلال الفترة: <b>${v(o.reduce((s,i)=>s+i.inn,0))}</b></div>
+        <div>المنصرف خلال الفترة: <b>${v(o.reduce((s,i)=>s+i.out,0))}</b></div><div>مواد نفدت: <b style="color:var(--red)">${n}</b></div>${a?`<div>تحت الحد الأدنى: <b style="color:var(--gold)">${a}</b></div>`:""}`,$("#stT").innerHTML=o.length?`<table class="tbl"><thead><tr><th style="width:40px">#</th><th>المادة</th><th>الوحدة</th><th>الرصيد السابق</th><th>الوارد</th><th>المنصرف</th><th>الرصيد الحالي</th><th></th></tr></thead><tbody>
+        ${o.map((s,i)=>`<tr data-id="${s.it.id}"><td class="muted num">${i+1}</td><td><b>${p(s.it.name)}</b></td><td class="muted">${p(s.it.unit||"")}</td>
+          <td class="num">${v(s.before)}</td><td class="num" style="color:${s.inn?"var(--pri)":"inherit"}">${v(s.inn)}</td><td class="num" style="color:${s.out?"var(--red)":"inherit"}">${v(s.out)}</td>
+          <td class="num"><b>${v(s.after)}</b> ${s.after<=0&&et(s.it)?'<span class="tag inquiry">نفد</span>':q(s.it.min)>0&&s.after<=q(s.it.min)?'<span class="tag certificate">منخفض</span>':""}</td>
+          <td class="act"><button class="btn sm" data-a="in">${ic("inbox")} وارد</button> <button class="btn sm" data-a="out">${ic("outbox")} تسليم</button> <button class="btn sm" data-a="who">المستفيدون</button></td></tr>`).join("")}
+        </tbody></table>`:'<div class="empty-state">لا توجد مواد بعد. أضف المواد من «المواد والإعدادات» أو سجل وارداً جديداً، أو استورد بياناتك من Excel.</div>',$$("#stT tr[data-id]").forEach(s=>$$("[data-a]",s).forEach(i=>i.onclick=()=>{const d=s.dataset.id;i.dataset.a==="in"&&mt(null,t,{itemId:d}),i.dataset.a==="out"&&ft(null,t,{itemId:d}),i.dataset.a==="who"&&go("stockDoc",{kind:"item",itemId:d})}))};nt(e,t),$("#xSt").onclick=Vt,$("#pSt").onclick=()=>go("stockDoc",{kind:"status"}),t()}function Rt(e){e.innerHTML=`<div class="card">${st()}
+      <div class="toolbar">${Mt()}
+        <select class="inp" id="fSrc" style="width:auto;max-width:240px"><option value="">كل المصادر</option>${f().sources.map(o=>`<option ${I.src===o?"selected":""}>${p(o)}</option>`).join("")}</select>
+        <span style="flex:1"></span><button class="btn sm" id="xIn">${ic("down")} تصدير Excel</button><button class="btn sm" id="pIn">${ic("print")} طباعة السجل</button></div>
+      <div id="inT"></div></div>`;const t=()=>{const o=f().ins.filter(n=>at(n.date)&&(!I.item||n.itemId===I.item)&&(!I.src||n.source===I.src)).sort((n,a)=>(a.date||"").localeCompare(n.date||"")||(a.created||"").localeCompare(n.created||""));$("#inT").innerHTML=o.length?`<table class="tbl"><thead><tr><th style="width:40px">#</th><th>تاريخ الوصول</th><th>المادة</th><th>المصدر</th><th>الكمية</th><th>المرجع</th><th></th></tr></thead><tbody>
+        ${o.map((n,a)=>`<tr data-id="${n.id}"><td class="muted num">${o.length-a}</td><td class="num">${O(n.date)}</td><td><b>${p(j(n.itemId))}</b></td><td>${p(n.source||"")}</td>
+          <td class="num"><b>${v(n.qty)}</b> <small class="muted">${p(F(n.itemId))}</small></td><td class="muted">${p(n.ref||"")}${n.note?` <small>(${p(n.note)})</small>`:""}</td>
+          <td class="act"><button class="btn sm" data-a="edit">${ic("edit")}</button> <button class="btn sm danger icon" data-a="del">${ic("trash")}</button></td></tr>`).join("")}</tbody></table>`:'<div class="empty-state">لا توجد واردات خلال هذه الفترة</div>',$$("#inT tr[data-id]").forEach(n=>{const a=f().ins.find(s=>s.id===n.dataset.id);$$("[data-a]",n).forEach(s=>s.onclick=async()=>{if(s.dataset.a==="edit"&&mt(a,t),s.dataset.a==="del"){const i=X(a.itemId,f().ins.filter(d=>d.id!==a.id),f().outs);if(!i.ok)return toast("لا يمكن حذف هذا الوارد: "+it(a.itemId,i).replace(/<[^>]+>/g,""),!0);if(!await confirmBox(`حذف وارد <b>${p(j(a.itemId))}</b> (${v(a.qty)}) بتاريخ ${O(a.date)}؟`,"حذف"))return;f().ins=f().ins.filter(d=>d.id!==a.id),persist(),t(),toast("تم الحذف")}})})};nt(e,t),$("#fItem").onchange=o=>{I.item=o.target.value,t()},$("#fSrc").onchange=o=>{I.src=o.target.value,t()},$("#xIn").onclick=Xt,$("#pIn").onclick=()=>go("stockDoc",{kind:"ins",itemId:I.item,src:I.src}),t()}function Pt(e){e.innerHTML=`<div class="card">${st()}
+      <div class="toolbar">${Mt()}
+        <div class="search">${ic("search")}<input class="inp" id="fQ" placeholder="بحث باسم المستفيد أو رقم التأجير..." value="${p(I.q)}"></div>
+        <span style="flex:1"></span><button class="btn sm" id="xOut">${ic("down")} تصدير Excel</button><button class="btn sm" id="pOut">${ic("print")} تقرير المواد المسلمة</button></div>
+      <div id="outT"></div></div>`;const t=()=>{const o=I.q.trim().toLowerCase(),n=f().outs.filter(a=>at(a.date)&&(!I.item||a.itemId===I.item)&&(!o||(D(a.benef).name+" "+(D(a.benef).ppr||"")).toLowerCase().includes(o))).sort((a,s)=>(s.date||"").localeCompare(a.date||"")||(s.created||"").localeCompare(a.created||""));$("#outT").innerHTML=n.length?`<table class="tbl"><thead><tr><th style="width:40px">#</th><th>تاريخ التسليم</th><th>المستفيد(ة)</th><th>رقم التأجير</th><th>المادة</th><th>الكمية</th><th></th></tr></thead><tbody>
+        ${n.map((a,s)=>{const i=D(a.benef);return`<tr data-id="${a.id}"><td class="muted num">${n.length-s}</td><td class="num">${O(a.date)}</td><td><b>${p(i.name)}</b></td><td class="num">${p(i.ppr||"")}</td>
+          <td>${p(j(a.itemId))}</td><td class="num"><b>${v(a.qty)}</b> <small class="muted">${p(F(a.itemId))}</small></td>
+          <td class="act"><button class="btn sm" data-a="pv">${ic("print")} المحضر</button> <button class="btn sm" data-a="edit">${ic("edit")}</button> <button class="btn sm danger icon" data-a="del">${ic("trash")}</button></td></tr>`}).join("")}</tbody></table>`:'<div class="empty-state">لا توجد مواد مسلمة خلال هذه الفترة</div>',$$("#outT tr[data-id]").forEach(a=>{const s=f().outs.find(i=>i.id===a.dataset.id);$$("[data-a]",a).forEach(i=>i.onclick=async()=>{if(i.dataset.a==="pv"&&go("stockDoc",{kind:"pv",benefKey:Z(s.benef),from:s.date,to:s.date,batch:s.batch}),i.dataset.a==="edit"&&ft(s,t),i.dataset.a==="del"){if(!await confirmBox(`حذف تسليم <b>${p(j(s.itemId))}</b> (${v(s.qty)}) إلى ${p(D(s.benef).name)}؟`,"حذف"))return;f().outs=f().outs.filter(d=>d.id!==s.id),persist(),t(),toast("تم الحذف")}})})};nt(e,t),$("#fItem").onchange=o=>{I.item=o.target.value,t()},$("#fQ").oninput=o=>{I.q=o.target.value,t()},$("#xOut").onclick=Zt,$("#pOut").onclick=()=>go("stockDoc",{kind:"outs",itemId:I.item}),t()}function mt(e,t,o){const n=document.createElement("div"),a=e?[{item:j(e.itemId),qty:e.qty}]:[{item:o&&o.itemId?j(o.itemId):"",qty:""}];n.innerHTML=`<div class="fgrid">
+      <div class="fld"><label>تاريخ الوصول <span style="color:var(--red)">*</span></label><input class="inp" type="date" id="iDate" value="${p(e?e.date:K())}"></div>
+      <div class="fld"><label>المصدر <span style="color:var(--red)">*</span></label>${(()=>{const c=e&&e.source||"",y=f().sources,x=y.filter(g=>!bt.includes(g)),h=!!(window.Cyc&&Cyc.isSec()),l=ht.map(([g,m])=>[g,m.filter(b=>y.includes(b)&&!(h&&b!==c&&/التعاونية المدرسية|التعليم الأولي/.test(b)))]).filter(([,g])=>g.length).concat(x.length?[["مصادر أضفتها",x]]:[]),w=!!c&&!y.includes(c);return`<select class="inp" id="iSrcS"><option value="">— اختر المصدر —</option>${l.map(([g,m])=>`<optgroup label="${p(g)}">${m.map(b=>`<option ${b===c?"selected":""}>${p(b)}</option>`).join("")}</optgroup>`).join("")}<option value="__other" ${w?"selected":""}>✎ مصدر آخر (يكتب)…</option></select>
+          <input class="inp" id="iSrc" placeholder="اكتب المصدر الآخر" value="${p(w?c:"")}" style="margin-top:6px;${w?"":"display:none"}">`})()}</div>
+      <div class="fld"><label>المرجع (رقم الإرسالية / المحضر...)</label><input class="inp" id="iRef" value="${p(e&&e.ref||"")}"></div>
+      <div class="fld"><label>ملاحظة</label><input class="inp" id="iNote" value="${p(e&&e.note||"")}"></div>
       <div class="full sec-t">المواد الواردة</div>
       <div class="full"><table class="mk-lines-t"><thead><tr><th>المادة</th><th style="width:120px">الكمية</th><th style="width:44px"></th></tr></thead><tbody id="iLines"></tbody></table>
-        <datalist id="iItemsL">${sortedItems().map(i => `<option value="${esc(i.name)}">`).join('')}</datalist>
-        ${rec ? '' : `<button class="btn sm" id="iAdd" style="margin-top:6px">${ic('plus')} إضافة سطر</button>`}
-        <div class="hint muted" style="font-size:11.5px;margin-top:6px">اختر المادة من اللائحة (مواد المؤسسة أو المواد المقترحة)، أو «✚ مادة جديدة» لكتابة اسمها ووحدتها: تضاف تلقائيا إلى لائحة المواد.</div></div></div>`;
-    const drawLines = () => {
-      // 1.9.4: the material is chosen in a list (materials of the school, then suggested ones) or added («✚ مادة جديدة»)
-      const mine = sortedItems().map(x => x.name), sugg = SUGGESTED.filter(x => !mine.some(m => key(m) === key(x)));
-      const pick = l => { const known = mine.concat(sugg).some(x => key(x) === key(l.item)); return l.isNew || (l.item && !known) ? '__new' : l.item; };
-      const selH = (l, i) => `<select class="inp" data-i="${i}" data-f="pick"><option value="">— اختر المادة —</option>${mine.length ? `<optgroup label="مواد المؤسسة">${mine.map(x => `<option ${pick(l) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` : ''}${sugg.length ? `<optgroup label="مواد مقترحة">${sugg.map(x => `<option ${pick(l) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` : ''}<option value="__new" ${pick(l) === '__new' ? 'selected' : ''}>✚ مادة جديدة (تكتب)…</option></select>
-        ${pick(l) === '__new' ? `<div style="display:flex;gap:6px;margin-top:5px"><input class="inp" data-i="${i}" data-f="item" placeholder="اسم المادة الجديدة" value="${esc(l.item)}" style="flex:2"><input class="inp" data-i="${i}" data-f="unit" placeholder="الوحدة (علبة، رزمة…)" value="${esc(l.unit || '')}" style="flex:1"></div>` : ''}`;
-      $('#iLines', body).innerHTML = lines.map((l, i) => `<tr><td>${selH(l, i)}</td>
-        <td><input class="inp" type="number" min="0" step="any" data-i="${i}" data-f="qty" value="${esc(l.qty)}"></td>
-        <td>${lines.length > 1 ? `<button class="btn sm danger icon" data-rm="${i}">${ic('trash')}</button>` : ''}</td></tr>`).join('');
-      $$('#iLines [data-f]', body).forEach(el => { if (el.dataset.f === 'pick') return; el.oninput = () => { lines[+el.dataset.i][el.dataset.f] = el.value; }; });
-      $$('#iLines [data-f=pick]', body).forEach(el => el.onchange = () => { const l = lines[+el.dataset.i]; if (el.value === '__new') { l.isNew = true; l.item = ''; } else { l.isNew = false; l.item = el.value; } drawLines(); if (l.isNew) { const x = $(`[data-f=item][data-i="${el.dataset.i}"]`, body); if (x) x.focus(); } });
-      $$('[data-rm]', body).forEach(el => el.onclick = () => { lines.splice(+el.dataset.rm, 1); drawLines(); });
-    };
-    drawLines();
-    if ($('#iAdd', body)) $('#iAdd', body).onclick = () => { lines.push({ item: '', qty: '' }); drawLines(); const ins = $$('[data-f=pick]', body); ins[ins.length - 1].focus(); };
-    modal({ title: rec ? 'تعديل وارد' : 'تسجيل وارد', body, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: () => {
-      const sel = $('#iSrcS', body).value, date = $('#iDate', body).value, source = sel === '__other' ? $('#iSrc', body).value.trim() : sel, ref = $('#iRef', body).value.trim(), note = $('#iNote', body).value.trim();
-      if (!date) { toast('المرجو إدخال تاريخ الوصول', true); return false; }
-      if (!source) { toast('المرجو تحديد المصدر', true); return false; }
-      const ok = lines.filter(l => String(l.item).trim() || String(l.qty).trim());
-      if (!ok.length) { toast('أضف مادة واحدة على الأقل', true); return false; }
-      for (const l of ok) {
-        if (!String(l.item).trim()) { toast('المرجو كتابة اسم المادة في كل سطر', true); return false; }
-        if (!(num(l.qty) > 0)) { toast('الكمية يجب أن تكون أكبر من صفر: ' + l.item, true); return false; }
-      }
-      const added = [];
-      const unitOf = n => { const l = ok.find(x => key(x.item) === key(n)); return l && l.unit ? String(l.unit).trim() : ''; };
-      const resolve = n => { let it = itemByName(n); if (!it) { it = { id: uid('it'), name: String(n).trim(), unit: unitOf(n), opening: 0, min: '' }; SD().items.push(it); added.push(it.name); } return it; };
-      if (!SD().sources.some(s => key(s) === key(source))) SD().sources.push(source);
-      const now = new Date().toISOString();
-      if (rec) {
-        const it = resolve(ok[0].item);
-        const nr = Object.assign({}, rec, { itemId: it.id, qty: num(ok[0].qty), date, source, ref, note });
-        for (const id of new Set([rec.itemId, it.id])) {
-          const c = check(id, SD().ins.map(x => x.id === rec.id ? nr : x), SD().outs);
-          if (!c.ok) { toast('لا يمكن هذا التعديل: ' + checkMsg(id, c).replace(/<[^>]+>/g, ''), true); return false; }
-        }
-        Object.assign(rec, nr, { updated: now });
-      } else {
-        ok.forEach(l => { const it = resolve(l.item); SD().ins.push({ id: uid('in'), itemId: it.id, qty: num(l.qty), date, source, ref, note, created: now }); });
-      }
-      persist(); after && after();
-      toast(rec ? 'تم حفظ التعديل' : `تم تسجيل ${ok.length} وارد${added.length ? ` (مواد جديدة: ${added.join('، ')})` : ''}`);
-    } }, { label: 'إلغاء' }] });
-    const sS = $('#iSrcS', body), sO = $('#iSrc', body);
-    if (sS) sS.onchange = () => { const o = sS.value === '__other'; sO.style.display = o ? '' : 'none'; if (o) sO.focus(); };
-  }
-
-  /* ---------- delivery form ---------- */
-  function outForm(rec, after, preset) {
-    if (!SD().items.length) return toast('أضف المواد وسجل الواردات أولا', true);
-    const body = document.createElement('div');
-    let bkey = rec ? benefKeyOf(rec.benef) : (preset && preset.benefKey) || '';
-    const lines = rec ? [{ itemId: rec.itemId, qty: rec.qty }] : [{ itemId: preset && preset.itemId || '', qty: '' }];
-    body.innerHTML = `<div class="fgrid">
-      <div class="fld full"><label>المستفيد(ة) <span style="color:var(--red)">*</span></label><div id="oBen">${benefSelect('oBenSel', bkey)}</div>
+        <datalist id="iItemsL">${H().map(c=>`<option value="${p(c.name)}">`).join("")}</datalist>
+        ${e?"":`<button class="btn sm" id="iAdd" style="margin-top:6px">${ic("plus")} إضافة سطر</button>`}
+        <div class="hint muted" style="font-size:11.5px;margin-top:6px">اختر المادة من اللائحة (مواد المؤسسة أو المواد المقترحة)، أو «✚ مادة جديدة» لكتابة اسمها ووحدتها: تضاف تلقائيا إلى لائحة المواد.</div></div></div>`;const s=()=>{const c=H().map(l=>l.name),y=vt.filter(l=>!c.some(w=>A(w)===A(l))),x=l=>{const w=c.concat(y).some(g=>A(g)===A(l.item));return l.isNew||l.item&&!w?"__new":l.item},h=(l,w)=>`<select class="inp" data-i="${w}" data-f="pick"><option value="">— اختر المادة —</option>${c.length?`<optgroup label="مواد المؤسسة">${c.map(g=>`<option ${x(l)===g?"selected":""}>${p(g)}</option>`).join("")}</optgroup>`:""}${y.length?`<optgroup label="مواد مقترحة">${y.map(g=>`<option ${x(l)===g?"selected":""}>${p(g)}</option>`).join("")}</optgroup>`:""}<option value="__new" ${x(l)==="__new"?"selected":""}>✚ مادة جديدة (تكتب)…</option></select>
+        ${x(l)==="__new"?`<div style="display:flex;gap:6px;margin-top:5px"><input class="inp" data-i="${w}" data-f="item" placeholder="اسم المادة الجديدة" value="${p(l.item)}" style="flex:2"><input class="inp" data-i="${w}" data-f="unit" placeholder="الوحدة (علبة، رزمة…)" value="${p(l.unit||"")}" style="flex:1"></div>`:""}`;$("#iLines",n).innerHTML=a.map((l,w)=>`<tr><td>${h(l,w)}</td>
+        <td><input class="inp" type="number" min="0" step="any" data-i="${w}" data-f="qty" value="${p(l.qty)}"></td>
+        <td>${a.length>1?`<button class="btn sm danger icon" data-rm="${w}">${ic("trash")}</button>`:""}</td></tr>`).join(""),$$("#iLines [data-f]",n).forEach(l=>{l.dataset.f!=="pick"&&(l.oninput=()=>{a[+l.dataset.i][l.dataset.f]=l.value})}),$$("#iLines [data-f=pick]",n).forEach(l=>l.onchange=()=>{const w=a[+l.dataset.i];if(l.value==="__new"?(w.isNew=!0,w.item=""):(w.isNew=!1,w.item=l.value),s(),w.isNew){const g=$(`[data-f=item][data-i="${l.dataset.i}"]`,n);g&&g.focus()}}),$$("[data-rm]",n).forEach(l=>l.onclick=()=>{a.splice(+l.dataset.rm,1),s()})};s(),$("#iAdd",n)&&($("#iAdd",n).onclick=()=>{a.push({item:"",qty:""}),s();const c=$$("[data-f=pick]",n);c[c.length-1].focus()}),modal({title:e?"تعديل وارد":"تسجيل وارد",body:n,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:()=>{const c=$("#iSrcS",n).value,y=$("#iDate",n).value,x=c==="__other"?$("#iSrc",n).value.trim():c,h=$("#iRef",n).value.trim(),l=$("#iNote",n).value.trim();if(!y)return toast("المرجو إدخال تاريخ الوصول",!0),!1;if(!x)return toast("المرجو تحديد المصدر",!0),!1;const w=a.filter(u=>String(u.item).trim()||String(u.qty).trim());if(!w.length)return toast("أضف مادة واحدة على الأقل",!0),!1;for(const u of w){if(!String(u.item).trim())return toast("المرجو كتابة اسم المادة في كل سطر",!0),!1;if(!(q(u.qty)>0))return toast("الكمية يجب أن تكون أكبر من صفر: "+u.item,!0),!1}const g=[],m=u=>{const r=w.find(k=>A(k.item)===A(u));return r&&r.unit?String(r.unit).trim():""},b=u=>{let r=Q(u);return r||(r={id:uid("it"),name:String(u).trim(),unit:m(u),opening:0,min:""},f().items.push(r),g.push(r.name)),r};f().sources.some(u=>A(u)===A(x))||f().sources.push(x);const M=new Date().toISOString();if(e){const u=b(w[0].item),r=Object.assign({},e,{itemId:u.id,qty:q(w[0].qty),date:y,source:x,ref:h,note:l});for(const k of new Set([e.itemId,u.id])){const E=X(k,f().ins.map(T=>T.id===e.id?r:T),f().outs);if(!E.ok)return toast("لا يمكن هذا التعديل: "+it(k,E).replace(/<[^>]+>/g,""),!0),!1}Object.assign(e,r,{updated:M})}else w.forEach(u=>{const r=b(u.item);f().ins.push({id:uid("in"),itemId:r.id,qty:q(u.qty),date:y,source:x,ref:h,note:l,created:M})});persist(),t&&t(),toast(e?"تم حفظ التعديل":`تم تسجيل ${w.length} وارد${g.length?` (مواد جديدة: ${g.join("، ")})`:""}`)}},{label:"إلغاء"}]});const i=$("#iSrcS",n),d=$("#iSrc",n);i&&(i.onchange=()=>{const c=i.value==="__other";d.style.display=c?"":"none",c&&d.focus()})}function ft(e,t,o){if(!f().items.length)return toast("أضف المواد وسجل الواردات أولا",!0);const n=document.createElement("div");let a=e?Z(e.benef):o&&o.benefKey||"";const s=e?[{itemId:e.itemId,qty:e.qty}]:[{itemId:o&&o.itemId||"",qty:""}];n.innerHTML=`<div class="fgrid">
+      <div class="fld full"><label>المستفيد(ة) <span style="color:var(--red)">*</span></label><div id="oBen">${Nt("oBenSel",a)}</div>
         <div id="oNew" style="display:none;margin-top:8px"><div class="fgrid"><input class="inp" id="oNewFirst" placeholder="الاسم الشخصي"><input class="inp" id="oNewLast" placeholder="الاسم العائلي"></div>
           <input class="inp" id="oNewPpr" placeholder="رقم التأجير" style="margin-top:8px"><div class="hint muted" style="font-size:11.5px;margin-top:4px">يضاف إلى لائحة الموظفين (يمكن إتمام معطياته من صفحة «الموظفون»).</div></div></div>
-      <div class="fld"><label>تاريخ التسليم <span style="color:var(--red)">*</span></label><input class="inp" type="date" id="oDate" value="${esc(rec ? rec.date : today())}"></div>
-      <div class="fld"><label>ملاحظة</label><input class="inp" id="oNote" value="${esc(rec ? rec.note || '' : '')}"></div>
+      <div class="fld"><label>تاريخ التسليم <span style="color:var(--red)">*</span></label><input class="inp" type="date" id="oDate" value="${p(e?e.date:K())}"></div>
+      <div class="fld"><label>ملاحظة</label><input class="inp" id="oNote" value="${p(e&&e.note||"")}"></div>
       <div class="full sec-t">المواد المسلمة</div>
       <div class="full"><table class="mk-lines-t"><thead><tr><th>المادة</th><th style="width:110px">الكمية</th><th style="width:110px">المتوفر حاليا</th><th style="width:44px"></th></tr></thead><tbody id="oLines"></tbody></table>
-        ${rec ? '' : `<button class="btn sm" id="oAdd" style="margin-top:6px">${ic('plus')} إضافة سطر</button>`}</div></div>`;
-    const avail = id => { if (!id) return ''; let b = balance(id); if (rec && rec.itemId === id) b += num(rec.qty); return b; };
-    const drawLines = () => {
-      const opts = sel => `<option value=""></option>${sortedItems().map(i => `<option value="${i.id}" ${i.id === sel ? 'selected' : ''}>${esc(i.name)} (${q(avail(i.id))})</option>`).join('')}`;
-      $('#oLines', body).innerHTML = lines.map((l, i) => `<tr><td><select class="inp" data-i="${i}" data-f="itemId">${opts(l.itemId)}</select></td>
-        <td><input class="inp" type="number" min="0" step="any" data-i="${i}" data-f="qty" value="${esc(l.qty)}"></td>
-        <td class="num" style="text-align:center">${l.itemId ? `<b style="color:${avail(l.itemId) > 0 ? 'var(--pri)' : 'var(--red)'}">${q(avail(l.itemId))}</b> <small class="muted">${esc(itemUnit(l.itemId))}</small>` : ''}</td>
-        <td>${lines.length > 1 ? `<button class="btn sm danger icon" data-rm="${i}">${ic('trash')}</button>` : ''}</td></tr>`).join('');
-      $$('[data-f]', body).forEach(el => {
-        el.oninput = () => { lines[+el.dataset.i][el.dataset.f] = el.value; };
-        if (el.tagName === 'SELECT') el.onchange = () => { lines[+el.dataset.i].itemId = el.value; drawLines(); };
-      });
-      $$('[data-rm]', body).forEach(el => el.onclick = () => { lines.splice(+el.dataset.rm, 1); drawLines(); });
-    };
-    drawLines();
-    const benSel = () => $('#oBenSel', body);
-    const onBen = () => { $('#oNew', body).style.display = benSel().value === 'x:new' ? '' : 'none'; if (benSel().value === 'x:new') $('#oNewFirst', body).focus(); };
-    benSel().onchange = onBen;
-    if ($('#oAdd', body)) $('#oAdd', body).onclick = () => { lines.push({ itemId: '', qty: '' }); drawLines(); };
-    const save = () => {
-      let k = benSel().value;
-      if (k === 'x:new') {
-        const firstAr = $('#oNewFirst', body).value.trim(), lastAr = $('#oNewLast', body).value.trim(), ppr = $('#oNewPpr', body).value.trim();
-        if (!firstAr || !lastAr) { toast('المرجو كتابة الاسم الشخصي والعائلي للموظف(ة)', true); return null; }
-        const dup = ppr && DB.employees.find(x => String(x.ppr || '') === ppr);
-        if (dup) { toast('رقم التأجير مستعمل لموظف آخر: ' + fullName(dup), true); return null; }
-        const ne = { id: uid('e'), firstAr, lastAr, ppr };
-        DB.employees.push(ne); k = 'e:' + ne.id;
-      }
-      const benef = k && k.startsWith('n:') ? { name: k.slice(2), ppr: '' } : benefFromKey(k);
-      if (!benef) { toast('المرجو اختيار المستفيد(ة)', true); return null; }
-      const date = $('#oDate', body).value, note = $('#oNote', body).value.trim();
-      if (!date) { toast('المرجو إدخال تاريخ التسليم', true); return null; }
-      const ok = lines.filter(l => l.itemId || String(l.qty).trim());
-      if (!ok.length) { toast('أضف مادة واحدة على الأقل', true); return null; }
-      for (const l of ok) {
-        if (!l.itemId) { toast('المرجو اختيار المادة في كل سطر', true); return null; }
-        if (!(num(l.qty) > 0)) { toast('الكمية يجب أن تكون أكبر من صفر', true); return null; }
-      }
-      const now = new Date().toISOString();
-      const batch = rec ? rec.batch : uid('bt');
-      const news = ok.map(l => ({ id: rec ? rec.id : uid('out'), itemId: l.itemId, qty: num(l.qty), date, benef, note, batch, created: rec ? rec.created : now }));
-      const outs2 = SD().outs.filter(x => !rec || x.id !== rec.id).concat(news);
-      for (const id of new Set(news.map(n => n.itemId).concat(rec ? [rec.itemId] : []))) {
-        const c = check(id, SD().ins, outs2);
-        if (!c.ok) { toast(checkMsg(id, c).replace(/<[^>]+>/g, ''), true); return null; }
-      }
-      if (rec) Object.assign(rec, news[0], { updated: now }); else SD().outs.push(...news);
-      persist(); after && after();
-      toast(rec ? 'تم حفظ التعديل' : `تم تسجيل تسليم ${news.length} مادة إلى ${benef.name}`);
-      return { benef, date, batch };
-    };
-    modal({ title: rec ? 'تعديل تسليم' : 'تسليم مواد لمستفيد(ة)', body, actions: [
-      { label: ic('save') + ' حفظ', cls: 'pri', onClick: () => !!save() || false },
-      ...(rec ? [] : [{ label: ic('print') + ' حفظ وطباعة المحضر', onClick: () => { const r = save(); if (!r) return false; go('stockDoc', { kind: 'pv', benefKey: benefKeyOf(r.benef), from: r.date, to: r.date, batch: r.batch }); } }]),
-      { label: 'إلغاء' }] });
-    onBen();
-  }
-
-  /* ---------- settings: items, sources, other beneficiaries ---------- */
-  function tabSettings(b) {
-    b.innerHTML = `<div class="settings-grid">
+        ${e?"":`<button class="btn sm" id="oAdd" style="margin-top:6px">${ic("plus")} إضافة سطر</button>`}</div></div>`;const i=h=>{if(!h)return"";let l=lt(h);return e&&e.itemId===h&&(l+=q(e.qty)),l},d=()=>{const h=l=>`<option value=""></option>${H().map(w=>`<option value="${w.id}" ${w.id===l?"selected":""}>${p(w.name)} (${v(i(w.id))})</option>`).join("")}`;$("#oLines",n).innerHTML=s.map((l,w)=>`<tr><td><select class="inp" data-i="${w}" data-f="itemId">${h(l.itemId)}</select></td>
+        <td><input class="inp" type="number" min="0" step="any" data-i="${w}" data-f="qty" value="${p(l.qty)}"></td>
+        <td class="num" style="text-align:center">${l.itemId?`<b style="color:${i(l.itemId)>0?"var(--pri)":"var(--red)"}">${v(i(l.itemId))}</b> <small class="muted">${p(F(l.itemId))}</small>`:""}</td>
+        <td>${s.length>1?`<button class="btn sm danger icon" data-rm="${w}">${ic("trash")}</button>`:""}</td></tr>`).join(""),$$("[data-f]",n).forEach(l=>{l.oninput=()=>{s[+l.dataset.i][l.dataset.f]=l.value},l.tagName==="SELECT"&&(l.onchange=()=>{s[+l.dataset.i].itemId=l.value,d()})}),$$("[data-rm]",n).forEach(l=>l.onclick=()=>{s.splice(+l.dataset.rm,1),d()})};d();const c=()=>$("#oBenSel",n),y=()=>{$("#oNew",n).style.display=c().value==="x:new"?"":"none",c().value==="x:new"&&$("#oNewFirst",n).focus()};c().onchange=y,$("#oAdd",n)&&($("#oAdd",n).onclick=()=>{s.push({itemId:"",qty:""}),d()});const x=()=>{let h=c().value;if(h==="x:new"){const k=$("#oNewFirst",n).value.trim(),E=$("#oNewLast",n).value.trim(),T=$("#oNewPpr",n).value.trim();if(!k||!E)return toast("المرجو كتابة الاسم الشخصي والعائلي للموظف(ة)",!0),null;const C=T&&DB.employees.find($t=>String($t.ppr||"")===T);if(C)return toast("رقم التأجير مستعمل لموظف آخر: "+fullName(C),!0),null;const L={id:uid("e"),firstAr:k,lastAr:E,ppr:T};DB.employees.push(L),h="e:"+L.id}const l=h&&h.startsWith("n:")?{name:h.slice(2),ppr:""}:ut(h);if(!l)return toast("المرجو اختيار المستفيد(ة)",!0),null;const w=$("#oDate",n).value,g=$("#oNote",n).value.trim();if(!w)return toast("المرجو إدخال تاريخ التسليم",!0),null;const m=s.filter(k=>k.itemId||String(k.qty).trim());if(!m.length)return toast("أضف مادة واحدة على الأقل",!0),null;for(const k of m){if(!k.itemId)return toast("المرجو اختيار المادة في كل سطر",!0),null;if(!(q(k.qty)>0))return toast("الكمية يجب أن تكون أكبر من صفر",!0),null}const b=new Date().toISOString(),M=e?e.batch:uid("bt"),u=m.map(k=>({id:e?e.id:uid("out"),itemId:k.itemId,qty:q(k.qty),date:w,benef:l,note:g,batch:M,created:e?e.created:b})),r=f().outs.filter(k=>!e||k.id!==e.id).concat(u);for(const k of new Set(u.map(E=>E.itemId).concat(e?[e.itemId]:[]))){const E=X(k,f().ins,r);if(!E.ok)return toast(it(k,E).replace(/<[^>]+>/g,""),!0),null}return e?Object.assign(e,u[0],{updated:b}):f().outs.push(...u),persist(),t&&t(),toast(e?"تم حفظ التعديل":`تم تسجيل تسليم ${u.length} مادة إلى ${l.name}`),{benef:l,date:w,batch:M}};modal({title:e?"تعديل تسليم":"تسليم مواد لمستفيد(ة)",body:n,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:()=>!!x()||!1},...e?[]:[{label:ic("print")+" حفظ وطباعة المحضر",onClick:()=>{const h=x();if(!h)return!1;go("stockDoc",{kind:"pv",benefKey:Z(h.benef),from:h.date,to:h.date,batch:h.batch})}}],{label:"إلغاء"}]}),y()}function zt(e){e.innerHTML=`<div class="settings-grid">
       <div class="card"><div class="card-h"><h3>المواد واللوازم</h3><span style="flex:1"></span>
-          ${SD().items.length < 3 ? `<button class="btn sm" id="sugg">إضافة القائمة المقترحة</button>` : ''}<button class="btn sm pri" id="addIt">${ic('plus')} إضافة مادة</button></div>
+          ${f().items.length<3?'<button class="btn sm" id="sugg">إضافة القائمة المقترحة</button>':""}<button class="btn sm pri" id="addIt">${ic("plus")} إضافة مادة</button></div>
         <div id="itT"></div></div>
       <div class="grid">
         <div class="card"><div class="card-h"><h3>استيراد من Excel</h3></div><div class="card-b">
           <p class="muted" style="margin-top:0;font-size:12.5px;line-height:1.8">يمكن استيراد بياناتك من ملف Excel لبرنامج تدبير المخزون (بصيغة xlsm أو xlsx)، أو من أي ملف Excel يحتوي على الأعمدة:
             <b>المواد</b>، <b>المصدر</b>. وإذا احتوى الملف على لائحة الأساتذة أو على سجلي الواردات والصادرات فسيتم استيرادها أيضا (الأساتذة يضافون إلى لائحة الموظفين).</p>
-          <div class="btn-row"><button class="btn" id="impSt">${ic('up')} استيراد ملف Excel</button><button class="btn" id="tplSt">${ic('down')} نموذج فارغ</button></div></div></div>
+          <div class="btn-row"><button class="btn" id="impSt">${ic("up")} استيراد ملف Excel</button><button class="btn" id="tplSt">${ic("down")} نموذج فارغ</button></div></div></div>
         <div class="card"><div class="card-h"><h3>المصادر</h3></div><div class="card-b"><div class="chips" id="srcC"></div>
-          <div class="btn-row" style="margin-top:10px"><input class="inp" id="srcN" placeholder="مصدر جديد..." style="flex:1"><button class="btn sm" id="srcA">${ic('plus')} إضافة</button></div></div></div>
-        <div class="card"><div class="card-h"><h3>المستفيدون</h3><span style="flex:1"></span><button class="btn sm" id="bnA">${ic('users')} لائحة الموظفين (${DB.employees.length})</button></div>
+          <div class="btn-row" style="margin-top:10px"><input class="inp" id="srcN" placeholder="مصدر جديد..." style="flex:1"><button class="btn sm" id="srcA">${ic("plus")} إضافة</button></div></div></div>
+        <div class="card"><div class="card-h"><h3>المستفيدون</h3><span style="flex:1"></span><button class="btn sm" id="bnA">${ic("users")} لائحة الموظفين (${DB.employees.length})</button></div>
           <div class="card-b muted" style="font-size:12.5px;line-height:1.8">المستفيدون من المواد هم موظفو المؤسسة المسجلون في صفحة «الموظفون»: لائحة واحدة للتطبيق كاملا.
             لإضافة مستفيد(ة) أضفه(ا) في «الموظفون» أو مباشرة من نافذة «تسليم مواد».</div></div>
         <div class="card"><div class="card-h"><h3>المحضر</h3></div><div class="card-b">
-          <div class="fld"><label>عنوان محضر التسلم</label><input class="inp" id="pvT" value="${esc(SD().pvTitle)}"></div></div></div>
-      </div></div>`;
-    const drawItems = () => {
-      const list = sortedItems();
-      $('#itT').innerHTML = list.length ? `<div style="max-height:calc(100vh - 260px);overflow:auto"><table class="tbl compact"><thead><tr><th style="width:36px">#</th><th>المادة</th><th>الوحدة</th><th title="الرصيد عند بداية استعمال البرنامج">الرصيد الأولي</th><th>الحد الأدنى</th><th>الرصيد</th><th></th></tr></thead><tbody>
-        ${list.map((i, n) => `<tr data-id="${i.id}"><td class="muted num">${n + 1}</td><td><b>${esc(i.name)}</b></td><td class="muted">${esc(i.unit || '')}</td><td class="num">${q(i.opening)}</td><td class="num muted">${i.min ? q(i.min) : ''}</td><td class="num"><b>${q(balance(i.id))}</b></td>
-          <td class="act"><button class="btn sm" data-a="edit">${ic('edit')}</button> <button class="btn sm danger icon" data-a="del">${ic('trash')}</button></td></tr>`).join('')}</tbody></table></div>`
-        : '<div class="empty-state">لا توجد مواد. أضف مادة أو استعمل «القائمة المقترحة» أو استورد من Excel.</div>';
-      $$('#itT tr[data-id]').forEach(tr => {
-        const it = itemById(tr.dataset.id);
-        $$('[data-a]', tr).forEach(btn => btn.onclick = async () => {
-          if (btn.dataset.a === 'edit') itemForm(it, drawItems);
-          if (btn.dataset.a === 'del') {
-            const n = SD().ins.filter(x => x.itemId === it.id).length + SD().outs.filter(x => x.itemId === it.id).length;
-            if (n) return toast(`لا يمكن حذف هذه المادة: مستعملة في ${n} عملية (وارد/صادر). احذف العمليات أولا.`, true);
-            if (!await confirmBox(`حذف المادة <b>${esc(it.name)}</b>؟`, 'حذف')) return;
-            SD().items = SD().items.filter(x => x.id !== it.id); persist(); drawItems();
-          }
-        });
-      });
-    };
-    const drawSrc = () => {
-      $('#srcC').innerHTML = SD().sources.map((s, i) => `<span class="chip">${esc(s)}<button data-i="${i}" title="حذف">✕</button></span>`).join('') || '<span class="muted">لا توجد مصادر</span>';
-      $$('#srcC [data-i]').forEach(x => x.onclick = () => { SD().sources.splice(+x.dataset.i, 1); persist(); drawSrc(); });
-    };
-    $('#addIt').onclick = () => itemForm(null, drawItems);
-    if ($('#sugg')) $('#sugg').onclick = () => {
-      let n = 0; SUGGESTED.forEach(name => { if (!itemByName(name)) { SD().items.push({ id: uid('it'), name, unit: '', opening: 0, min: '' }); n++; } });
-      persist(); go('stock', { tab: 'settings' }); toast(`أضيفت ${n} مادة`);
-    };
-    $('#srcA').onclick = () => { const s = $('#srcN').value.trim(); if (!s) return; if (!SD().sources.some(x => key(x) === key(s))) SD().sources.push(s); $('#srcN').value = ''; persist(); drawSrc(); };
-    $('#srcN').onkeydown = e => { if (e.key === 'Enter') $('#srcA').click(); };
-    $('#bnA').onclick = () => go('employees');
-    $('#pvT').oninput = e => { SD().pvTitle = e.target.value; persist(); };
-    $('#impSt').onclick = importStock;
-    $('#tplSt').onclick = async () => {
-      const rows = [['المواد', 'الوحدة', 'الرصيد الأولي', 'المصدر']];
-      for (let i = 0; i < 40; i++) rows.push(['', '', '', '']);
-      const r = await window.api.saveXlsx(rows, 'نموذج_المخزون.xlsx', 'الإعدادات', [36, 12, 14, 30]);
-      if (r.ok) toast('تم حفظ النموذج: املأه ثم استورده');
-    };
-    drawItems(); drawSrc();
-  }
-  function itemForm(it, after) {
-    const d = it || { name: '', unit: '', opening: '', min: '' };
-    const body = `<div class="fgrid"><div class="fld full"><label>اسم المادة <span style="color:var(--red)">*</span></label><input class="inp" id="tN" value="${esc(d.name)}"></div>
-      <div class="fld"><label>الوحدة (علبة، رزمة، قطعة...)</label><input class="inp" id="tU" value="${esc(d.unit || '')}"></div>
-      <div class="fld"><label>الرصيد الأولي (قبل التسجيل في البرنامج)</label><input class="inp" type="number" min="0" step="any" id="tO" value="${esc(d.opening || '')}"></div>
-      <div class="fld"><label>الحد الأدنى للتنبيه (اختياري)</label><input class="inp" type="number" min="0" step="any" id="tM" value="${esc(d.min || '')}"></div>
-      <div class="fld"><label>الصنف</label><select class="inp" id="tC">${CATS.map(c => `<option ${c === (d.cat || catGuess(d.name)) ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-      <div class="fld"><label>ثمن الوحدة بالدرهم (اختياري — لقيمة المخزون)</label><input class="inp" type="number" min="0" step="any" id="tP" value="${esc(d.price || '')}"></div></div>`;
-    modal({ title: it ? 'تعديل مادة' : 'إضافة مادة', size: 'sm', body, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: m => {
-      const name = $('#tN', m).value.trim();
-      if (!name) { toast('المرجو كتابة اسم المادة', true); return false; }
-      const dup = itemByName(name);
-      if (dup && dup !== it) { toast('هذه المادة موجودة في القائمة', true); return false; }
-      const opening = num($('#tO', m).value);
-      if (it) { const c = check(it.id, SD().ins, SD().outs, opening); if (!c.ok) { toast('لا يمكن هذا الرصيد الأولي: ' + checkMsg(it.id, c).replace(/<[^>]+>/g, ''), true); return false; } }
-      const o = { name, unit: $('#tU', m).value.trim(), opening, min: $('#tM', m).value.trim(), cat: $('#tC', m).value, price: $('#tP', m).value.trim() };
-      if (it) Object.assign(it, o); else SD().items.push(Object.assign({ id: uid('it') }, o));
-      persist(); after && after(); toast('تم الحفظ');
-    } }, { label: 'إلغاء' }] });
-  }
-  /* ---------- Excel import (stock settings file, or the whole Excel stock program) ---------- */
-  const IMP = MK.matcher({
-    item: ['المواد', 'المادة', 'اسم المادة', 'Article', 'Désignation', 'Produit'], unit: ['الوحدة', 'Unité'], opening: ['الرصيد الأولي', 'الرصيد السابق', 'أرصدة سابقة'],
-    source: ['المصدر', 'المصادر', 'Source'], benef: ['الأساتذة', 'الأستاذ', 'الأستاذ(ة)', 'المستفيد', 'المستفيد(ة)', 'المستفيدون', 'الاسم الكامل'],
-    ppr: ['رقم التأجير', 'الرقم المالي', 'PPR'], qty: ['الكمية', 'Quantité'], dIn: ['تاريخ الوصول', 'تاريخ الورود'], dOut: ['تاريخ التسليم'], ref: ['المرجع']
-  });
-  async function importStock() {
-    const sheets = await MK.openTable(); if (!sheets) return;
-    const cnt = { items: 0, sources: 0, emps: 0, ins: 0, outs: 0, dup: 0 };
-    const resolveItem = n => { let it = itemByName(n); if (!it) { it = { id: uid('it'), name: n, unit: '', opening: 0, min: '' }; SD().items.push(it); cnt.items++; } return it; };
-    const addSource = s => { if (s && !SD().sources.some(x => key(x) === key(s))) { SD().sources.push(s); cnt.sources++; } };
-    const findBenef = (name, ppr) => {
-      if (key(name) === key('صادر غير مسجل') || key(name) === key(OTHER_USE)) return { name: OTHER_USE, ppr: '' };
-      const r = empFor(DB, name, ppr); if (r.created) cnt.emps++;
-      return { empId: r.e.id, name: fullName(r.e), ppr: r.e.ppr || '', role: r.e.cadre || '' };
-    };
-    const sig = new Set(SD().ins.map(r => ['i', r.itemId, r.date, num(r.qty), key(r.source)].join('|')).concat(SD().outs.map(r => ['o', r.itemId, r.date, num(r.qty), key(benefLive(r.benef).name)].join('|'))));
-    let used = 0;
-    sheets.forEach(sh => {
-      const h = MK.headerRow(sh.rows, IMP, 2); if (!h) return;
-      const col = {}; h.map.forEach((k, i) => { if (k && col[k] == null) col[k] = i; });
-      const g = (r, k) => (col[k] == null ? '' : String(r[col[k]] == null ? '' : r[col[k]]).trim());
-      const rows = sh.rows.slice(h.hi + 1);
-      const now = new Date().toISOString();
-      if (col.qty != null && col.item != null && col.dIn != null) {          // arrivals register
-        used++;
-        rows.forEach(r => {
-          const n = g(r, 'item'), qty = num(g(r, 'qty')); if (!n || !(qty > 0)) return;
-          const it = resolveItem(n), date = normDate(g(r, 'dIn')) || today(), src = g(r, 'source');
-          addSource(src);
-          const s = ['i', it.id, date, qty, key(src)].join('|'); if (sig.has(s)) { cnt.dup++; return; } sig.add(s);
-          SD().ins.push({ id: uid('in'), itemId: it.id, qty, date, source: src, ref: g(r, 'ref'), note: '', created: now }); cnt.ins++;
-        });
-      } else if (col.qty != null && col.item != null && col.dOut != null) {  // deliveries register
-        used++;
-        rows.forEach(r => {
-          const n = g(r, 'item'), qty = num(g(r, 'qty')), who = g(r, 'benef'); if (!n || !(qty > 0) || !who) return;
-          const it = resolveItem(n), date = normDate(g(r, 'dOut')) || today(), benef = findBenef(who, g(r, 'ppr'));
-          const s = ['o', it.id, date, qty, key(benef.name)].join('|'); if (sig.has(s)) { cnt.dup++; return; } sig.add(s);
-          SD().outs.push({ id: uid('out'), itemId: it.id, qty, date, benef, note: '', batch: 'imp' + date + key(benef.name), created: now }); cnt.outs++;
-        });
-      } else if (col.item != null || col.source != null || col.benef != null) { // lists
-        used++;
-        rows.forEach(r => {
-          const n = g(r, 'item');
-          if (n) { const ex = itemByName(n); const it = resolveItem(n); if (!ex) { it.unit = g(r, 'unit'); it.opening = num(g(r, 'opening')); } }
-          addSource(g(r, 'source'));
-          const who = g(r, 'benef'); if (who) findBenef(who, g(r, 'ppr'));
-        });
-      }
-    });
-    if (!used) return toast('لم يتم العثور على أعمدة معروفة (المواد، المصدر، الأساتذة، رقم التأجير...)', true);
-    persist(); go('stock', { tab: 'settings' });
-    const neg = SD().items.filter(i => !check(i.id, SD().ins, SD().outs).ok).length;
-    toast(`تم الاستيراد: ${cnt.items} مادة، ${cnt.sources} مصدر، ${cnt.ins} وارد، ${cnt.outs} صادر${cnt.emps ? `، وأضيف ${cnt.emps} موظف(ة) إلى لائحة الموظفين` : ''}${cnt.dup ? ` (تم تجاهل ${cnt.dup} عملية مكررة)` : ''}`);
-    if (neg) setTimeout(() => toast(`تنبيه: ${neg} مادة رصيدها سالب. أدخل «الرصيد الأولي» لهذه المواد من «المواد والإعدادات».`, true), 600);
-  }
-
-  /* ---------- Excel export ---------- */
-  async function exportStatus() {
-    const rows = [['ر.ت', 'المادة', 'الوحدة', 'الرصيد السابق', 'الوارد', 'المنصرف', 'الرصيد الحالي']]
-      .concat(statusRows(flt.from, flt.to).map((r, i) => [String(i + 1), r.it.name, r.it.unit || '', q(r.before), q(r.inn), q(r.out), q(r.after)]));
-    const r = await window.api.saveXlsx(rows, `وضعية_المخزون_${flt.to || today()}.xlsx`, 'وضعية المخزون', [6, 40, 12, 14, 12, 12, 14]);
-    if (r.ok) toast('تم التصدير إلى Excel');
-  }
-  async function exportIns() {
-    const list = SD().ins.filter(r => inPeriod(r.date)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const rows = [['ر.ت', 'المادة', 'المصدر', 'الكمية', 'تاريخ الوصول', 'المرجع', 'ملاحظة']].concat(list.map((r, i) => [String(i + 1), itemName(r.itemId), r.source || '', q(r.qty), fmtDate(r.date), r.ref || '', r.note || '']));
-    const r = await window.api.saveXlsx(rows, 'سجل_الواردات.xlsx', 'سجل الواردات', [6, 40, 30, 10, 14, 20, 24]);
-    if (r.ok) toast('تم التصدير إلى Excel');
-  }
-  async function exportOuts() {
-    const list = SD().outs.filter(r => inPeriod(r.date)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const rows = [['ر.ت', 'المستفيد(ة)', 'رقم التأجير', 'المادة', 'الكمية', 'تاريخ التسليم', 'ملاحظة']].concat(list.map((r, i) => { const b = benefLive(r.benef); return [String(i + 1), b.name, b.ppr || '', itemName(r.itemId), q(r.qty), fmtDate(r.date), r.note || '']; }));
-    const r = await window.api.saveXlsx(rows, 'سجل_الصادرات.xlsx', 'سجل الصادرات', [6, 30, 14, 40, 10, 14, 24]);
-    if (r.ok) toast('تم التصدير إلى Excel');
-  }
-
-  /* ================================================================= */
-  /* documents */
-  const KINDS = [['analytic', 'التقرير التحليلي لتدبير المخزون (المؤشرات والتنبيهات)'], ['pv', 'محضر تسلم المواد (لمستفيد)'], ['status', 'وضعية المخزون'], ['outs', 'تقرير حول اللوازم والمواد المسلمة'],
-    ['item', 'تقرير المستفيدين من مادة'], ['card', 'بطاقة المخزون (حركة مادة يوما بيوم)'], ['benef', 'جدول استهلاك المستفيدين حسب المواد'], ['sources', 'حصيلة الواردات حسب المصدر'], ['ins', 'سجل الواردات']];
-  // 1.9.4: the analytical documents (flowing pages with the header of the school)
-  function anaPages(s, st) {
-    const { tr, thr, tbl, SB } = window.K, A = analytics(st.from, st.to), T = A.T, sub0 = `الموسم الدراسي: ${syOf(st)} — ${period(st.from, st.to)}`;
-    const H = t => SB.head(s, t, sub0), sign = SB.sign(s, { right: `حرر ب: ${esc(st.city || s.city || '')} في: ${st.date ? fmtDate(st.date) : '..........'}`, left: 'توقيع وخاتم مدير(ة) المؤسسة' });
-    const flow = (t, blocks, page) => MK.flowPages({ page: page || 'a4', cls: 'sb', head: H(t), blocks: blocks.length ? blocks : [{ html: '<p class="sb-p" style="text-align:center">لا توجد معطيات لهذه الفترة.</p>' }], sign });
-    if (st.kind === 'analytic') {
-      const kv = (a, b) => `<td class="k b">${a}</td><td class="b">${b}</td>`;
-      const blocks = [{ html: `<table class="sb-t cmp"><tbody><tr>${kv('المواد المتداولة', T.items)}${kv('الكمية الواردة', `${q(T.inn)} (${T.nIn} عملية)`)}${kv('الكمية المنصرفة', `${q(T.out)} (${T.nOut} عملية)`)}</tr>
-          <tr>${kv('المصادر', T.sources)}${kv('المستفيدون', T.benefs)}${kv('نسبة الاستهلاك', Math.round(T.use * 100) + '%')}</tr>
-          <tr>${kv('مواد نفدت', T.out0)}${kv('مواد حرجة / منخفضة', `${T.crit} / ${T.low}`)}${kv('مؤشر سلامة المخزون', T.health + '%')}</tr>${T.priced ? `<tr>${kv('قيمة المخزون', dh(T.val))}${kv('قيمة المنصرف', dh(T.valOut))}${kv('مدة الفترة', T.months.toFixed(1) + ' شهر')}</tr>` : ''}</tbody></table>` },
-        { html: SB.cap('الوارد والمنصرف حسب الشهر', 'r') + `<div style="text-align:center">${monthsSvg(A.M)}</div>` },
-        { before: SB.cap('مؤشرات كل مادة', 'r'), table: tbl(thr(['المادة', 'الرصيد السابق', 'الوارد', 'المنصرف', 'الرصيد الحالي', 'الاستهلاك الشهري', 'التغطية (شهر)', 'المستفيدون', 'الوضعية'].map(t => ({ t, c: 'd' }))),
-          A.rows.map(r => tr([{ t: `${r.it.name}${r.it.unit ? ' (' + r.it.unit + ')' : ''}`, c: 'r b' }, q(r.before), q(r.inn), q(r.out), { t: q(r.after), c: 'b' }, avgTxt(r.avgM), covTxt(r.cover), r.benefs || '—', { t: STATUS[r.status][0], c: r.status === 'out' || r.status === 'crit' ? 'red b' : 'b' }])), 'cmp').table },
-        { before: SB.cap('حسب الصنف', 'r'), table: tbl(thr(['الصنف', 'عدد المواد', 'الوارد', 'المنصرف'].concat(T.priced ? ['قيمة المخزون'] : []).map(t => ({ t, c: 'd' }))), A.cats.map(c => tr([{ t: c.c, c: 'r b' }, c.n, q(c.inn), q(c.out)].concat(T.priced ? [dh(c.val)] : []))), 'cmp').table }];
-      const al = A.rows.filter(r => r.status === 'out' || r.status === 'crit').map(r => `${esc(r.it.name)}: ${r.status === 'out' ? 'نفدت — يلزم التزود' : `الرصيد ${q(r.after)} يكفي ${covTxt(r.cover)} شهر`}`)
-        .concat(A.unusual.slice(0, 6).map(u => `استهلاك مرتفع لـ ${esc(u.who)} من «${esc(u.it.name)}»: ${q(u.q)} (المعدل ${q(u.avg.toFixed(1))})`))
-        .concat(A.rows.filter(r => r.status === 'idle' && r.after > 0).slice(0, 6).map(r => `مادة راكدة: ${esc(r.it.name)} (${q(r.after)})`));
-      if (al.length) blocks.push({ html: SB.cap('التنبيهات والتوصيات', 'r') + `<div class="sb-p" style="line-height:1.8">${al.map(x => `• ${x}`).join('<br>')}</div>` });
-      return flow('التقرير التحليلي لتدبير المخزون والوسائل التعليمية', blocks);
-    }
-    if (st.kind === 'card') {
-      const it = itemById(st.itemId); if (!it) return flow('بطاقة المخزون', []);
-      const ev = [];
-      SD().ins.filter(r => r.itemId === it.id).forEach(r => ev.push({ d: r.date || '', t: 0, who: r.source || '', ref: r.ref || '', inn: num(r.qty), out: 0 }));
-      SD().outs.filter(r => r.itemId === it.id).forEach(r => { const b = benefLive(r.benef); ev.push({ d: r.date || '', t: 1, who: b.name + (b.ppr ? ' — ' + b.ppr : ''), ref: '', inn: 0, out: num(r.qty) }); });
-      ev.sort((a, b) => a.d.localeCompare(b.d) || a.t - b.t);
-      let bal = num(it.opening); const rows = [tr([{ t: '', c: 'sm' }, { t: 'الرصيد الأولي', c: 'r b', s: 2 }, '', '', '', { t: q(bal), c: 'b' }])];
-      let ti = 0, to2 = 0;
-      ev.forEach(e => { bal += e.inn - e.out; if ((st.from && e.d < st.from) || (st.to && e.d > st.to)) return; ti += e.inn; to2 += e.out;
-        rows.push(tr([{ t: fmtDate(e.d), c: 'sm' }, { t: e.t ? 'تسليم' : 'وارد', c: e.t ? 'sm' : 'sm b' }, { t: e.who, c: 'r sm' }, { t: e.ref, c: 'sm' }, e.inn ? { t: q(e.inn), c: 'b' } : '', e.out ? { t: q(e.out), c: 'red b' } : '', { t: q(bal), c: bal < 0 ? 'red b' : 'b' }])); });
-      rows.push(tr([{ t: 'المجموع خلال الفترة', s: 4, c: 'd b' }, { t: q(ti), c: 'd b' }, { t: q(to2), c: 'd b' }, { t: q(bal), c: 'd b' }]));
-      const r0 = A.rows.find(x => x.it.id === it.id);
-      return flow(`بطاقة المخزون: ${esc(it.name)}`, [{ html: `<div class="sb-note">الوحدة: <b>${esc(it.unit || '—')}</b> — الصنف: <b>${esc(catOf(it))}</b> — الحد الأدنى: <b>${it.min ? q(it.min) : '—'}</b>${r0 ? ` — معدل الاستهلاك الشهري: <b>${q(+r0.avgM.toFixed(1))}</b> — التغطية: <b>${covTxt(r0.cover)}</b> شهر — الوضعية: <b>${STATUS[r0.status][0]}</b>` : ''}</div>` },
-        tbl(thr(['التاريخ', 'العملية', 'المصدر / المستفيد(ة)', 'المرجع', 'الوارد', 'المنصرف', 'الرصيد'].map(t => ({ t, c: 'd' }))), rows, 'cmp')]);
-    }
-    if (st.kind === 'benef') {
-      const top = A.rows.filter(r => r.out).sort((a, b) => b.out - a.out).slice(0, 7);
-      const per = new Map();
-      SD().outs.filter(r => (!st.from || r.date >= st.from) && (!st.to || r.date <= st.to)).forEach(r => { const b = benefLive(r.benef), k = b.name; const o = per.get(k) || { b, m: {}, n: 0, other: 0 }; o.n++; if (top.some(t => t.it.id === r.itemId)) o.m[r.itemId] = (o.m[r.itemId] || 0) + num(r.qty); else o.other += num(r.qty); per.set(k, o); });
-      const L = Array.from(per.values()).sort((a, b) => a.b.name.localeCompare(b.b.name, 'ar'));
-      const rows = L.map((o, i) => tr([i + 1, { t: o.b.name, c: 'r b' }, { t: o.b.ppr || '', c: 'sm' }].concat(top.map(t => o.m[t.it.id] ? q(o.m[t.it.id]) : ''), [o.other ? q(o.other) : '', o.n])));
-      rows.push(tr([{ t: 'المجموع', s: 3, c: 'd b' }].concat(top.map(t => ({ t: q(t.out), c: 'd b' })), [{ t: q(L.reduce((a, o) => a + o.other, 0)), c: 'd b' }, { t: L.reduce((a, o) => a + o.n, 0), c: 'd b' }])));
-      return flow('جدول استهلاك المستفيدين حسب المواد', [tbl(thr(['ر.ت', 'المستفيد(ة)', 'رقم التأجير'].concat(top.map(t => ({ t: t.it.name, c: 'd', st: 'font-size:7.5pt' })), ['مواد أخرى', 'عدد العمليات']).map(t => (typeof t === 'object' ? t : { t, c: 'd' }))), rows, 'cmp')], 'a4l');
-    }
-    if (st.kind === 'sources') {
-      const INS = SD().ins.filter(r => (!st.from || r.date >= st.from) && (!st.to || r.date <= st.to));
-      const blocks = A.src.map(x => { const its = {}; INS.filter(r => (r.source || 'غير محدد') === x.k).forEach(r => { its[r.itemId] = (its[r.itemId] || 0) + num(r.qty); });
-        return { before: SB.cap(`${esc(x.k)}: ${x.n} عملية — ${q(x.q)} وحدة`, 'r'), keepNext: true, table: tbl(thr(['المادة', 'الكمية', 'الوحدة'].map(t => ({ t, c: 'd' }))), Object.keys(its).sort((a, b) => its[b] - its[a]).map(id => tr([{ t: itemName(id), c: 'r b' }, q(its[id]), itemUnit(id)])), 'cmp').table }; });
-      return flow('حصيلة الواردات حسب المصدر', blocks);
-    }
-    return [''];
-  }
-  const period = (f, t) => f && t ? `خلال الفترة من ${fmtDate(f)} إلى ${fmtDate(t)}` : f ? `ابتداء من ${fmtDate(f)}` : t ? `إلى غاية ${fmtDate(t)}` : '';
-  const topItem = () => { const c = {}; SD().outs.forEach(r => { c[r.itemId] = (c[r.itemId] || 0) + 1; }); const best = Object.keys(c).sort((a, b) => c[b] - c[a])[0]; return best || sortedItems()[0].id; };
-  const syOf = st => MK.schoolYear(st.to || st.date || today());
-
-  function pvPages(s, st) {
-    const b = st.benefKey ? (st.benefKey.startsWith('n:') ? { name: st.benefKey.slice(2) } : benefFromKey(st.benefKey)) : null;
-    const bl = b ? benefLive(b) : { name: '', ppr: '', role: '' };
-    const list = !b ? [] : SD().outs.filter(r => benefKeyOf(r.benef) === st.benefKey && (st.batch ? r.batch === st.batch : ((!st.from || r.date >= st.from) && (!st.to || r.date <= st.to))))
-      .sort((x, y) => (x.date || '').localeCompare(y.date || ''));
-    const per = 10;
-    const chunks = []; for (let i = 0; i < Math.max(1, list.length); i += per) chunks.push(list.slice(i, i + per));
-    return chunks.map((ch, ci) => {
-      const rows = ch.map((r, i) => `<tr><td>${ci * per + i + 1}</td><td class="r">${esc(itemName(r.itemId))}</td><td>${q(r.qty)} ${esc(itemUnit(r.itemId))}</td><td>${fmtDate(r.date)}</td></tr>`);
-      while (rows.length < Math.min(per, Math.max(8, ch.length))) rows.push('<tr><td></td><td></td><td></td><td></td></tr>');
-      return `
-      ${Dx.header(s)}
-      <div class="title-box" style="font-size:13.5pt">${esc(SD().pvTitle)}</div>
-      <div class="c b" style="margin-top:-1.5mm;margin-bottom:1.5mm">الموسم الدراسي: ${esc(MK.schoolYear(st.date || today()))}</div>
+          <div class="fld"><label>عنوان محضر التسلم</label><input class="inp" id="pvT" value="${p(f().pvTitle)}"></div></div></div>
+      </div></div>`;const t=()=>{const n=H();$("#itT").innerHTML=n.length?`<div style="max-height:calc(100vh - 260px);overflow:auto"><table class="tbl compact"><thead><tr><th style="width:36px">#</th><th>المادة</th><th>الوحدة</th><th title="الرصيد عند بداية استعمال البرنامج">الرصيد الأولي</th><th>الحد الأدنى</th><th>الرصيد</th><th></th></tr></thead><tbody>
+        ${n.map((a,s)=>`<tr data-id="${a.id}"><td class="muted num">${s+1}</td><td><b>${p(a.name)}</b></td><td class="muted">${p(a.unit||"")}</td><td class="num">${v(a.opening)}</td><td class="num muted">${a.min?v(a.min):""}</td><td class="num"><b>${v(lt(a.id))}</b></td>
+          <td class="act"><button class="btn sm" data-a="edit">${ic("edit")}</button> <button class="btn sm danger icon" data-a="del">${ic("trash")}</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="empty-state">لا توجد مواد. أضف مادة أو استعمل «القائمة المقترحة» أو استورد من Excel.</div>',$$("#itT tr[data-id]").forEach(a=>{const s=P(a.dataset.id);$$("[data-a]",a).forEach(i=>i.onclick=async()=>{if(i.dataset.a==="edit"&&Et(s,t),i.dataset.a==="del"){const d=f().ins.filter(c=>c.itemId===s.id).length+f().outs.filter(c=>c.itemId===s.id).length;if(d)return toast(`لا يمكن حذف هذه المادة: مستعملة في ${d} عملية (وارد/صادر). احذف العمليات أولا.`,!0);if(!await confirmBox(`حذف المادة <b>${p(s.name)}</b>؟`,"حذف"))return;f().items=f().items.filter(c=>c.id!==s.id),persist(),t()}})})},o=()=>{$("#srcC").innerHTML=f().sources.map((n,a)=>`<span class="chip">${p(n)}<button data-i="${a}" title="حذف">✕</button></span>`).join("")||'<span class="muted">لا توجد مصادر</span>',$$("#srcC [data-i]").forEach(n=>n.onclick=()=>{f().sources.splice(+n.dataset.i,1),persist(),o()})};$("#addIt").onclick=()=>Et(null,t),$("#sugg")&&($("#sugg").onclick=()=>{let n=0;vt.forEach(a=>{Q(a)||(f().items.push({id:uid("it"),name:a,unit:"",opening:0,min:""}),n++)}),persist(),go("stock",{tab:"settings"}),toast(`أضيفت ${n} مادة`)}),$("#srcA").onclick=()=>{const n=$("#srcN").value.trim();n&&(f().sources.some(a=>A(a)===A(n))||f().sources.push(n),$("#srcN").value="",persist(),o())},$("#srcN").onkeydown=n=>{n.key==="Enter"&&$("#srcA").click()},$("#bnA").onclick=()=>go("employees"),$("#pvT").oninput=n=>{f().pvTitle=n.target.value,persist()},$("#impSt").onclick=Wt,$("#tplSt").onclick=async()=>{const n=[["المواد","الوحدة","الرصيد الأولي","المصدر"]];for(let s=0;s<40;s++)n.push(["","","",""]);(await window.api.saveXlsx(n,"نموذج_المخزون.xlsx","الإعدادات",[36,12,14,30])).ok&&toast("تم حفظ النموذج: املأه ثم استورده")},t(),o()}function Et(e,t){const o=e||{name:"",unit:"",opening:"",min:""},n=`<div class="fgrid"><div class="fld full"><label>اسم المادة <span style="color:var(--red)">*</span></label><input class="inp" id="tN" value="${p(o.name)}"></div>
+      <div class="fld"><label>الوحدة (علبة، رزمة، قطعة...)</label><input class="inp" id="tU" value="${p(o.unit||"")}"></div>
+      <div class="fld"><label>الرصيد الأولي (قبل التسجيل في البرنامج)</label><input class="inp" type="number" min="0" step="any" id="tO" value="${p(o.opening||"")}"></div>
+      <div class="fld"><label>الحد الأدنى للتنبيه (اختياري)</label><input class="inp" type="number" min="0" step="any" id="tM" value="${p(o.min||"")}"></div>
+      <div class="fld"><label>الصنف</label><select class="inp" id="tC">${_.map(a=>`<option ${a===(o.cat||yt(o.name))?"selected":""}>${a}</option>`).join("")}</select></div>
+      <div class="fld"><label>ثمن الوحدة بالدرهم (اختياري — لقيمة المخزون)</label><input class="inp" type="number" min="0" step="any" id="tP" value="${p(o.price||"")}"></div></div>`;modal({title:e?"تعديل مادة":"إضافة مادة",size:"sm",body:n,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:a=>{const s=$("#tN",a).value.trim();if(!s)return toast("المرجو كتابة اسم المادة",!0),!1;const i=Q(s);if(i&&i!==e)return toast("هذه المادة موجودة في القائمة",!0),!1;const d=q($("#tO",a).value);if(e){const y=X(e.id,f().ins,f().outs,d);if(!y.ok)return toast("لا يمكن هذا الرصيد الأولي: "+it(e.id,y).replace(/<[^>]+>/g,""),!0),!1}const c={name:s,unit:$("#tU",a).value.trim(),opening:d,min:$("#tM",a).value.trim(),cat:$("#tC",a).value,price:$("#tP",a).value.trim()};e?Object.assign(e,c):f().items.push(Object.assign({id:uid("it")},c)),persist(),t&&t(),toast("تم الحفظ")}},{label:"إلغاء"}]})}const Ut=MK.matcher({item:["المواد","المادة","اسم المادة","Article","Désignation","Produit"],unit:["الوحدة","Unité"],opening:["الرصيد الأولي","الرصيد السابق","أرصدة سابقة"],source:["المصدر","المصادر","Source"],benef:["الأساتذة","الأستاذ","الأستاذ(ة)","المستفيد","المستفيد(ة)","المستفيدون","الاسم الكامل"],ppr:["رقم التأجير","الرقم المالي","PPR"],qty:["الكمية","Quantité"],dIn:["تاريخ الوصول","تاريخ الورود"],dOut:["تاريخ التسليم"],ref:["المرجع"]});async function Wt(){const e=await MK.openTable();if(!e)return;const t={items:0,sources:0,emps:0,ins:0,outs:0,dup:0},o=c=>{let y=Q(c);return y||(y={id:uid("it"),name:c,unit:"",opening:0,min:""},f().items.push(y),t.items++),y},n=c=>{c&&!f().sources.some(y=>A(y)===A(c))&&(f().sources.push(c),t.sources++)},a=(c,y)=>{if(A(c)===A("صادر غير مسجل")||A(c)===A(G))return{name:G,ppr:""};const x=gt(DB,c,y);return x.created&&t.emps++,{empId:x.e.id,name:fullName(x.e),ppr:x.e.ppr||"",role:x.e.cadre||""}},s=new Set(f().ins.map(c=>["i",c.itemId,c.date,q(c.qty),A(c.source)].join("|")).concat(f().outs.map(c=>["o",c.itemId,c.date,q(c.qty),A(D(c.benef).name)].join("|"))));let i=0;if(e.forEach(c=>{const y=MK.headerRow(c.rows,Ut,2);if(!y)return;const x={};y.map.forEach((g,m)=>{g&&x[g]==null&&(x[g]=m)});const h=(g,m)=>x[m]==null?"":String(g[x[m]]==null?"":g[x[m]]).trim(),l=c.rows.slice(y.hi+1),w=new Date().toISOString();x.qty!=null&&x.item!=null&&x.dIn!=null?(i++,l.forEach(g=>{const m=h(g,"item"),b=q(h(g,"qty"));if(!m||!(b>0))return;const M=o(m),u=normDate(h(g,"dIn"))||K(),r=h(g,"source");n(r);const k=["i",M.id,u,b,A(r)].join("|");if(s.has(k)){t.dup++;return}s.add(k),f().ins.push({id:uid("in"),itemId:M.id,qty:b,date:u,source:r,ref:h(g,"ref"),note:"",created:w}),t.ins++})):x.qty!=null&&x.item!=null&&x.dOut!=null?(i++,l.forEach(g=>{const m=h(g,"item"),b=q(h(g,"qty")),M=h(g,"benef");if(!m||!(b>0)||!M)return;const u=o(m),r=normDate(h(g,"dOut"))||K(),k=a(M,h(g,"ppr")),E=["o",u.id,r,b,A(k.name)].join("|");if(s.has(E)){t.dup++;return}s.add(E),f().outs.push({id:uid("out"),itemId:u.id,qty:b,date:r,benef:k,note:"",batch:"imp"+r+A(k.name),created:w}),t.outs++})):(x.item!=null||x.source!=null||x.benef!=null)&&(i++,l.forEach(g=>{const m=h(g,"item");if(m){const M=Q(m),u=o(m);M||(u.unit=h(g,"unit"),u.opening=q(h(g,"opening")))}n(h(g,"source"));const b=h(g,"benef");b&&a(b,h(g,"ppr"))}))}),!i)return toast("لم يتم العثور على أعمدة معروفة (المواد، المصدر، الأساتذة، رقم التأجير...)",!0);persist(),go("stock",{tab:"settings"});const d=f().items.filter(c=>!X(c.id,f().ins,f().outs).ok).length;toast(`تم الاستيراد: ${t.items} مادة، ${t.sources} مصدر، ${t.ins} وارد، ${t.outs} صادر${t.emps?`، وأضيف ${t.emps} موظف(ة) إلى لائحة الموظفين`:""}${t.dup?` (تم تجاهل ${t.dup} عملية مكررة)`:""}`),d&&setTimeout(()=>toast(`تنبيه: ${d} مادة رصيدها سالب. أدخل «الرصيد الأولي» لهذه المواد من «المواد والإعدادات».`,!0),600)}async function Vt(){const e=[["ر.ت","المادة","الوحدة","الرصيد السابق","الوارد","المنصرف","الرصيد الحالي"]].concat(pt(I.from,I.to).map((o,n)=>[String(n+1),o.it.name,o.it.unit||"",v(o.before),v(o.inn),v(o.out),v(o.after)]));(await window.api.saveXlsx(e,`وضعية_المخزون_${I.to||K()}.xlsx`,"وضعية المخزون",[6,40,12,14,12,12,14])).ok&&toast("تم التصدير إلى Excel")}async function Xt(){const e=f().ins.filter(n=>at(n.date)).sort((n,a)=>(n.date||"").localeCompare(a.date||"")),t=[["ر.ت","المادة","المصدر","الكمية","تاريخ الوصول","المرجع","ملاحظة"]].concat(e.map((n,a)=>[String(a+1),j(n.itemId),n.source||"",v(n.qty),O(n.date),n.ref||"",n.note||""]));(await window.api.saveXlsx(t,"سجل_الواردات.xlsx","سجل الواردات",[6,40,30,10,14,20,24])).ok&&toast("تم التصدير إلى Excel")}async function Zt(){const e=f().outs.filter(n=>at(n.date)).sort((n,a)=>(n.date||"").localeCompare(a.date||"")),t=[["ر.ت","المستفيد(ة)","رقم التأجير","المادة","الكمية","تاريخ التسليم","ملاحظة"]].concat(e.map((n,a)=>{const s=D(n.benef);return[String(a+1),s.name,s.ppr||"",j(n.itemId),v(n.qty),O(n.date),n.note||""]}));(await window.api.saveXlsx(t,"سجل_الصادرات.xlsx","سجل الصادرات",[6,30,14,40,10,14,24])).ok&&toast("تم التصدير إلى Excel")}const Tt=[["analytic","التقرير التحليلي لتدبير المخزون (المؤشرات والتنبيهات)"],["pv","محضر تسلم المواد (لمستفيد)"],["status","وضعية المخزون"],["outs","تقرير حول اللوازم والمواد المسلمة"],["item","تقرير المستفيدين من مادة"],["card","بطاقة المخزون (حركة مادة يوما بيوم)"],["benef","جدول استهلاك المستفيدين حسب المواد"],["sources","حصيلة الواردات حسب المصدر"],["ins","سجل الواردات"]];function Gt(e,t){const{tr:o,thr:n,tbl:a,SB:s}=window.K,i=rt(t.from,t.to),d=i.T,c=`الموسم الدراسي: ${J(t)} — ${Y(t.from,t.to)}`,y=l=>s.head(e,l,c),x=s.sign(e,{right:`حرر ب: ${p(t.city||e.city||"")} في: ${t.date?O(t.date):".........."}`,left:"توقيع وخاتم مدير(ة) المؤسسة"}),h=(l,w,g)=>MK.flowPages({page:g||"a4",cls:"sb",head:y(l),blocks:w.length?w:[{html:'<p class="sb-p" style="text-align:center">لا توجد معطيات لهذه الفترة.</p>'}],sign:x});if(t.kind==="analytic"){const l=(m,b)=>`<td class="k b">${m}</td><td class="b">${b}</td>`,w=[{html:`<table class="sb-t cmp"><tbody><tr>${l("المواد المتداولة",d.items)}${l("الكمية الواردة",`${v(d.inn)} (${d.nIn} عملية)`)}${l("الكمية المنصرفة",`${v(d.out)} (${d.nOut} عملية)`)}</tr>
+          <tr>${l("المصادر",d.sources)}${l("المستفيدون",d.benefs)}${l("نسبة الاستهلاك",Math.round(d.use*100)+"%")}</tr>
+          <tr>${l("مواد نفدت",d.out0)}${l("مواد حرجة / منخفضة",`${d.crit} / ${d.low}`)}${l("مؤشر سلامة المخزون",d.health+"%")}</tr>${d.priced?`<tr>${l("قيمة المخزون",V(d.val))}${l("قيمة المنصرف",V(d.valOut))}${l("مدة الفترة",d.months.toFixed(1)+" شهر")}</tr>`:""}</tbody></table>`},{html:s.cap("الوارد والمنصرف حسب الشهر","r")+`<div style="text-align:center">${qt(i.M)}</div>`},{before:s.cap("مؤشرات كل مادة","r"),table:a(n(["المادة","الرصيد السابق","الوارد","المنصرف","الرصيد الحالي","الاستهلاك الشهري","التغطية (شهر)","المستفيدون","الوضعية"].map(m=>({t:m,c:"d"}))),i.rows.map(m=>o([{t:`${m.it.name}${m.it.unit?" ("+m.it.unit+")":""}`,c:"r b"},v(m.before),v(m.inn),v(m.out),{t:v(m.after),c:"b"},kt(m.avgM),W(m.cover),m.benefs||"—",{t:z[m.status][0],c:m.status==="out"||m.status==="crit"?"red b":"b"}])),"cmp").table},{before:s.cap("حسب الصنف","r"),table:a(n(["الصنف","عدد المواد","الوارد","المنصرف"].concat(d.priced?["قيمة المخزون"]:[]).map(m=>({t:m,c:"d"}))),i.cats.map(m=>o([{t:m.c,c:"r b"},m.n,v(m.inn),v(m.out)].concat(d.priced?[V(m.val)]:[]))),"cmp").table}],g=i.rows.filter(m=>m.status==="out"||m.status==="crit").map(m=>`${p(m.it.name)}: ${m.status==="out"?"نفدت — يلزم التزود":`الرصيد ${v(m.after)} يكفي ${W(m.cover)} شهر`}`).concat(i.unusual.slice(0,6).map(m=>`استهلاك مرتفع لـ ${p(m.who)} من «${p(m.it.name)}»: ${v(m.q)} (المعدل ${v(m.avg.toFixed(1))})`)).concat(i.rows.filter(m=>m.status==="idle"&&m.after>0).slice(0,6).map(m=>`مادة راكدة: ${p(m.it.name)} (${v(m.after)})`));return g.length&&w.push({html:s.cap("التنبيهات والتوصيات","r")+`<div class="sb-p" style="line-height:1.8">${g.map(m=>`• ${m}`).join("<br>")}</div>`}),h("التقرير التحليلي لتدبير المخزون والوسائل التعليمية",w)}if(t.kind==="card"){const l=P(t.itemId);if(!l)return h("بطاقة المخزون",[]);const w=[];f().ins.filter(r=>r.itemId===l.id).forEach(r=>w.push({d:r.date||"",t:0,who:r.source||"",ref:r.ref||"",inn:q(r.qty),out:0})),f().outs.filter(r=>r.itemId===l.id).forEach(r=>{const k=D(r.benef);w.push({d:r.date||"",t:1,who:k.name+(k.ppr?" — "+k.ppr:""),ref:"",inn:0,out:q(r.qty)})}),w.sort((r,k)=>r.d.localeCompare(k.d)||r.t-k.t);let g=q(l.opening);const m=[o([{t:"",c:"sm"},{t:"الرصيد الأولي",c:"r b",s:2},"","","",{t:v(g),c:"b"}])];let b=0,M=0;w.forEach(r=>{g+=r.inn-r.out,!(t.from&&r.d<t.from||t.to&&r.d>t.to)&&(b+=r.inn,M+=r.out,m.push(o([{t:O(r.d),c:"sm"},{t:r.t?"تسليم":"وارد",c:r.t?"sm":"sm b"},{t:r.who,c:"r sm"},{t:r.ref,c:"sm"},r.inn?{t:v(r.inn),c:"b"}:"",r.out?{t:v(r.out),c:"red b"}:"",{t:v(g),c:g<0?"red b":"b"}])))}),m.push(o([{t:"المجموع خلال الفترة",s:4,c:"d b"},{t:v(b),c:"d b"},{t:v(M),c:"d b"},{t:v(g),c:"d b"}]));const u=i.rows.find(r=>r.it.id===l.id);return h(`بطاقة المخزون: ${p(l.name)}`,[{html:`<div class="sb-note">الوحدة: <b>${p(l.unit||"—")}</b> — الصنف: <b>${p(wt(l))}</b> — الحد الأدنى: <b>${l.min?v(l.min):"—"}</b>${u?` — معدل الاستهلاك الشهري: <b>${v(+u.avgM.toFixed(1))}</b> — التغطية: <b>${W(u.cover)}</b> شهر — الوضعية: <b>${z[u.status][0]}</b>`:""}</div>`},a(n(["التاريخ","العملية","المصدر / المستفيد(ة)","المرجع","الوارد","المنصرف","الرصيد"].map(r=>({t:r,c:"d"}))),m,"cmp")])}if(t.kind==="benef"){const l=i.rows.filter(b=>b.out).sort((b,M)=>M.out-b.out).slice(0,7),w=new Map;f().outs.filter(b=>(!t.from||b.date>=t.from)&&(!t.to||b.date<=t.to)).forEach(b=>{const M=D(b.benef),u=M.name,r=w.get(u)||{b:M,m:{},n:0,other:0};r.n++,l.some(k=>k.it.id===b.itemId)?r.m[b.itemId]=(r.m[b.itemId]||0)+q(b.qty):r.other+=q(b.qty),w.set(u,r)});const g=Array.from(w.values()).sort((b,M)=>b.b.name.localeCompare(M.b.name,"ar")),m=g.map((b,M)=>o([M+1,{t:b.b.name,c:"r b"},{t:b.b.ppr||"",c:"sm"}].concat(l.map(u=>b.m[u.it.id]?v(b.m[u.it.id]):""),[b.other?v(b.other):"",b.n])));return m.push(o([{t:"المجموع",s:3,c:"d b"}].concat(l.map(b=>({t:v(b.out),c:"d b"})),[{t:v(g.reduce((b,M)=>b+M.other,0)),c:"d b"},{t:g.reduce((b,M)=>b+M.n,0),c:"d b"}]))),h("جدول استهلاك المستفيدين حسب المواد",[a(n(["ر.ت","المستفيد(ة)","رقم التأجير"].concat(l.map(b=>({t:b.it.name,c:"d",st:"font-size:7.5pt"})),["مواد أخرى","عدد العمليات"]).map(b=>typeof b=="object"?b:{t:b,c:"d"})),m,"cmp")],"a4l")}if(t.kind==="sources"){const l=f().ins.filter(g=>(!t.from||g.date>=t.from)&&(!t.to||g.date<=t.to)),w=i.src.map(g=>{const m={};return l.filter(b=>(b.source||"غير محدد")===g.k).forEach(b=>{m[b.itemId]=(m[b.itemId]||0)+q(b.qty)}),{before:s.cap(`${p(g.k)}: ${g.n} عملية — ${v(g.q)} وحدة`,"r"),keepNext:!0,table:a(n(["المادة","الكمية","الوحدة"].map(b=>({t:b,c:"d"}))),Object.keys(m).sort((b,M)=>m[M]-m[b]).map(b=>o([{t:j(b),c:"r b"},v(m[b]),F(b)])),"cmp").table}});return h("حصيلة الواردات حسب المصدر",w)}return[""]}const Y=(e,t)=>e&&t?`خلال الفترة من ${O(e)} إلى ${O(t)}`:e?`ابتداء من ${O(e)}`:t?`إلى غاية ${O(t)}`:"",At=()=>{const e={};return f().outs.forEach(o=>{e[o.itemId]=(e[o.itemId]||0)+1}),Object.keys(e).sort((o,n)=>e[n]-e[o])[0]||H()[0].id},J=e=>MK.schoolYear(e.to||e.date||K());function Qt(e,t){const o=t.benefKey?t.benefKey.startsWith("n:")?{name:t.benefKey.slice(2)}:ut(t.benefKey):null,n=o?D(o):{name:"",ppr:"",role:""},a=o?f().outs.filter(d=>Z(d.benef)===t.benefKey&&(t.batch?d.batch===t.batch:(!t.from||d.date>=t.from)&&(!t.to||d.date<=t.to))).sort((d,c)=>(d.date||"").localeCompare(c.date||"")):[],s=10,i=[];for(let d=0;d<Math.max(1,a.length);d+=s)i.push(a.slice(d,d+s));return i.map((d,c)=>{const y=d.map((x,h)=>`<tr><td>${c*s+h+1}</td><td class="r">${p(j(x.itemId))}</td><td>${v(x.qty)} ${p(F(x.itemId))}</td><td>${O(x.date)}</td></tr>`);for(;y.length<Math.min(s,Math.max(8,d.length));)y.push("<tr><td></td><td></td><td></td><td></td></tr>");return`
+      ${N.header(e)}
+      <div class="title-box" style="font-size:13.5pt">${p(f().pvTitle)}</div>
+      <div class="c b" style="margin-top:-1.5mm;margin-bottom:1.5mm">الموسم الدراسي: ${p(MK.schoolYear(t.date||K()))}</div>
       <div class="mk-lines">
         <p class="b">أنا الموقع(ة) أسفله:</p>
-        <p>السيد(ة): ${Dx.V(bl.name, 'b')} &nbsp; رقم التأجير: ${Dx.V(bl.ppr)}</p>
-        ${bl.role ? `<p>الصفة: ${Dx.V(bl.role)}</p>` : ''}
-        <p>أشهد أني تسلمت من مدير(ة) المؤسسة: ${Dx.V(s.school, 'b')} المواد التالية:</p>
+        <p>السيد(ة): ${N.V(n.name,"b")} &nbsp; رقم التأجير: ${N.V(n.ppr)}</p>
+        ${n.role?`<p>الصفة: ${N.V(n.role)}</p>`:""}
+        <p>أشهد أني تسلمت من مدير(ة) المؤسسة: ${N.V(e.school,"b")} المواد التالية:</p>
       </div>
-      <table class="tbl mk-pv-t"><thead><tr><th style="width:9%">ر.ت</th><th>المادة</th><th style="width:19%">الكمية</th><th style="width:22%">تاريخ التسليم</th></tr></thead><tbody>${rows.join('')}</tbody></table>
-      ${chunks.length > 1 ? `<div class="c small">(${ci + 1} / ${chunks.length})</div>` : ''}
-      <p class="l mt">حرر ب: ${Dx.V(st.city || s.city)} &nbsp; في: ${Dx.D(st.date)}</p>
+      <table class="tbl mk-pv-t"><thead><tr><th style="width:9%">ر.ت</th><th>المادة</th><th style="width:19%">الكمية</th><th style="width:22%">تاريخ التسليم</th></tr></thead><tbody>${y.join("")}</tbody></table>
+      ${i.length>1?`<div class="c small">(${c+1} / ${i.length})</div>`:""}
+      <p class="l mt">حرر ب: ${N.V(t.city||e.city)} &nbsp; في: ${N.D(t.date)}</p>
       <div class="sigs"><div>توقيع المستفيد(ة)</div><div>توقيع وخاتم مدير(ة) المؤسسة</div></div>
-      <div class="spacer"></div>`;
-    });
-  }
-
-  function reportPages(s, st) {
-    const sign = MK.signBlock(s, { city: st.city, date: st.date });
-    const info = html => `<div class="mk-info">${html}</div>`;
-    if (st.kind === 'status') {
-      const rows = statusRows(st.from, st.to).map((r, i) => [i + 1, `<b>${esc(r.it.name)}</b>`, esc(r.it.unit || ''), q(r.before), q(r.inn), q(r.out), `<b>${q(r.after)}</b>`]);
-      return MK.tablePages({ s, title: `وضعية المخزون بتاريخ: ${fmtDate(st.to || today())}`, info: info(`الموسم الدراسي: <b>${syOf(st)}</b> — ${period(st.from, st.to)}`),
-        cols: [{ h: 'ر.ت', w: '7%' }, { h: 'المادة', cls: 'r' }, { h: 'الوحدة', w: '10%' }, { h: 'الرصيد السابق', w: '11%' }, { h: 'الوارد', w: '10%' }, { h: 'المنصرف', w: '10%' }, { h: 'الرصيد الحالي', w: '11%' }],
-        rows, sign, minRows: 10 });
-    }
-    if (st.kind === 'ins') {
-      const list = SD().ins.filter(r => (!st.from || r.date >= st.from) && (!st.to || r.date <= st.to) && (!st.itemId || r.itemId === st.itemId) && (!st.src || r.source === st.src))
-        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-      const rows = list.map((r, i) => [i + 1, fmtDate(r.date), esc(itemName(r.itemId)), esc(r.source || ''), `${q(r.qty)} ${esc(itemUnit(r.itemId))}`, esc(r.ref || '')]);
-      return MK.tablePages({ s, title: 'سجل الواردات', info: info(`الموسم الدراسي: <b>${syOf(st)}</b> — ${period(st.from, st.to)}${st.itemId ? ` — المادة: <b>${esc(itemName(st.itemId))}</b>` : ''}${st.src ? ` — المصدر: <b>${esc(st.src)}</b>` : ''}`),
-        cols: [{ h: 'ر.ت', w: '7%' }, { h: 'تاريخ الوصول', w: '13%' }, { h: 'المادة', cls: 'r' }, { h: 'المصدر', w: '22%', cls: 'sm' }, { h: 'الكمية', w: '11%' }, { h: 'المرجع', w: '14%', cls: 'sm' }],
-        rows, sign, minRows: 10 });
-    }
-    if (st.kind === 'outs') {
-      const list = SD().outs.filter(r => (!st.from || r.date >= st.from) && (!st.to || r.date <= st.to) && (!st.itemId || r.itemId === st.itemId))
-        .sort((a, b) => (a.date || '').localeCompare(b.date || '') || benefLive(a.benef).name.localeCompare(benefLive(b.benef).name, 'ar'));
-      const rows = list.map((r, i) => { const b = benefLive(r.benef); return [i + 1, fmtDate(r.date), esc(b.name), esc(b.ppr || ''), esc(itemName(r.itemId)), `${q(r.qty)} ${esc(itemUnit(r.itemId))}`]; });
-      return MK.tablePages({ s, title: 'تقرير حول اللوازم والمواد المسلمة', info: info(`الموسم الدراسي: <b>${syOf(st)}</b> — ${period(st.from, st.to)}${st.itemId ? ` — المادة: <b>${esc(itemName(st.itemId))}</b>` : ''}`),
-        cols: [{ h: 'ر.ت', w: '7%' }, { h: 'تاريخ التسليم', w: '13%' }, { h: 'المستفيد(ة)', cls: 'r', w: '27%' }, { h: 'رقم التأجير', w: '12%' }, { h: 'المادة', cls: 'r' }, { h: 'الكمية', w: '10%' }],
-        rows, sign, minRows: 10 });
-    }
-    if (st.kind === 'item') {
-      const list = SD().outs.filter(r => r.itemId === st.itemId && (!st.from || r.date >= st.from) && (!st.to || r.date <= st.to)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-      const rows = list.map((r, i) => { const b = benefLive(r.benef); return [i + 1, esc(b.name), esc(b.ppr || ''), `${q(r.qty)} ${esc(itemUnit(r.itemId))}`, fmtDate(r.date), '']; });
-      const tot = list.reduce((x, r) => x + num(r.qty), 0);
-      return MK.tablePages({ s, title: 'تقرير المستفيدين من المادة', info: info(`المادة: <b>${esc(itemName(st.itemId))}</b> — الموسم الدراسي: <b>${syOf(st)}</b> — ${period(st.from, st.to)}`),
-        cols: [{ h: 'ر.ت', w: '7%' }, { h: 'المستفيد(ة)', cls: 'r' }, { h: 'رقم التأجير', w: '14%' }, { h: 'الكمية', w: '12%' }, { h: 'تاريخ التسليم', w: '15%' }, { h: 'التوقيع', w: '18%' }],
-        rows, foot: `<table class="tbl mk-tbl"><tr class="tot"><td class="r">مجموع الكمية المسلمة</td><td style="width:30%">${q(tot)} ${esc(itemUnit(st.itemId))}</td></tr></table>`, sign, minRows: 10 });
-    }
-    return [''];
-  }
-
-  window.pageStockDoc = function (v, arg) {
-    migrate(DB);
-    arg = arg || {};
-    const b = MK.syBounds(today());
-    const st0 = { kind: arg.kind || 'status', from: arg.from != null ? arg.from : (flt.all ? '' : flt.from || b.from), to: arg.to != null ? arg.to : (flt.all ? '' : flt.to || today()),
-      itemId: arg.itemId || '', src: arg.src || '', benefKey: arg.benefKey || '', batch: arg.batch || '', date: arg.kind === 'pv' && arg.to ? arg.to : today(), city: S().city || '' };
-    if ((st0.kind === 'item' || st0.kind === 'card') && !st0.itemId && SD().items.length) st0.itemId = topItem();
-    MK.docPage(v, {
-      word: true,
-      title: 'المحاضر والتقارير — الوسائل التعليمية', icon: '📦', modes: st0.kind === 'pv', state: st0,
-      back: () => go('stock'),
-      form: (box, st, refresh) => {
-        const draw = () => {
-          const benefs = [];
-          const seen = new Set();
-          SD().outs.slice().sort((x, y) => (y.date || '').localeCompare(x.date || '')).forEach(r => { const k = benefKeyOf(r.benef); if (!seen.has(k)) { seen.add(k); benefs.push([k, benefLive(r.benef).name]); } });
-          benefs.sort((x, y) => x[1].localeCompare(y[1], 'ar'));
-          box.innerHTML = `<div class="sec-t">نوع الوثيقة</div>
-            <div class="fld"><select class="inp" id="dK">${KINDS.map(([k, l]) => `<option value="${k}" ${st.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-            ${st.kind === 'pv' ? `<div class="fld"><label>المستفيد(ة)</label><select class="inp" id="dB"><option value=""></option>${benefs.map(([k, n]) => `<option value="${esc(k)}" ${k === st.benefKey ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-              ${st.batch ? `<label class="chk" style="margin-bottom:10px"><input type="checkbox" id="dBatch" checked> المواد المسلمة في هذه العملية فقط</label>` : ''}` : ''}
-            ${st.kind === 'item' || st.kind === 'card' || st.kind === 'ins' || st.kind === 'outs' ? `<div class="fld"><label>المادة</label><select class="inp" id="dI">${st.kind === 'item' || st.kind === 'card' ? '' : '<option value="">كل المواد</option>'}${sortedItems().map(i => `<option value="${i.id}" ${i.id === st.itemId ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select></div>` : ''}
-            ${st.kind === 'ins' ? `<div class="fld"><label>المصدر</label><select class="inp" id="dS"><option value="">كل المصادر</option>${SD().sources.map(x => `<option ${x === st.src ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>` : ''}
+      <div class="spacer"></div>`})}function Yt(e,t){const o=MK.signBlock(e,{city:t.city,date:t.date}),n=a=>`<div class="mk-info">${a}</div>`;if(t.kind==="status"){const a=pt(t.from,t.to).map((s,i)=>[i+1,`<b>${p(s.it.name)}</b>`,p(s.it.unit||""),v(s.before),v(s.inn),v(s.out),`<b>${v(s.after)}</b>`]);return MK.tablePages({s:e,title:`وضعية المخزون بتاريخ: ${O(t.to||K())}`,info:n(`الموسم الدراسي: <b>${J(t)}</b> — ${Y(t.from,t.to)}`),cols:[{h:"ر.ت",w:"7%"},{h:"المادة",cls:"r"},{h:"الوحدة",w:"10%"},{h:"الرصيد السابق",w:"11%"},{h:"الوارد",w:"10%"},{h:"المنصرف",w:"10%"},{h:"الرصيد الحالي",w:"11%"}],rows:a,sign:o,minRows:10})}if(t.kind==="ins"){const s=f().ins.filter(i=>(!t.from||i.date>=t.from)&&(!t.to||i.date<=t.to)&&(!t.itemId||i.itemId===t.itemId)&&(!t.src||i.source===t.src)).sort((i,d)=>(i.date||"").localeCompare(d.date||"")).map((i,d)=>[d+1,O(i.date),p(j(i.itemId)),p(i.source||""),`${v(i.qty)} ${p(F(i.itemId))}`,p(i.ref||"")]);return MK.tablePages({s:e,title:"سجل الواردات",info:n(`الموسم الدراسي: <b>${J(t)}</b> — ${Y(t.from,t.to)}${t.itemId?` — المادة: <b>${p(j(t.itemId))}</b>`:""}${t.src?` — المصدر: <b>${p(t.src)}</b>`:""}`),cols:[{h:"ر.ت",w:"7%"},{h:"تاريخ الوصول",w:"13%"},{h:"المادة",cls:"r"},{h:"المصدر",w:"22%",cls:"sm"},{h:"الكمية",w:"11%"},{h:"المرجع",w:"14%",cls:"sm"}],rows:s,sign:o,minRows:10})}if(t.kind==="outs"){const s=f().outs.filter(i=>(!t.from||i.date>=t.from)&&(!t.to||i.date<=t.to)&&(!t.itemId||i.itemId===t.itemId)).sort((i,d)=>(i.date||"").localeCompare(d.date||"")||D(i.benef).name.localeCompare(D(d.benef).name,"ar")).map((i,d)=>{const c=D(i.benef);return[d+1,O(i.date),p(c.name),p(c.ppr||""),p(j(i.itemId)),`${v(i.qty)} ${p(F(i.itemId))}`]});return MK.tablePages({s:e,title:"تقرير حول اللوازم والمواد المسلمة",info:n(`الموسم الدراسي: <b>${J(t)}</b> — ${Y(t.from,t.to)}${t.itemId?` — المادة: <b>${p(j(t.itemId))}</b>`:""}`),cols:[{h:"ر.ت",w:"7%"},{h:"تاريخ التسليم",w:"13%"},{h:"المستفيد(ة)",cls:"r",w:"27%"},{h:"رقم التأجير",w:"12%"},{h:"المادة",cls:"r"},{h:"الكمية",w:"10%"}],rows:s,sign:o,minRows:10})}if(t.kind==="item"){const a=f().outs.filter(d=>d.itemId===t.itemId&&(!t.from||d.date>=t.from)&&(!t.to||d.date<=t.to)).sort((d,c)=>(d.date||"").localeCompare(c.date||"")),s=a.map((d,c)=>{const y=D(d.benef);return[c+1,p(y.name),p(y.ppr||""),`${v(d.qty)} ${p(F(d.itemId))}`,O(d.date),""]}),i=a.reduce((d,c)=>d+q(c.qty),0);return MK.tablePages({s:e,title:"تقرير المستفيدين من المادة",info:n(`المادة: <b>${p(j(t.itemId))}</b> — الموسم الدراسي: <b>${J(t)}</b> — ${Y(t.from,t.to)}`),cols:[{h:"ر.ت",w:"7%"},{h:"المستفيد(ة)",cls:"r"},{h:"رقم التأجير",w:"14%"},{h:"الكمية",w:"12%"},{h:"تاريخ التسليم",w:"15%"},{h:"التوقيع",w:"18%"}],rows:s,foot:`<table class="tbl mk-tbl"><tr class="tot"><td class="r">مجموع الكمية المسلمة</td><td style="width:30%">${v(i)} ${p(F(t.itemId))}</td></tr></table>`,sign:o,minRows:10})}return[""]}window.pageStockDoc=function(e,t){tt(DB),t=t||{};const o=MK.syBounds(K()),n={kind:t.kind||"status",from:t.from!=null?t.from:I.all?"":I.from||o.from,to:t.to!=null?t.to:I.all?"":I.to||K(),itemId:t.itemId||"",src:t.src||"",benefKey:t.benefKey||"",batch:t.batch||"",date:t.kind==="pv"&&t.to?t.to:K(),city:S().city||""};(n.kind==="item"||n.kind==="card")&&!n.itemId&&f().items.length&&(n.itemId=At()),MK.docPage(e,{word:!0,title:"المحاضر والتقارير — الوسائل التعليمية",icon:"📦",modes:n.kind==="pv",state:n,back:()=>go("stock"),form:(a,s,i)=>{const d=()=>{const c=[],y=new Set;f().outs.slice().sort((h,l)=>(l.date||"").localeCompare(h.date||"")).forEach(h=>{const l=Z(h.benef);y.has(l)||(y.add(l),c.push([l,D(h.benef).name]))}),c.sort((h,l)=>h[1].localeCompare(l[1],"ar")),a.innerHTML=`<div class="sec-t">نوع الوثيقة</div>
+            <div class="fld"><select class="inp" id="dK">${Tt.map(([h,l])=>`<option value="${h}" ${s.kind===h?"selected":""}>${l}</option>`).join("")}</select></div>
+            ${s.kind==="pv"?`<div class="fld"><label>المستفيد(ة)</label><select class="inp" id="dB"><option value=""></option>${c.map(([h,l])=>`<option value="${p(h)}" ${h===s.benefKey?"selected":""}>${p(l)}</option>`).join("")}</select></div>
+              ${s.batch?'<label class="chk" style="margin-bottom:10px"><input type="checkbox" id="dBatch" checked> المواد المسلمة في هذه العملية فقط</label>':""}`:""}
+            ${s.kind==="item"||s.kind==="card"||s.kind==="ins"||s.kind==="outs"?`<div class="fld"><label>المادة</label><select class="inp" id="dI">${s.kind==="item"||s.kind==="card"?"":'<option value="">كل المواد</option>'}${H().map(h=>`<option value="${h.id}" ${h.id===s.itemId?"selected":""}>${p(h.name)}</option>`).join("")}</select></div>`:""}
+            ${s.kind==="ins"?`<div class="fld"><label>المصدر</label><select class="inp" id="dS"><option value="">كل المصادر</option>${f().sources.map(h=>`<option ${h===s.src?"selected":""}>${p(h)}</option>`).join("")}</select></div>`:""}
             <div class="sec-t">الفترة</div>
-            <div class="fgrid"><div class="fld"><label>من</label><input class="inp" type="date" id="dF" value="${esc(st.from)}" ${st.kind === 'pv' && st.batch ? 'disabled' : ''}></div>
-              <div class="fld"><label>إلى</label><input class="inp" type="date" id="dT" value="${esc(st.to)}" ${st.kind === 'pv' && st.batch ? 'disabled' : ''}></div></div>
+            <div class="fgrid"><div class="fld"><label>من</label><input class="inp" type="date" id="dF" value="${p(s.from)}" ${s.kind==="pv"&&s.batch?"disabled":""}></div>
+              <div class="fld"><label>إلى</label><input class="inp" type="date" id="dT" value="${p(s.to)}" ${s.kind==="pv"&&s.batch?"disabled":""}></div></div>
             <div class="sec-t">التحرير</div>
-            <div class="fgrid"><div class="fld"><label>حرر ب</label><input class="inp" id="dC" value="${esc(st.city)}"></div>
-              <div class="fld"><label>في (التاريخ)</label><input class="inp" type="date" id="dD" value="${esc(st.date)}"></div></div>`;
-          $('#dK', box).onchange = e => {
-            st.kind = e.target.value;
-            if ((st.kind === 'item' || st.kind === 'card') && !st.itemId && SD().items.length) st.itemId = topItem();
-            if (st.kind !== 'pv') st.batch = '';
-            go('stockDoc', Object.assign({}, st));
-          };
-          const bind = (id, k, ev) => { const el = $(id, box); if (el) el[ev || 'onchange'] = e => { st[k] = e.target.value; refresh(); }; };
-          bind('#dB', 'benefKey'); bind('#dI', 'itemId'); bind('#dS', 'src'); bind('#dF', 'from'); bind('#dT', 'to'); bind('#dC', 'city', 'oninput'); bind('#dD', 'date');
-          if ($('#dBatch', box)) $('#dBatch', box).onchange = e => { if (!e.target.checked) { st.batch = ''; draw(); refresh(); } };
-        };
-        draw();
-      },
-      build: st => {
-        const s = S();
-        if (st.kind === 'pv') return { page: 'two', pages: pvPages(s, st), cls: 'mk-pv' };
-        if (['analytic', 'card', 'benef', 'sources'].includes(st.kind)) return { page: st.kind === 'benef' ? 'a4l' : 'a4', pages: anaPages(s, st) };
-        return { page: 'a4', pages: reportPages(s, st) };
-      },
-      validate: st => {
-        if (st.kind === 'pv' && !st.benefKey) { toast('المرجو اختيار المستفيد(ة)', true); return false; }
-        if ((st.kind === 'item' || st.kind === 'card') && !st.itemId) { toast('المرجو اختيار المادة', true); return false; }
-        return true;
-      },
-      fname: st => (KINDS.find(k => k[0] === st.kind) || ['', 'وثيقة'])[1] + (st.kind === 'pv' && st.benefKey ? '_' + ((benefFromKey(st.benefKey) || { name: st.benefKey.slice(2) }).name) : '')
-    });
-  };
-})();
+            <div class="fgrid"><div class="fld"><label>حرر ب</label><input class="inp" id="dC" value="${p(s.city)}"></div>
+              <div class="fld"><label>في (التاريخ)</label><input class="inp" type="date" id="dD" value="${p(s.date)}"></div></div>`,$("#dK",a).onchange=h=>{s.kind=h.target.value,(s.kind==="item"||s.kind==="card")&&!s.itemId&&f().items.length&&(s.itemId=At()),s.kind!=="pv"&&(s.batch=""),go("stockDoc",Object.assign({},s))};const x=(h,l,w)=>{const g=$(h,a);g&&(g[w||"onchange"]=m=>{s[l]=m.target.value,i()})};x("#dB","benefKey"),x("#dI","itemId"),x("#dS","src"),x("#dF","from"),x("#dT","to"),x("#dC","city","oninput"),x("#dD","date"),$("#dBatch",a)&&($("#dBatch",a).onchange=h=>{h.target.checked||(s.batch="",d(),i())})};d()},build:a=>{const s=S();return a.kind==="pv"?{page:"two",pages:Qt(s,a),cls:"mk-pv"}:["analytic","card","benef","sources"].includes(a.kind)?{page:a.kind==="benef"?"a4l":"a4",pages:Gt(s,a)}:{page:"a4",pages:Yt(s,a)}},validate:a=>a.kind==="pv"&&!a.benefKey?(toast("المرجو اختيار المستفيد(ة)",!0),!1):(a.kind==="item"||a.kind==="card")&&!a.itemId?(toast("المرجو اختيار المادة",!0),!1):!0,fname:a=>(Tt.find(s=>s[0]===a.kind)||["","وثيقة"])[1]+(a.kind==="pv"&&a.benefKey?"_"+(ut(a.benefKey)||{name:a.benefKey.slice(2)}).name:"")})}})();

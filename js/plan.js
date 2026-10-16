@@ -1,43 +1,4 @@
-'use strict';
-/* برنامج عمل المؤسسة (1.9.4) — the annual action programme of the school: axes, stations, operations, periods, references,
-   the signature table of the management council and the references. A ready model (the 2025/2026 programme) is dated for any school year;
-   «تحيين» copies the programme of a previous year and moves every date to the new year (years, weekdays) and marks the dated stations to review. */
-(function () {
-  const Dx = window.Docs;
-  const { esc } = Dx;
-  const { SB } = window.K;
-
-  /* ---------- dates: moving a programme to another school year ---------- */
-  const MONTHS = [['يناير', 1], ['فبراير', 2], ['مارس', 3], ['أبريل', 4], ['ابريل', 4], ['ماي', 5], ['مايو', 5], ['يونيو', 6], ['يونيه', 6], ['يوليوز', 7], ['يوليو', 7], ['غشت', 8], ['أغسطس', 8],
-    ['شتنبر', 9], ['سبتمبر', 9], ['أكتوبر', 10], ['اكتوبر', 10], ['نونبر', 11], ['نوفمبر', 11], ['دجنبر', 12], ['ديسمبر', 12]];
-  const WD = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const MRX = MONTHS.map(m => m[0]).join('|');
-  const WRX = 'الأحد|الاحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة|السبت';
-  const monthNo = n => (MONTHS.find(m => m[0] === n) || [0, 0])[1];
-  const DATED = new RegExp(`(${MRX})\\s*\\d{4}|\\d{4}\\s*/\\s*\\d{4}`);
-  // a text with years: «شتنبر 2025» -> the year of that month in the school year sy (September-December: first year, January-August: second year),
-  // «2025/2026» -> sy, «يوم الإثنين 09 شتنبر 2025» -> the right weekday of that date (weekday = true)
-  function seasonize(t, sy, weekday) {
-    const y1 = MK.syStart(sy);
-    t = String(t == null ? '' : t);
-    t = t.replace(/(\d{4})\s*\/\s*(\d{4})/g, (m, a, b) => (+b === +a + 1 ? `${y1}/${y1 + 1}` : m));
-    if (weekday) {
-      t = t.replace(new RegExp(`(${WRX})(\\s+)(\\d{1,2})(\\s+)(${MRX})(\\s*)(\\d{4})`, 'g'), (m, w, s1, d, s2, mo, s3) => {
-        const mn = monthNo(mo), yy = mn >= 9 ? y1 : y1 + 1, dt = new Date(yy, mn - 1, +d);
-        return dt.getMonth() === mn - 1 ? `${WD[dt.getDay()]}${s1}${d}${s2}${mo}${s3}${yy}` : m;
-      });
-    }
-    return t.replace(new RegExp(`(${MRX})(\\s*)(\\d{4})`, 'g'), (m, mo, sp) => `${mo}${sp}${monthNo(mo) >= 9 ? y1 : y1 + 1}`);
-  }
-
-  /* ---------- data ---------- */
-  const nid = () => 'p' + Math.random().toString(36).slice(2, 9);
-  function migrate(db) {
-    const p = db.plan = db.plan || {};
-    p.years = p.years && typeof p.years === 'object' ? p.years : {};
-  }
-  const syLabel = sy => MK.syDash(sy).replace('-', '/');
-  const OUTLINE = `# المجال الأول: أنشطة العمل التربوي
+"use strict";(function(){const R=window.Docs,{esc:u}=R,{SB:it}=window.K,I=[["يناير",1],["فبراير",2],["مارس",3],["أبريل",4],["ابريل",4],["ماي",5],["مايو",5],["يونيو",6],["يونيه",6],["يوليوز",7],["يوليو",7],["غشت",8],["أغسطس",8],["شتنبر",9],["سبتمبر",9],["أكتوبر",10],["اكتوبر",10],["نونبر",11],["نوفمبر",11],["دجنبر",12],["ديسمبر",12]],X=["الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"],C=I.map(s=>s[0]).join("|"),G="الأحد|الاحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة|السبت",J=s=>(I.find(t=>t[0]===s)||[0,0])[1],N=new RegExp(`(${C})\\s*\\d{4}|\\d{4}\\s*/\\s*\\d{4}`);function L(s,t,e){const c=MK.syStart(t);return s=String(s??""),s=s.replace(/(\d{4})\s*\/\s*(\d{4})/g,(h,v,m)=>+m==+v+1?`${c}/${c+1}`:h),e&&(s=s.replace(new RegExp(`(${G})(\\s+)(\\d{1,2})(\\s+)(${C})(\\s*)(\\d{4})`,"g"),(h,v,m,n,y,f,r)=>{const o=J(f),a=o>=9?c:c+1,p=new Date(a,o-1,+n);return p.getMonth()===o-1?`${X[p.getDay()]}${m}${n}${y}${f}${r}${a}`:h})),s.replace(new RegExp(`(${C})(\\s*)(\\d{4})`,"g"),(h,v,m)=>`${v}${m}${J(v)>=9?c:c+1}`)}const x=()=>"p"+Math.random().toString(36).slice(2,9);function A(s){const t=s.plan=s.plan||{};t.years=t.years&&typeof t.years=="object"?t.years:{}}const E=s=>MK.syDash(s).replace("-","/"),V=`# المجال الأول: أنشطة العمل التربوي
 - أنشطة العمل التربوي
 - منظومة مسار: مسك النقط واستصدار البيانات
 - أنشطة الدعم الاجتماعي
@@ -49,108 +10,12 @@
 -- الدعم التربوي والنفسي
 - أنشطة التوجيه التربوي
 # المجال الثالث: الأنشطة الموازية
-- أنشطة الحياة المدرسية من خلال الأيام الوطنية والدولية`;
-  const SIGN_T = 'صادق على البرنامج السنوي أعضاء مجلس التدبير بعد الاطلاع عليه';
-  const refsFor = sy => [sy === '2025/2026' ? 'المقرر الوزاري رقم 051-25 بتاريخ 03 يوليوز 2025' : `المقرر الوزاري المنظم للسنة الدراسية ${syLabel(sy)} (رقمه وتاريخه)`,
-    'دليل الاحتفال بالأيام الوطنية والعالمية؛', 'المذكرات الوزارية والجهوية والإقليمية.'].join('\n');
-  // what only concerns the primary school (exam of the primary certificate, pre-school, level 6) is left out of the model for collège / lycée
-  const PRI_ONLY = /الابتدائ|التعليم الأولي|المستوى السادس|السنة الأولى من/;
-
-  function seedYear(sy) {
-    const sd = window.PLAN_SEED || { sections: [] };
-    const pri = !window.Cyc || Cyc.kind() === 'pri';
-    const sz = t => seasonize(t, sy, false);
-    const secs = sd.sections.map(s => ({
-      id: nid(), h: sz(s.h),
-      rows: s.rows.map(r => ({ id: nid(), st: sz(r[0]), ops: (pri ? r[1] : r[1].filter(o => !PRI_ONLY.test(o))).map(sz).join('\n'), per: sz(r[2]), ref: r[3] || '' })).filter(r => r.ops || pri)
-    }));
-    const f = { title: 'برنامج العمل السنوي للمؤسسة', outline: OUTLINE, secs, council: null, signOn: true, signT: SIGN_T, refs: refsFor(sy), auto: true, src: '' };
-    applyDecree(f, sy);
-    return f;
-  }
-  /* ---------- 1.9.4: «تحيين انطلاقا من المقرر الوزاري» (the decree organising the school year, from «قراءة في المقرر الوزاري») ---------- */
-  const decOf = sy => { try { return (window.Teach && Teach.DEC && Teach.DEC[sy]) || null; } catch (e) { return null; } };
-  const decRef = d => { const m = /رقم\s+([\d.\-]+)\s+الصادر\s+بتاريخ\s+(.+?)\s+بشأن/.exec(d.ref || ''); return m ? `المقرر الوزاري رقم ${m[1]} بتاريخ ${m[2]}` : 'المقرر الوزاري المنظم للسنة الدراسية'; };
-  const actOf = (d, rx) => (d.acts.find(a => rx.test(a[1])) || [])[0] || '';
-  const holOf = (d, rx) => (d.hol.find(a => rx.test(a[1])) || [])[0] || '';
-  const dayNo = t => (/(\d{1,2})\s+(?:شتنبر|أكتوبر)/.exec(t) || [])[1];
-  const dot = t => String(t || '').trim().replace(/[.؛]$/, '');
-  function applyDecree(f, sy) {
-    const d = decOf(sy); if (!d) return false;
-    const pri = !window.Cyc || Cyc.kind() === 'pri', y1 = MK.syStart(sy), next = `${y1 + 1}/${y1 + 2}`, ref = decRef(d);
-    const start = actOf(d, /بداية السنة الدراسية/), eff = actOf(d, /انطلاق الدراسة بشكل فعلي/), reg = actOf(d, /التحسيس بإلزامية/), dig = actOf(d, /التسجيل الرقمي/),
-      rereg = actOf(d, /إعادة تسجيل/), exit = actOf(d, /محاضر الخروج/);
-    const num = (/رقم\s+([\d.\-]+)/.exec(d.ref || '') || [])[1] || '';
-    const effD = eff.replace(/(\d{1,2})\s/, (m, n) => `${n.padStart(2, '0')} `);
-    (f.secs || []).forEach(s => {
-      if (/مسار/.test(s.h)) {
-        s.rows = d.cc.filter(c => pri || !(PRI_ONLY.test(c[1]) || /الامتحان الموحد (المحلي|الإقليمي)/.test(c[1]))).map(c => ({ id: nid(), st: /يناير/.test(c[0]) ? 'الأسدوس الأول' : 'الأسدوس الثاني', ops: dot(c[1]), per: c[0], ref: 'الملحق 2 – المقرر الوزاري' }));
-        return;
-      }
-      (s.rows || []).forEach(r => {
-        const all = `${r.st}\n${r.ops}`;
-        if (/استكمال إجراءات الدخول المدرسي/.test(r.st) && start) r.per = `الفترة من ${dayNo(start) || 1} إلى 30 شتنبر ${y1}`;
-        else if (/انطلاقة الدراسة بشكل فعلي/.test(r.st) && eff) { r.per = `يوم ${effD}`; r.ops = String(r.ops || '').replace(/يوم\s+(?:الأحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة|السبت)\s+\d{1,2}\s+\S+\s+\d{4}/, `يوم ${effD}`); }
-        else if (/التحسيس بإلزامية/.test(all) && reg) r.per = dig ? `${reg} (التسجيل الرقمي ${dig})` : reg;
-        else if (/إعادة تسجيل/.test(all) && rereg) r.per = rereg;
-        else if (/محاضر الخروج/.test(all) && exit) r.per = `يوم ${exit}`;
-        else if (/المسيرة الخضراء/.test(r.st)) { const h = holOf(d, /المسيرة الخضراء/); if (h) r.per = `قبيل عطلة ${h}`; }
-        else if (/عيد الاستقلال/.test(r.st)) { const h = holOf(d, /عيد الاستقلال/); if (h) r.per = `قبيل عطلة ${h}`; }
-        else if (/وثيقة الاستقلال/.test(r.st)) { const h = holOf(d, /وثيقة الاستقلال/); if (h) r.per = `قبيل عطلة ${h}`; }
-        if (/إجراءات آخر السنة والتهييئ للدخول المدرسي/.test(r.st)) r.st = r.st.replace(/\d{4}\s*\/\s*\d{4}/, next);
-        if (num && /المقرر الوزاري/.test(r.ref || '') && !/رقم/.test(r.ref)) r.ref = String(r.ref).replace(/المقرر الوزاري/g, `المقرر الوزاري رقم ${num}`);
-        delete r.rv;
-      });
-      // the holidays of the national days that the model did not have
-      if (/الأيام الوطنية/.test(s.h)) {
-        [['عيد الوحدة', 'الاحتفال بعيد الوحدة', 'ترسيخ قيم الوحدة الوطنية والتشبث بالثوابت'], ['السنة الأمازيغية', 'الاحتفال برأس السنة الأمازيغية', 'التعريف بالموروث الثقافي الأمازيغي وتثمين التعدد الثقافي']].forEach(([k, st, op]) => {
-          const h = holOf(d, new RegExp(k));
-          if (h && !(s.rows || []).some(r => new RegExp(k).test(r.st))) s.rows.push({ id: nid(), st, ops: op, per: `قبيل عطلة ${h}`, ref: 'المذكرات الوزارية والجهوية والإقليمية الصادرة في الموضوع' });
-        });
-      }
-    });
-    const rl = String(f.refs || '').split('\n').filter(l => !/المقرر الوزاري/.test(l));
-    f.refs = [ref, ...rl].join('\n'); f.rvRefs = false; f.dec = sy;
-    return true;
-  }
-  // the programme of a previous year moved to sy: every date follows the new year, the dated stations are marked «à revoir»
-  function updateFrom(f0, srcSy, sy) {
-    const f = JSON.parse(JSON.stringify(f0)), wd = srcSy !== sy;
-    const sz = t => seasonize(t, sy, wd);
-    f.title = sz(f.title); f.outline = sz(f.outline);
-    (f.secs || []).forEach(s => {
-      s.id = nid(); s.h = sz(s.h);
-      (s.rows || []).forEach(r => {
-        const dated = DATED.test(r.per || '') || DATED.test(r.ops || '') || DATED.test(r.st || '');
-        r.id = nid(); r.st = sz(r.st); r.per = sz(r.per); r.ops = sz(r.ops);
-        if (wd && dated) r.rv = 1; else delete r.rv;
-      });
-    });
-    f.council = null; f.auto = false; f.src = srcSy; f.rvRefs = wd;
-    return f;
-  }
-  // the programme of a school year (created on first use: from the latest previous programme edited by the user, otherwise from the ready model)
-  function Y(sy) {
-    migrate(DB);
-    const ys = DB.plan.years;
-    // 1.9.4: a ready model made before the decree of its year was known is rebuilt from it
-    if (ys[sy] && ys[sy].auto && !ys[sy].dec && decOf(sy)) ys[sy] = seedYear(sy);
-    if (ys[sy]) return ys[sy];
-    const prev = Object.keys(ys).filter(k => k < sy && ys[k] && !ys[k].auto).sort().pop();
-    if (!prev) return (ys[sy] = seedYear(sy));
-    const f = updateFrom(ys[prev], prev, sy);
-    applyDecree(f, sy);
-    return (ys[sy] = f);
-  }
-  // the members of the management council (from «المجالس التقنية» → تركيبة المجالس)
-  function autoCouncil(sy) {
-    try { if (window.Council) return Council.comp(sy).mgmt.map(r => [r[0] || '', r[1] || '', r[2] || '', '']); } catch (e) {}
-    return [['', '', 'مدير المؤسسة', '']];
-  }
-  const councilRows = (f, sy) => (Array.isArray(f.council) ? f.council : autoCouncil(sy));
-
-  /* ---------- the document ---------- */
-  Dx.modCss += `
+- أنشطة الحياة المدرسية من خلال الأيام الوطنية والدولية`,P="صادق على البرنامج السنوي أعضاء مجلس التدبير بعد الاطلاع عليه",Q=s=>[s==="2025/2026"?"المقرر الوزاري رقم 051-25 بتاريخ 03 يوليوز 2025":`المقرر الوزاري المنظم للسنة الدراسية ${E(s)} (رقمه وتاريخه)`,"دليل الاحتفال بالأيام الوطنية والعالمية؛","المذكرات الوزارية والجهوية والإقليمية."].join(`
+`),Y=/الابتدائ|التعليم الأولي|المستوى السادس|السنة الأولى من/;function T(s){const t=window.PLAN_SEED||{sections:[]},e=!window.Cyc||Cyc.kind()==="pri",c=m=>L(m,s,!1),h=t.sections.map(m=>({id:x(),h:c(m.h),rows:m.rows.map(n=>({id:x(),st:c(n[0]),ops:(e?n[1]:n[1].filter(y=>!Y.test(y))).map(c).join(`
+`),per:c(n[2]),ref:n[3]||""})).filter(n=>n.ops||e)})),v={title:"برنامج العمل السنوي للمؤسسة",outline:V,secs:h,council:null,signOn:!0,signT:P,refs:Q(s),auto:!0,src:""};return _(v,s),v}const U=s=>{try{return window.Teach&&Teach.DEC&&Teach.DEC[s]||null}catch{return null}},Z=s=>{const t=/رقم\s+([\d.\-]+)\s+الصادر\s+بتاريخ\s+(.+?)\s+بشأن/.exec(s.ref||"");return t?`المقرر الوزاري رقم ${t[1]} بتاريخ ${t[2]}`:"المقرر الوزاري المنظم للسنة الدراسية"},O=(s,t)=>(s.acts.find(e=>t.test(e[1]))||[])[0]||"",z=(s,t)=>(s.hol.find(e=>t.test(e[1]))||[])[0]||"",tt=s=>(/(\d{1,2})\s+(?:شتنبر|أكتوبر)/.exec(s)||[])[1],st=s=>String(s||"").trim().replace(/[.؛]$/,"");function _(s,t){const e=U(t);if(!e)return!1;const c=!window.Cyc||Cyc.kind()==="pri",h=MK.syStart(t),v=`${h+1}/${h+2}`,m=Z(e),n=O(e,/بداية السنة الدراسية/),y=O(e,/انطلاق الدراسة بشكل فعلي/),f=O(e,/التحسيس بإلزامية/),r=O(e,/التسجيل الرقمي/),o=O(e,/إعادة تسجيل/),a=O(e,/محاضر الخروج/),p=(/رقم\s+([\d.\-]+)/.exec(e.ref||"")||[])[1]||"",b=y.replace(/(\d{1,2})\s/,(d,l)=>`${l.padStart(2,"0")} `);(s.secs||[]).forEach(d=>{if(/مسار/.test(d.h)){d.rows=e.cc.filter(l=>c||!(Y.test(l[1])||/الامتحان الموحد (المحلي|الإقليمي)/.test(l[1]))).map(l=>({id:x(),st:/يناير/.test(l[0])?"الأسدوس الأول":"الأسدوس الثاني",ops:st(l[1]),per:l[0],ref:"الملحق 2 – المقرر الوزاري"}));return}(d.rows||[]).forEach(l=>{const w=`${l.st}
+${l.ops}`;if(/استكمال إجراءات الدخول المدرسي/.test(l.st)&&n)l.per=`الفترة من ${tt(n)||1} إلى 30 شتنبر ${h}`;else if(/انطلاقة الدراسة بشكل فعلي/.test(l.st)&&y)l.per=`يوم ${b}`,l.ops=String(l.ops||"").replace(/يوم\s+(?:الأحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة|السبت)\s+\d{1,2}\s+\S+\s+\d{4}/,`يوم ${b}`);else if(/التحسيس بإلزامية/.test(w)&&f)l.per=r?`${f} (التسجيل الرقمي ${r})`:f;else if(/إعادة تسجيل/.test(w)&&o)l.per=o;else if(/محاضر الخروج/.test(w)&&a)l.per=`يوم ${a}`;else if(/المسيرة الخضراء/.test(l.st)){const g=z(e,/المسيرة الخضراء/);g&&(l.per=`قبيل عطلة ${g}`)}else if(/عيد الاستقلال/.test(l.st)){const g=z(e,/عيد الاستقلال/);g&&(l.per=`قبيل عطلة ${g}`)}else if(/وثيقة الاستقلال/.test(l.st)){const g=z(e,/وثيقة الاستقلال/);g&&(l.per=`قبيل عطلة ${g}`)}/إجراءات آخر السنة والتهييئ للدخول المدرسي/.test(l.st)&&(l.st=l.st.replace(/\d{4}\s*\/\s*\d{4}/,v)),p&&/المقرر الوزاري/.test(l.ref||"")&&!/رقم/.test(l.ref)&&(l.ref=String(l.ref).replace(/المقرر الوزاري/g,`المقرر الوزاري رقم ${p}`)),delete l.rv}),/الأيام الوطنية/.test(d.h)&&[["عيد الوحدة","الاحتفال بعيد الوحدة","ترسيخ قيم الوحدة الوطنية والتشبث بالثوابت"],["السنة الأمازيغية","الاحتفال برأس السنة الأمازيغية","التعريف بالموروث الثقافي الأمازيغي وتثمين التعدد الثقافي"]].forEach(([l,w,g])=>{const k=z(e,new RegExp(l));k&&!(d.rows||[]).some(M=>new RegExp(l).test(M.st))&&d.rows.push({id:x(),st:w,ops:g,per:`قبيل عطلة ${k}`,ref:"المذكرات الوزارية والجهوية والإقليمية الصادرة في الموضوع"})})});const i=String(s.refs||"").split(`
+`).filter(d=>!/المقرر الوزاري/.test(d));return s.refs=[m,...i].join(`
+`),s.rvRefs=!1,s.dec=t,!0}function q(s,t,e){const c=JSON.parse(JSON.stringify(s)),h=t!==e,v=m=>L(m,e,h);return c.title=v(c.title),c.outline=v(c.outline),(c.secs||[]).forEach(m=>{m.id=x(),m.h=v(m.h),(m.rows||[]).forEach(n=>{const y=N.test(n.per||"")||N.test(n.ops||"")||N.test(n.st||"");n.id=x(),n.st=v(n.st),n.per=v(n.per),n.ops=v(n.ops),h&&y?n.rv=1:delete n.rv})}),c.council=null,c.auto=!1,c.src=t,c.rvRefs=h,c}function D(s){A(DB);const t=DB.plan.years;if(t[s]&&t[s].auto&&!t[s].dec&&U(s)&&(t[s]=T(s)),t[s])return t[s];const e=Object.keys(t).filter(h=>h<s&&t[h]&&!t[h].auto).sort().pop();if(!e)return t[s]=T(s);const c=q(t[e],e,s);return _(c,s),t[s]=c}function F(s){try{if(window.Council)return Council.comp(s).mgmt.map(t=>[t[0]||"",t[1]||"",t[2]||"",""])}catch{}return[["","","مدير المؤسسة",""]]}const W=(s,t)=>Array.isArray(s.council)?s.council:F(t);R.modCss+=`
   .pl-cover{text-align:center}
   .pl-school{font-weight:700;font-size:14pt;color:#1f3864;margin:3mm 0 0}
   .pl-big{font-family:'MAJT','Amiri',serif;font-weight:700;font-size:34pt;line-height:1.25;color:#000;margin:22mm 4mm 6mm}
@@ -174,149 +39,34 @@
   ul.pl-refs{list-style:none;margin:0;padding:0;text-align:right;font-size:11pt}
   ul.pl-refs li{position:relative;padding-right:5mm;line-height:1.7}
   ul.pl-refs li:before{content:'';position:absolute;right:0;top:2.6mm;width:1.7mm;height:1.7mm;background:#000}
-  `;
-  const nl = t => esc(t).replace(/\n/g, '<br>');
-  const lines = t => String(t || '').split(/\n/).map(x => x.trim()).filter(Boolean);
-  function outlineHtml(txt) {
-    let h = '', n = 0;
-    lines(txt).forEach(l => {
-      if (/^#\s*/.test(l)) { n = 0; h += `<div class="pl-od">${esc(l.replace(/^#\s*/, ''))}</div>`; }
-      else if (/^--\s*/.test(l)) h += `<div class="pl-os">✓ ${esc(l.replace(/^--\s*/, ''))}</div>`;
-      else { n++; h += `<div class="pl-oi"><b>${n}.</b> ${esc(l.replace(/^-\s*/, ''))}</div>`; }
-    });
-    return h;
-  }
-  function buildPages(s, sy) {
-    const f = Y(sy);
-    const cover = `<div class="pl-cover">${Dx.header(s)}${s.headerMode === 'image' && s.school ? `<div class="pl-school">${esc(s.school)}</div>` : ''}
-      <div class="pl-big">${esc(f.title || 'برنامج العمل السنوي للمؤسسة')}</div><div class="pl-season">الموسم الدراسي ${esc(syLabel(sy))}</div>
-      <div class="pl-oh">محاور برنامج العمل السنوي</div>${outlineHtml(f.outline)}</div>`;
-    const blocks = [];
-    const cg = '<colgroup><col style="width:17%"><col style="width:51%"><col style="width:16%"><col style="width:16%"></colgroup>';
-    (f.secs || []).forEach(sec => {
-      blocks.push({ html: `<div class="pl-h">${esc(sec.h)}</div>`, keepNext: true });
-      blocks.push({ table: { cls: 'sb-t pl', colgroup: cg, head: '<tr><th>المحطة</th><th>العمليات والأنشطة المبرمجة</th><th>فترة الإنجاز</th><th>المرجع</th></tr>',
-        rows: (sec.rows || []).map(r => `<tr><td class="c b">${nl(r.st)}</td><td class="r"><ul class="pl-ops">${lines(r.ops).map(o => `<li>${esc(o)}</li>`).join('')}</ul></td><td class="c">${nl(r.per)}</td><td class="c" style="font-size:8pt">${nl(r.ref)}</td></tr>`) } });
-    });
-    if (f.signOn !== false) {
-      const rows = councilRows(f, sy);
-      blocks.push({ html: `<div class="pl-h">${esc(f.signT || SIGN_T)}</div>`, keepNext: true });
-      blocks.push({ table: { cls: 'sb-t plsig', colgroup: '<colgroup><col style="width:5%"><col style="width:25%"><col style="width:15%"><col style="width:25%"><col style="width:15%"><col style="width:15%"></colgroup>',
-        head: '<tr><th>ر. ت</th><th>الاسم والنسب</th><th>رقم التأجير</th><th>بصفته</th><th>التوقيع</th><th>ملاحظات</th></tr>',
-        rows: rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td></td><td>${esc(r[3] || '')}</td></tr>`) } });
-    }
-    if (lines(f.refs).length) blocks.push({ html: `<div class="pl-h" style="text-align:right;margin-top:5mm">المراجع:</div><ul class="pl-refs">${lines(f.refs).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` });
-    const body = MK.flowPages({ page: 'a4', cls: 'sb', head: '', blocks });
-    return [cover].concat(body);
-  }
-
-  /* ---------- the page: editor on the right, preview on the left ---------- */
-  function formUi(box, st, refresh) {
-    let rt = null, sv = null;
-    const touch = () => { const f = Y(st.sy); f.auto = false; clearTimeout(sv); sv = setTimeout(() => persist(), 300); };
-    const later = () => { touch(); clearTimeout(rt); rt = setTimeout(refresh, 350); };
-    const now = () => { touch(); refresh(); };
-    const years = () => Object.keys(DB.plan.years).filter(k => k !== st.sy).sort().reverse();
-    const draw = () => {
-      const f = Y(st.sy), sc = box.scrollTop, others = years();
-      const rowH = (si, r, ri, n) => `<div class="pl-row${r.rv ? ' rv' : ''}" data-s="${si}" data-r="${ri}">
-        <div class="pl-rh"><span class="n">${ri + 1}</span><input class="inp" data-f="st" value="${esc(r.st)}" placeholder="المحطة">
-          <button type="button" class="btn sm icon" data-a="rUp" title="أعلى" ${ri ? '' : 'disabled'}>▲</button><button type="button" class="btn sm icon" data-a="rDn" title="أسفل" ${ri < n - 1 ? '' : 'disabled'}>▼</button><button type="button" class="btn sm danger icon" data-a="rDel" title="حذف المحطة">✕</button></div>
-        <textarea class="inp" data-f="ops" rows="${Math.min(9, Math.max(2, lines(r.ops).length + 1))}" placeholder="العمليات والأنشطة المبرمجة — سطر لكل عملية">${esc(r.ops)}</textarea>
-        <div class="pl-r2"><input class="inp" data-f="per" value="${esc(r.per)}" placeholder="فترة الإنجاز"><textarea class="inp" data-f="ref" rows="2" placeholder="المرجع (سطر لكل مرجع)">${esc(r.ref)}</textarea></div>
-        ${r.rv ? '<div class="pl-rvb"><span>📅 راجع التاريخ حسب المقرر الوزاري لهذا الموسم</span><button type="button" class="btn sm" data-a="rOk">تمت المراجعة</button></div>' : ''}</div>`;
-      const nrv = (f.secs || []).reduce((a, s) => a + (s.rows || []).filter(r => r.rv).length, 0);
-      box.innerHTML = `<div class="sec-t">برنامج عمل المؤسسة</div>
-        <div class="fld"><label>الموسم الدراسي</label><select class="inp" id="plSy">${MK.syList(Object.keys(DB.plan.years)).map(y => `<option value="${y}" ${y === st.sy ? 'selected' : ''}>${MK.syDash(y)}${DB.plan.years[y] && !DB.plan.years[y].auto ? ' ●' : ''}</option>`).join('')}</select></div>
-        <p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 8px">${f.src ? `حُيِّن هذا البرنامج من برنامج الموسم ${esc(syLabel(f.src))}: التواريخ والسنوات والأيام تتبع الموسم الحالي. ${nrv ? `راجع <b>${nrv}</b> محطة معلَّمة 📅 ` : ''}${f.rvRefs ? 'وسطر المقرر الوزاري في «المراجع».' : ''}` : f.auto ? (f.dec ? `نموذج جاهز محيَّن انطلاقا من المقرر الوزاري لتنظيم السنة الدراسية ${esc(syLabel(st.sy))}: انطلاق الدراسة، محطات منظومة مسار والأسدوسين، التسجيل وإعادة التسجيل، محاضر الخروج والأيام الوطنية. عدّل ما يلزم وسيُحفظ تلقائيا.` : 'نموذج جاهز (برنامج 2025/2026 محيَّن إلى هذا الموسم): عدّل ما يلزم وسيُحفظ تلقائيا. التواريخ تقريبية، فراجعها حسب المقرر الوزاري لتنظيم السنة الدراسية.') : 'برنامج معدَّل ومحفوظ. يمكنك تحيينه في الموسم الموالي بضغطة واحدة.'}</p>
-        <div class="pl-upd"><label>تحيين من</label><select class="inp" id="plSrc"><option value="seed">النموذج الجاهز</option>${others.map(k => `<option value="${k}" ${k === others[0] ? 'selected' : ''}>برنامج ${MK.syDash(k)}</option>`).join('')}</select>
-          <button type="button" class="btn sm pri" data-a="upd">${ic('hist')} تحيين إلى ${MK.syDash(st.sy)}</button>
-          ${decOf(st.sy) ? `<button type="button" class="btn sm" data-a="updDec" title="تواريخ البرنامج الحالي حسب «قراءة في المقرر الوزاري»">📜 تحيين انطلاقا من المقرر الوزاري${f.dec === st.sy ? ' ✔' : ''}</button>` : ''}</div>
-        <div class="fld"><label>عنوان الوثيقة</label><input class="inp" data-k="title" value="${esc(f.title || '')}"></div>
-        <div class="fld"><label>محاور البرنامج (صفحة الغلاف)</label><textarea class="inp" data-k="outline" rows="9">${esc(f.outline || '')}</textarea>
+  `;const H=s=>u(s).replace(/\n/g,"<br>"),j=s=>String(s||"").split(/\n/).map(t=>t.trim()).filter(Boolean);function et(s){let t="",e=0;return j(s).forEach(c=>{/^#\s*/.test(c)?(e=0,t+=`<div class="pl-od">${u(c.replace(/^#\s*/,""))}</div>`):/^--\s*/.test(c)?t+=`<div class="pl-os">✓ ${u(c.replace(/^--\s*/,""))}</div>`:(e++,t+=`<div class="pl-oi"><b>${e}.</b> ${u(c.replace(/^-\s*/,""))}</div>`)}),t}function lt(s,t){const e=D(t),c=`<div class="pl-cover">${R.header(s)}${s.headerMode==="image"&&s.school?`<div class="pl-school">${u(s.school)}</div>`:""}
+      <div class="pl-big">${u(e.title||"برنامج العمل السنوي للمؤسسة")}</div><div class="pl-season">الموسم الدراسي ${u(E(t))}</div>
+      <div class="pl-oh">محاور برنامج العمل السنوي</div>${et(e.outline)}</div>`,h=[],v='<colgroup><col style="width:17%"><col style="width:51%"><col style="width:16%"><col style="width:16%"></colgroup>';if((e.secs||[]).forEach(n=>{h.push({html:`<div class="pl-h">${u(n.h)}</div>`,keepNext:!0}),h.push({table:{cls:"sb-t pl",colgroup:v,head:"<tr><th>المحطة</th><th>العمليات والأنشطة المبرمجة</th><th>فترة الإنجاز</th><th>المرجع</th></tr>",rows:(n.rows||[]).map(y=>`<tr><td class="c b">${H(y.st)}</td><td class="r"><ul class="pl-ops">${j(y.ops).map(f=>`<li>${u(f)}</li>`).join("")}</ul></td><td class="c">${H(y.per)}</td><td class="c" style="font-size:8pt">${H(y.ref)}</td></tr>`)}})}),e.signOn!==!1){const n=W(e,t);h.push({html:`<div class="pl-h">${u(e.signT||P)}</div>`,keepNext:!0}),h.push({table:{cls:"sb-t plsig",colgroup:'<colgroup><col style="width:5%"><col style="width:25%"><col style="width:15%"><col style="width:25%"><col style="width:15%"><col style="width:15%"></colgroup>',head:"<tr><th>ر. ت</th><th>الاسم والنسب</th><th>رقم التأجير</th><th>بصفته</th><th>التوقيع</th><th>ملاحظات</th></tr>",rows:n.map((y,f)=>`<tr><td>${f+1}</td><td>${u(y[0])}</td><td>${u(y[1])}</td><td>${u(y[2])}</td><td></td><td>${u(y[3]||"")}</td></tr>`)}})}j(e.refs).length&&h.push({html:`<div class="pl-h" style="text-align:right;margin-top:5mm">المراجع:</div><ul class="pl-refs">${j(e.refs).map(n=>`<li>${u(n)}</li>`).join("")}</ul>`});const m=MK.flowPages({page:"a4",cls:"sb",head:"",blocks:h});return[c].concat(m)}function nt(s,t,e){let c=null,h=null;const v=()=>{const r=D(t.sy);r.auto=!1,clearTimeout(h),h=setTimeout(()=>persist(),300)},m=()=>{v(),clearTimeout(c),c=setTimeout(e,350)},n=()=>{v(),e()},y=()=>Object.keys(DB.plan.years).filter(r=>r!==t.sy).sort().reverse(),f=()=>{const r=D(t.sy),o=s.scrollTop,a=y(),p=(i,d,l,w)=>`<div class="pl-row${d.rv?" rv":""}" data-s="${i}" data-r="${l}">
+        <div class="pl-rh"><span class="n">${l+1}</span><input class="inp" data-f="st" value="${u(d.st)}" placeholder="المحطة">
+          <button type="button" class="btn sm icon" data-a="rUp" title="أعلى" ${l?"":"disabled"}>▲</button><button type="button" class="btn sm icon" data-a="rDn" title="أسفل" ${l<w-1?"":"disabled"}>▼</button><button type="button" class="btn sm danger icon" data-a="rDel" title="حذف المحطة">✕</button></div>
+        <textarea class="inp" data-f="ops" rows="${Math.min(9,Math.max(2,j(d.ops).length+1))}" placeholder="العمليات والأنشطة المبرمجة — سطر لكل عملية">${u(d.ops)}</textarea>
+        <div class="pl-r2"><input class="inp" data-f="per" value="${u(d.per)}" placeholder="فترة الإنجاز"><textarea class="inp" data-f="ref" rows="2" placeholder="المرجع (سطر لكل مرجع)">${u(d.ref)}</textarea></div>
+        ${d.rv?'<div class="pl-rvb"><span>📅 راجع التاريخ حسب المقرر الوزاري لهذا الموسم</span><button type="button" class="btn sm" data-a="rOk">تمت المراجعة</button></div>':""}</div>`,b=(r.secs||[]).reduce((i,d)=>i+(d.rows||[]).filter(l=>l.rv).length,0);s.innerHTML=`<div class="sec-t">برنامج عمل المؤسسة</div>
+        <div class="fld"><label>الموسم الدراسي</label><select class="inp" id="plSy">${MK.syList(Object.keys(DB.plan.years)).map(i=>`<option value="${i}" ${i===t.sy?"selected":""}>${MK.syDash(i)}${DB.plan.years[i]&&!DB.plan.years[i].auto?" ●":""}</option>`).join("")}</select></div>
+        <p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 8px">${r.src?`حُيِّن هذا البرنامج من برنامج الموسم ${u(E(r.src))}: التواريخ والسنوات والأيام تتبع الموسم الحالي. ${b?`راجع <b>${b}</b> محطة معلَّمة 📅 `:""}${r.rvRefs?"وسطر المقرر الوزاري في «المراجع».":""}`:r.auto?r.dec?`نموذج جاهز محيَّن انطلاقا من المقرر الوزاري لتنظيم السنة الدراسية ${u(E(t.sy))}: انطلاق الدراسة، محطات منظومة مسار والأسدوسين، التسجيل وإعادة التسجيل، محاضر الخروج والأيام الوطنية. عدّل ما يلزم وسيُحفظ تلقائيا.`:"نموذج جاهز (برنامج 2025/2026 محيَّن إلى هذا الموسم): عدّل ما يلزم وسيُحفظ تلقائيا. التواريخ تقريبية، فراجعها حسب المقرر الوزاري لتنظيم السنة الدراسية.":"برنامج معدَّل ومحفوظ. يمكنك تحيينه في الموسم الموالي بضغطة واحدة."}</p>
+        <div class="pl-upd"><label>تحيين من</label><select class="inp" id="plSrc"><option value="seed">النموذج الجاهز</option>${a.map(i=>`<option value="${i}" ${i===a[0]?"selected":""}>برنامج ${MK.syDash(i)}</option>`).join("")}</select>
+          <button type="button" class="btn sm pri" data-a="upd">${ic("hist")} تحيين إلى ${MK.syDash(t.sy)}</button>
+          ${U(t.sy)?`<button type="button" class="btn sm" data-a="updDec" title="تواريخ البرنامج الحالي حسب «قراءة في المقرر الوزاري»">📜 تحيين انطلاقا من المقرر الوزاري${r.dec===t.sy?" ✔":""}</button>`:""}</div>
+        <div class="fld"><label>عنوان الوثيقة</label><input class="inp" data-k="title" value="${u(r.title||"")}"></div>
+        <div class="fld"><label>محاور البرنامج (صفحة الغلاف)</label><textarea class="inp" data-k="outline" rows="9">${u(r.outline||"")}</textarea>
           <span class="hint">سطر «# ...» = عنوان مجال، «- ...» = محور مرقّم، «-- ...» = فقرة فرعية</span></div>
         <div class="sec-t" style="margin-top:12px">المحاور والجداول</div>
-        ${(f.secs || []).map((s, si) => `<details class="pl-sec" data-s="${si}" ${st.open[s.id] ? 'open' : ''}><summary>${esc(s.h || 'محور بلا عنوان')} <span class="muted">— ${(s.rows || []).length} محطة</span></summary>
-          <div class="pl-sb"><div class="fld"><label>عنوان المحور</label><input class="inp" data-sf="h" value="${esc(s.h)}"></div>
-          ${(s.rows || []).map((r, ri) => rowH(si, r, ri, s.rows.length)).join('')}
-          <div class="btn-row"><button type="button" class="btn sm" data-a="rAdd">${ic('plus')} إضافة محطة</button><span class="sp"></span>
-            <button type="button" class="btn sm icon" data-a="sUp" title="تقديم المحور" ${si ? '' : 'disabled'}>▲</button><button type="button" class="btn sm icon" data-a="sDn" title="تأخير المحور" ${si < f.secs.length - 1 ? '' : 'disabled'}>▼</button><button type="button" class="btn sm danger" data-a="sDel">${ic('trash')} حذف المحور</button></div></div></details>`).join('')}
-        <div class="btn-row" style="margin:8px 0 4px"><button type="button" class="btn sm" data-a="sAdd">${ic('plus')} إضافة محور جديد</button></div>
+        ${(r.secs||[]).map((i,d)=>`<details class="pl-sec" data-s="${d}" ${t.open[i.id]?"open":""}><summary>${u(i.h||"محور بلا عنوان")} <span class="muted">— ${(i.rows||[]).length} محطة</span></summary>
+          <div class="pl-sb"><div class="fld"><label>عنوان المحور</label><input class="inp" data-sf="h" value="${u(i.h)}"></div>
+          ${(i.rows||[]).map((l,w)=>p(d,l,w,i.rows.length)).join("")}
+          <div class="btn-row"><button type="button" class="btn sm" data-a="rAdd">${ic("plus")} إضافة محطة</button><span class="sp"></span>
+            <button type="button" class="btn sm icon" data-a="sUp" title="تقديم المحور" ${d?"":"disabled"}>▲</button><button type="button" class="btn sm icon" data-a="sDn" title="تأخير المحور" ${d<r.secs.length-1?"":"disabled"}>▼</button><button type="button" class="btn sm danger" data-a="sDel">${ic("trash")} حذف المحور</button></div></div></details>`).join("")}
+        <div class="btn-row" style="margin:8px 0 4px"><button type="button" class="btn sm" data-a="sAdd">${ic("plus")} إضافة محور جديد</button></div>
         <div class="sec-t" style="margin-top:12px">المصادقة والمراجع</div>
-        <label class="chk" style="display:block;margin:4px 0 8px"><input type="checkbox" data-k="signOn" ${f.signOn !== false ? 'checked' : ''}> إدراج جدول مصادقة أعضاء مجلس التدبير</label>
-        ${f.signOn !== false ? `<div class="fld"><label>عنوان جدول المصادقة</label><input class="inp" data-k="signT" value="${esc(f.signT || SIGN_T)}"></div>
-          ${Array.isArray(f.council) ? `<div class="pl-cn">${f.council.map((r, i) => `<div class="pl-cr" data-c="${i}"><input class="inp" data-cc="0" list="k2Emps" value="${esc(r[0])}" placeholder="الاسم والنسب"><input class="inp" data-cc="1" value="${esc(r[1])}" placeholder="رقم التأجير"><input class="inp" data-cc="2" value="${esc(r[2])}" placeholder="بصفته"><button type="button" class="btn sm danger icon" data-a="cDel">✕</button></div>`).join('')}</div>
-            <div class="btn-row"><button type="button" class="btn sm" data-a="cAdd">${ic('plus')} إضافة عضو</button><button type="button" class="btn sm" data-a="cAuto">${ic('hist')} إعادة التعبئة من تركيبة المجالس</button></div>`
-            : `<p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 6px">${ic('check')} يُملأ تلقائيا من «المجالس التقنية ← تركيبة المجالس» (${councilRows(f, st.sy).filter(r => r[0]).length} عضوا مسمّى).</p><div class="btn-row"><button type="button" class="btn sm" data-a="cEdit">${ic('edit')} تخصيص الجدول</button></div>`}` : ''}
-        <div class="fld"><label>المراجع (سطر لكل مرجع)</label><textarea class="inp" data-k="refs" rows="4">${esc(f.refs || '')}</textarea></div>
-        <div class="btn-row" style="margin-top:10px"><button type="button" class="btn sm danger" data-a="reset">${ic('hist')} العودة إلى النموذج الجاهز</button></div>
-        <datalist id="k2Emps">${K.PP.options('k2Emps')}</datalist>`;
-      box.scrollTop = sc;
-    };
-    box.addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('pl-sec')) { const s = Y(st.sy).secs[+d.dataset.s]; if (s) st.open[s.id] = d.open; } }, true);
-    box.oninput = e => {
-      const el = e.target, ds = el.dataset, f = Y(st.sy);
-      if (ds.k && el.type !== 'checkbox') { f[ds.k] = el.value; return later(); }
-      if (ds.sf) { const si = +el.closest('.pl-sec').dataset.s; f.secs[si][ds.sf] = el.value; const sm = el.closest('.pl-sec').querySelector('summary'); if (sm) sm.firstChild.textContent = (el.value || 'محور بلا عنوان') + ' '; return later(); }
-      if (ds.f) {
-        const rw = el.closest('.pl-row'), r = f.secs[+rw.dataset.s].rows[+rw.dataset.r];
-        r[ds.f] = el.value;
-        if (r.rv && (ds.f === 'per' || ds.f === 'ops')) { delete r.rv; rw.classList.remove('rv'); const b = rw.querySelector('.pl-rvb'); if (b) b.remove(); }
-        return later();
-      }
-      if (ds.cc != null) { const i = +el.closest('.pl-cr').dataset.c; f.council[i][+ds.cc] = el.value; return later(); }
-    };
-    box.onchange = e => {
-      const el = e.target, ds = el.dataset, f = Y(st.sy);
-      if (el.id === 'plSy') { st.sy = el.value; st.open = {}; draw(); return refresh(); }
-      if (ds.k === 'signOn') { f.signOn = el.checked; draw(); return now(); }
-      if (ds.cc === '0') { // a name picked from the employees list fills the PPR
-        const i = +el.closest('.pl-cr').dataset.c, emp = K.E.byName(el.value);
-        if (emp) { f.council[i][0] = el.value; f.council[i][1] = emp.ppr || f.council[i][1]; if (!f.council[i][2]) f.council[i][2] = emp.cadre || ''; draw(); now(); }
-      }
-    };
-    box.onclick = async e => {
-      const b = e.target.closest('button[data-a]'); if (!b) return;
-      const a = b.dataset.a, f = Y(st.sy), sec = b.closest('.pl-sec'), si = sec ? +sec.dataset.s : -1, rw = b.closest('.pl-row'), ri = rw ? +rw.dataset.r : -1;
-      const mv = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return false; arr.splice(j, 0, arr.splice(i, 1)[0]); return true; };
-      if (a === 'rAdd') { const s = f.secs[si]; s.rows.push({ id: nid(), st: '', ops: '', per: '', ref: '' }); st.open[s.id] = true; draw(); now(); const ins = box.querySelectorAll(`.pl-sec[data-s="${si}"] .pl-row`); const last = ins[ins.length - 1]; if (last) { last.scrollIntoView({ block: 'center' }); const i0 = last.querySelector('input'); if (i0) i0.focus(); } }
-      else if (a === 'rDel') { if (!(await confirmBox('حذف هذه المحطة من البرنامج؟', 'حذف'))) return; f.secs[si].rows.splice(ri, 1); draw(); now(); }
-      else if (a === 'rUp' || a === 'rDn') { if (mv(f.secs[si].rows, ri, a === 'rUp' ? -1 : 1)) { draw(); now(); } }
-      else if (a === 'rOk') { delete f.secs[si].rows[ri].rv; draw(); now(); }
-      else if (a === 'sAdd') { const s = { id: nid(), h: 'محور جديد', rows: [{ id: nid(), st: '', ops: '', per: '', ref: '' }] }; f.secs.push(s); st.open[s.id] = true; draw(); now(); }
-      else if (a === 'sDel') { if (!(await confirmBox('حذف هذا المحور وجميع محطاته؟', 'حذف'))) return; f.secs.splice(si, 1); draw(); now(); }
-      else if (a === 'sUp' || a === 'sDn') { if (mv(f.secs, si, a === 'sUp' ? -1 : 1)) { draw(); now(); } }
-      else if (a === 'cEdit') { f.council = autoCouncil(st.sy); draw(); now(); }
-      else if (a === 'cAuto') { if (!(await confirmBox('استبدال الجدول بتركيبة مجلس التدبير الحالية؟', 'إعادة التعبئة'))) return; f.council = null; draw(); now(); }
-      else if (a === 'cAdd') { f.council.push(['', '', '', '']); draw(); now(); }
-      else if (a === 'cDel') { f.council.splice(+b.closest('.pl-cr').dataset.c, 1); draw(); now(); }
-      else if (a === 'upd') {
-        const src = $('#plSrc', box).value;
-        if (!(await confirmBox(`استبدال برنامج الموسم ${syLabel(st.sy)} الحالي ببرنامج ${src === 'seed' ? 'النموذج الجاهز' : 'الموسم ' + syLabel(src)} محيَّنا؟ ستُفقد التعديلات الحالية.`, 'تحيين'))) return;
-        DB.plan.years[st.sy] = src === 'seed' ? Object.assign(seedYear(st.sy), { auto: false }) : updateFrom(DB.plan.years[src], src, st.sy);
-        st.open = {}; draw(); now(); toast('تم تحيين البرنامج');
-      }
-      else if (a === 'updDec') {
-        if (!(await confirmBox(`تحيين تواريخ برنامج الموسم ${syLabel(st.sy)} انطلاقا من المقرر الوزاري (انطلاق الدراسة، الأسدوسان ومنظومة مسار، التسجيل، محاضر الخروج، الأيام الوطنية، المراجع)؟ تبقى باقي تعديلاتك كما هي، ويُعاد بناء جدول «مسار» من المقرر.`, 'تحيين', false))) return;
-        applyDecree(f, st.sy); st.open = {}; draw(); now(); toast('تم تحيين البرنامج انطلاقا من المقرر الوزاري');
-      }
-      else if (a === 'reset') {
-        if (!(await confirmBox('العودة إلى النموذج الجاهز؟ ستُفقد جميع تعديلاتك على برنامج هذا الموسم.', 'العودة'))) return;
-        DB.plan.years[st.sy] = seedYear(st.sy); st.open = {}; draw(); persist(); refresh();
-      }
-    };
-    draw();
-  }
-  window.pagePlan = function (v, arg) {
-    migrate(DB);
-    MK.docPage(v, {
-      title: 'برنامج عمل المؤسسة', icon: '🗓️', modes: false, flow: true,
-      state: { sy: (arg && arg.sy) || MK.curSy(), open: {} },
-      back: () => go('board'),
-      form: formUi,
-      build: st => ({ page: 'a4', pages: buildPages(S(), st.sy) }),
-      fname: st => `برنامج_عمل_المؤسسة_${MK.syDash(st.sy)}`
-    });
-  };
-  window.Plan = { migrate, seasonize, seedYear, updateFrom, year: Y, summary: () => { migrate(DB); const f = Y(MK.curSy()); return { stations: (f.secs || []).reduce((a, s) => a + (s.rows || []).length, 0), sections: (f.secs || []).length }; } };
-})();
+        <label class="chk" style="display:block;margin:4px 0 8px"><input type="checkbox" data-k="signOn" ${r.signOn!==!1?"checked":""}> إدراج جدول مصادقة أعضاء مجلس التدبير</label>
+        ${r.signOn!==!1?`<div class="fld"><label>عنوان جدول المصادقة</label><input class="inp" data-k="signT" value="${u(r.signT||P)}"></div>
+          ${Array.isArray(r.council)?`<div class="pl-cn">${r.council.map((i,d)=>`<div class="pl-cr" data-c="${d}"><input class="inp" data-cc="0" list="k2Emps" value="${u(i[0])}" placeholder="الاسم والنسب"><input class="inp" data-cc="1" value="${u(i[1])}" placeholder="رقم التأجير"><input class="inp" data-cc="2" value="${u(i[2])}" placeholder="بصفته"><button type="button" class="btn sm danger icon" data-a="cDel">✕</button></div>`).join("")}</div>
+            <div class="btn-row"><button type="button" class="btn sm" data-a="cAdd">${ic("plus")} إضافة عضو</button><button type="button" class="btn sm" data-a="cAuto">${ic("hist")} إعادة التعبئة من تركيبة المجالس</button></div>`:`<p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 6px">${ic("check")} يُملأ تلقائيا من «المجالس التقنية ← تركيبة المجالس» (${W(r,t.sy).filter(i=>i[0]).length} عضوا مسمّى).</p><div class="btn-row"><button type="button" class="btn sm" data-a="cEdit">${ic("edit")} تخصيص الجدول</button></div>`}`:""}
+        <div class="fld"><label>المراجع (سطر لكل مرجع)</label><textarea class="inp" data-k="refs" rows="4">${u(r.refs||"")}</textarea></div>
+        <div class="btn-row" style="margin-top:10px"><button type="button" class="btn sm danger" data-a="reset">${ic("hist")} العودة إلى النموذج الجاهز</button></div>
+        <datalist id="k2Emps">${K.PP.options("k2Emps")}</datalist>`,s.scrollTop=o};s.addEventListener("toggle",r=>{const o=r.target;if(o&&o.classList&&o.classList.contains("pl-sec")){const a=D(t.sy).secs[+o.dataset.s];a&&(t.open[a.id]=o.open)}},!0),s.oninput=r=>{const o=r.target,a=o.dataset,p=D(t.sy);if(a.k&&o.type!=="checkbox")return p[a.k]=o.value,m();if(a.sf){const b=+o.closest(".pl-sec").dataset.s;p.secs[b][a.sf]=o.value;const i=o.closest(".pl-sec").querySelector("summary");return i&&(i.firstChild.textContent=(o.value||"محور بلا عنوان")+" "),m()}if(a.f){const b=o.closest(".pl-row"),i=p.secs[+b.dataset.s].rows[+b.dataset.r];if(i[a.f]=o.value,i.rv&&(a.f==="per"||a.f==="ops")){delete i.rv,b.classList.remove("rv");const d=b.querySelector(".pl-rvb");d&&d.remove()}return m()}if(a.cc!=null){const b=+o.closest(".pl-cr").dataset.c;return p.council[b][+a.cc]=o.value,m()}},s.onchange=r=>{const o=r.target,a=o.dataset,p=D(t.sy);if(o.id==="plSy")return t.sy=o.value,t.open={},f(),e();if(a.k==="signOn")return p.signOn=o.checked,f(),n();if(a.cc==="0"){const b=+o.closest(".pl-cr").dataset.c,i=K.E.byName(o.value);i&&(p.council[b][0]=o.value,p.council[b][1]=i.ppr||p.council[b][1],p.council[b][2]||(p.council[b][2]=i.cadre||""),f(),n())}},s.onclick=async r=>{const o=r.target.closest("button[data-a]");if(!o)return;const a=o.dataset.a,p=D(t.sy),b=o.closest(".pl-sec"),i=b?+b.dataset.s:-1,d=o.closest(".pl-row"),l=d?+d.dataset.r:-1,w=(g,k,M)=>{const B=k+M;return B<0||B>=g.length?!1:(g.splice(B,0,g.splice(k,1)[0]),!0)};if(a==="rAdd"){const g=p.secs[i];g.rows.push({id:x(),st:"",ops:"",per:"",ref:""}),t.open[g.id]=!0,f(),n();const k=s.querySelectorAll(`.pl-sec[data-s="${i}"] .pl-row`),M=k[k.length-1];if(M){M.scrollIntoView({block:"center"});const B=M.querySelector("input");B&&B.focus()}}else if(a==="rDel"){if(!await confirmBox("حذف هذه المحطة من البرنامج؟","حذف"))return;p.secs[i].rows.splice(l,1),f(),n()}else if(a==="rUp"||a==="rDn")w(p.secs[i].rows,l,a==="rUp"?-1:1)&&(f(),n());else if(a==="rOk")delete p.secs[i].rows[l].rv,f(),n();else if(a==="sAdd"){const g={id:x(),h:"محور جديد",rows:[{id:x(),st:"",ops:"",per:"",ref:""}]};p.secs.push(g),t.open[g.id]=!0,f(),n()}else if(a==="sDel"){if(!await confirmBox("حذف هذا المحور وجميع محطاته؟","حذف"))return;p.secs.splice(i,1),f(),n()}else if(a==="sUp"||a==="sDn")w(p.secs,i,a==="sUp"?-1:1)&&(f(),n());else if(a==="cEdit")p.council=F(t.sy),f(),n();else if(a==="cAuto"){if(!await confirmBox("استبدال الجدول بتركيبة مجلس التدبير الحالية؟","إعادة التعبئة"))return;p.council=null,f(),n()}else if(a==="cAdd")p.council.push(["","","",""]),f(),n();else if(a==="cDel")p.council.splice(+o.closest(".pl-cr").dataset.c,1),f(),n();else if(a==="upd"){const g=$("#plSrc",s).value;if(!await confirmBox(`استبدال برنامج الموسم ${E(t.sy)} الحالي ببرنامج ${g==="seed"?"النموذج الجاهز":"الموسم "+E(g)} محيَّنا؟ ستُفقد التعديلات الحالية.`,"تحيين"))return;DB.plan.years[t.sy]=g==="seed"?Object.assign(T(t.sy),{auto:!1}):q(DB.plan.years[g],g,t.sy),t.open={},f(),n(),toast("تم تحيين البرنامج")}else if(a==="updDec"){if(!await confirmBox(`تحيين تواريخ برنامج الموسم ${E(t.sy)} انطلاقا من المقرر الوزاري (انطلاق الدراسة، الأسدوسان ومنظومة مسار، التسجيل، محاضر الخروج، الأيام الوطنية، المراجع)؟ تبقى باقي تعديلاتك كما هي، ويُعاد بناء جدول «مسار» من المقرر.`,"تحيين",!1))return;_(p,t.sy),t.open={},f(),n(),toast("تم تحيين البرنامج انطلاقا من المقرر الوزاري")}else if(a==="reset"){if(!await confirmBox("العودة إلى النموذج الجاهز؟ ستُفقد جميع تعديلاتك على برنامج هذا الموسم.","العودة"))return;DB.plan.years[t.sy]=T(t.sy),t.open={},f(),persist(),e()}},f()}window.pagePlan=function(s,t){A(DB),MK.docPage(s,{title:"برنامج عمل المؤسسة",icon:"🗓️",modes:!1,flow:!0,state:{sy:t&&t.sy||MK.curSy(),open:{}},back:()=>go("board"),form:nt,build:e=>({page:"a4",pages:lt(S(),e.sy)}),fname:e=>`برنامج_عمل_المؤسسة_${MK.syDash(e.sy)}`})},window.Plan={migrate:A,seasonize:L,seedYear:T,updateFrom:q,year:D,summary:()=>{A(DB);const s=D(MK.curSy());return{stations:(s.secs||[]).reduce((t,e)=>t+(e.rows||[]).length,0),sections:(s.secs||[]).length}}}})();

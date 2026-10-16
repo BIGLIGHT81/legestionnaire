@@ -1,36 +1,4 @@
-'use strict';
-/* 1.9.2 — صور الموظفين + البطاقة الشخصية للأستاذ(ة) (نموذج: معلومات شخصية، إدارية، مهنية، الشواهد الدراسية، الخدمات السابقة).
-   The photo is stored on the employee (`photo`, a small JPEG data URL); the card is printed one per page. */
-(function () {
-  const Dx = window.Docs;
-  const { esc, fmtDate } = Dx;
-
-  /* ---- photo helper: pick an image, crop to 3:4 and shrink (keeps data.json small) ---- */
-  function fitPhoto(dataUrl, W = 270, H = 360) {
-    return new Promise(res => {
-      const im = new Image();
-      im.onload = () => {
-        const c = document.createElement('canvas'); c.width = W; c.height = H;
-        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-        const r = Math.max(W / im.width, H / im.height), w = im.width * r, h = im.height * r;
-        g.drawImage(im, (W - w) / 2, (H - h) * 0.3, w, h);   // keep the upper part (faces)
-        res(c.toDataURL('image/jpeg', 0.86));
-      };
-      im.onerror = () => res(null);
-      im.src = dataUrl;
-    });
-  }
-  async function pickPhoto() {
-    const d = await window.api.openImage();
-    if (!d) return null;
-    const p = await fitPhoto(d);
-    if (!p) toast('تعذرت قراءة الصورة', true);
-    return p;
-  }
-  const initials = e => ((e.firstAr || e.firstFr || '').trim()[0] || '') + ((e.lastAr || e.lastFr || '').trim()[0] || '');
-
-  /* ---- the card ---- */
-  const CSS = `
+"use strict";(function(){const g=window.Docs,{esc:n,fmtDate:N}=g;function U(a,t=270,e=360){return new Promise(r=>{const s=new Image;s.onload=()=>{const d=document.createElement("canvas");d.width=t,d.height=e;const h=d.getContext("2d");h.fillStyle="#fff",h.fillRect(0,0,t,e);const f=Math.max(t/s.width,e/s.height),m=s.width*f,l=s.height*f;h.drawImage(s,(t-m)/2,(e-l)*.3,m,l),r(d.toDataURL("image/jpeg",.86))},s.onerror=()=>r(null),s.src=a})}async function J(){const a=await window.api.openImage();if(!a)return null;const t=await U(a);return t||toast("تعذرت قراءة الصورة",!0),t}const _=a=>((a.firstAr||a.firstFr||"").trim()[0]||"")+((a.lastAr||a.lastFr||"").trim()[0]||""),H=`
   .ec{font-family:'MAJ','Amiri',serif;font-size:11.5pt;line-height:1.55;height:100%;box-sizing:border-box;border:1.6px solid #000;padding:2.5mm 3mm;display:flex;flex-direction:column;position:relative}
   .ec table{border-collapse:collapse;width:100%}
   .ec-h{display:grid;grid-template-columns:1fr 1.05fr 1fr;border:1.4px solid #000;border-radius:2mm;margin-bottom:2mm}
@@ -46,104 +14,51 @@
   .ec-ph img{width:100%;height:100%;object-fit:cover;display:block}
   .ec-p{position:relative;min-height:36mm}.ec-p.ph>*:not(.ec-ph){margin-inline-end:31mm}
   .ec-t th,.ec-t td{border:1px solid #000;text-align:center;font-size:10pt;padding:.4mm 1mm;height:6.4mm}.ec-t th{color:#0a5c8f;background:#eef6fb}
-  `;
-  if (Dx) Dx.modCss = (Dx.modCss || '') + CSS;
-
-  const ln = (k, v) => `<div class="ec-l"><span class="k">${k}:</span><span class="v">${v ? esc(v) : ''}</span></div>`;
-  const dt = (k, a, b) => `<div class="ec-l"><span class="k">${k}:</span><span class="v">${a ? esc(a) : ''}</span><span class="k">؛ تاريخها:</span><span class="v" style="max-width:34mm;flex:none">${b ? esc(fmtDate(b)) : ''}</span></div>`;
-  const D = x => x ? fmtDate(x) : '';
-
-  function card(s, e, o) {
-    const sy = o.sy || MK.curSy(), svc = (e.services && e.services.length ? e.services : []).slice(0, 8);
-    const rows = []; for (let i = 0; i < Math.max(5, svc.length); i++) { const r = svc[i] || {}; rows.push(`<tr><td style="width:7%;color:#0a8f5a;font-weight:700">${i + 1}</td><td>${esc(r.inst || '')}</td><td>${esc(r.dir || '')}</td><td>${esc(r.acad || '')}</td><td>${r.from ? esc(fmtDate(r.from)) : ''}</td><td>${r.to ? esc(fmtDate(r.to)) : ''}</td><td>${esc(r.note || '')}</td></tr>`); }
-    const photo = o.photo !== false;
-    const nm = Dx.fullName ? Dx.fullName(e) : [e.firstAr, e.lastAr].filter(Boolean).join(' ');
-    return `<div class="ec">
+  `;g&&(g.modCss=(g.modCss||"")+H);const b=(a,t)=>`<div class="ec-l"><span class="k">${a}:</span><span class="v">${t?n(t):""}</span></div>`,z=(a,t,e)=>`<div class="ec-l"><span class="k">${a}:</span><span class="v">${t?n(t):""}</span><span class="k">؛ تاريخها:</span><span class="v" style="max-width:34mm;flex:none">${e?n(N(e)):""}</span></div>`,M=a=>a?N(a):"";function R(a,t,e){const r=e.sy||MK.curSy(),s=(t.services&&t.services.length?t.services:[]).slice(0,8),d=[];for(let m=0;m<Math.max(5,s.length);m++){const l=s[m]||{};d.push(`<tr><td style="width:7%;color:#0a8f5a;font-weight:700">${m+1}</td><td>${n(l.inst||"")}</td><td>${n(l.dir||"")}</td><td>${n(l.acad||"")}</td><td>${l.from?n(N(l.from)):""}</td><td>${l.to?n(N(l.to)):""}</td><td>${n(l.note||"")}</td></tr>`)}const h=e.photo!==!1,f=g.fullName?g.fullName(t):[t.firstAr,t.lastAr].filter(Boolean).join(" ");return`<div class="ec">
       <div class="ec-h">
-        <div><b>الأكاديمية الجهوية:</b> ${esc(Dx.regionOf ? (s.academy || '') : (s.academy || ''))}<br><b>المديرية الإقليمية:</b> ${esc(s.directorate || '')}<br><b>المؤسسة:</b> ${esc(s.school || '')}</div>
+        <div><b>الأكاديمية الجهوية:</b> ${n((g.regionOf,a.academy||""))}<br><b>المديرية الإقليمية:</b> ${n(a.directorate||"")}<br><b>المؤسسة:</b> ${n(a.school||"")}</div>
         <div class="c"><img src="assets/emblem.png" alt=""><div class="t">البطاقة الشخصية<br>للأستاذ(ة)</div></div>
-        <div><b>الموسم الدراسي:</b> ${esc(MK.syDash(sy))}<br><b>الأستاذ(ة):</b> ${esc(nm)}</div>
+        <div><b>الموسم الدراسي:</b> ${n(MK.syDash(r))}<br><b>الأستاذ(ة):</b> ${n(f)}</div>
       </div>
       <div class="ec-s">I. معلومات شخصية:</div>
-      <div class="ec-p ${photo ? 'ph' : ''}">${photo ? `<div class="ec-ph">${e.photo ? `<img src="${e.photo}" alt="">` : 'الصورة'}</div>` : ''}
-        <div class="ec-g">${ln('الاسم الشخصي', e.firstAr)}${ln('الاسم العائلي', e.lastAr)}</div>
-        <div class="ec-g">${ln('تاريخ الازدياد', D(e.birth))}${ln('مكان الازدياد', e.birthPlace)}</div>
-        <div class="ec-g">${ln('الحالة العائلية', e.marital)}${ln('الهاتف', e.phone)}</div>
-        ${ln('رقم البطاقة الوطنية', e.cin)}
-        ${ln('العنوان الشخصي الحالي', e.address)}
+      <div class="ec-p ${h?"ph":""}">${h?`<div class="ec-ph">${t.photo?`<img src="${t.photo}" alt="">`:"الصورة"}</div>`:""}
+        <div class="ec-g">${b("الاسم الشخصي",t.firstAr)}${b("الاسم العائلي",t.lastAr)}</div>
+        <div class="ec-g">${b("تاريخ الازدياد",M(t.birth))}${b("مكان الازدياد",t.birthPlace)}</div>
+        <div class="ec-g">${b("الحالة العائلية",t.marital)}${b("الهاتف",t.phone)}</div>
+        ${b("رقم البطاقة الوطنية",t.cin)}
+        ${b("العنوان الشخصي الحالي",t.address)}
       </div>
       <div class="ec-s">II. معلومات إدارية:</div>
-      <div class="ec-g">${ln('رقم التأجير', e.ppr)}${ln('الإطار', e.cadre)}</div>
-      <div class="ec-g">${ln('تاريخ التوظيف', D(e.hire))}${ln('تاريخ الترسيم', D(e.tenure))}</div>
-      ${dt('الدرجة', e.grade, e.gradeDate)}
-      ${dt('الرتبة', e.echelon, e.echelonDate)}
+      <div class="ec-g">${b("رقم التأجير",t.ppr)}${b("الإطار",t.cadre)}</div>
+      <div class="ec-g">${b("تاريخ التوظيف",M(t.hire))}${b("تاريخ الترسيم",M(t.tenure))}</div>
+      ${z("الدرجة",t.grade,t.gradeDate)}
+      ${z("الرتبة",t.echelon,t.echelonDate)}
       <div class="ec-s">III. معلومات مهنية:</div>
-      <div class="ec-g">${ln('تاريخ الالتحاق بالمؤسسة', D(e.affDate))}${ln('تاريخ التعيين بالنيابة', D(e.dirDate))}</div>
-      <div class="ec-g">${ln('تاريخ التكليف بالمؤسسة: من', D(e.asgFrom))}${ln('إلى', D(e.asgTo))}</div>
-      <div class="ec-g">${ln('تاريخ التعيين بالأكاديمية', D(e.acadDate))}${ln('مادة التدريس', e.subject)}</div>
-      ${dt('نقطة آخر تفتيش', e.inspScore, e.inspDate)}
+      <div class="ec-g">${b("تاريخ الالتحاق بالمؤسسة",M(t.affDate))}${b("تاريخ التعيين بالنيابة",M(t.dirDate))}</div>
+      <div class="ec-g">${b("تاريخ التكليف بالمؤسسة: من",M(t.asgFrom))}${b("إلى",M(t.asgTo))}</div>
+      <div class="ec-g">${b("تاريخ التعيين بالأكاديمية",M(t.acadDate))}${b("مادة التدريس",t.subject)}</div>
+      ${z("نقطة آخر تفتيش",t.inspScore,t.inspDate)}
       <div class="ec-s">IV. الشواهد الدراسية:</div>
-      ${dt('الباكالوريا', e.bac, e.bacDate)}
-      ${dt('الإجازة', e.licence || e.diploma, e.licDate)}
-      ${dt('شواهد أخرى', e.otherCert, e.otherDate)}
-      ${ln('التخصص', e.spec)}
-      ${dt('مركز التكوين', e.trainCenter, e.gradDate)}
-      ${ln('لغة التكوين / لغة التدريس', [e.formation, e.teachLang].filter(Boolean).join(' / '))}
+      ${z("الباكالوريا",t.bac,t.bacDate)}
+      ${z("الإجازة",t.licence||t.diploma,t.licDate)}
+      ${z("شواهد أخرى",t.otherCert,t.otherDate)}
+      ${b("التخصص",t.spec)}
+      ${z("مركز التكوين",t.trainCenter,t.gradDate)}
+      ${b("لغة التكوين / لغة التدريس",[t.formation,t.teachLang].filter(Boolean).join(" / "))}
       <div class="ec-s">V. بيان الخدمات السابقة:</div>
-      <table class="ec-t"><thead><tr><th>ر.ت</th><th>المؤسسة</th><th>النيابة</th><th>الأكاديمية</th><th>من</th><th>إلى</th><th>ملاحظات</th></tr></thead><tbody>${rows.join('')}</tbody></table>
-    </div>`;
-  }
-
-  const emps = () => (typeof sortedEmps === 'function' ? sortedEmps() : DB.employees);
-
-  window.pageEmpCard = function (v, arg) {
-    arg = arg || {};
-    const st0 = { empId: arg.empId || '', all: !!arg.all, photo: true, sy: MK.curSy() };
-    MK.docPage(v, {
-      title: 'البطاقة الشخصية للأستاذ(ة)', icon: '🪪', modes: false, state: st0, word: true,
-      back: () => go('employees'),
-      form: (box, st, refresh) => {
-        const draw = () => {
-          const list = emps(), e = list.find(x => x.id === st.empId) || null;
-          box.innerHTML = `<div class="sec-t">الموظف(ة)</div>
-            <div class="fld"><select class="inp" id="ecE"><option value="__all" ${st.all ? 'selected' : ''}>كل الموظفين (بطاقة لكل واحد)</option>${list.map(x => `<option value="${x.id}" ${!st.all && x.id === st.empId ? 'selected' : ''}>${esc(Dx.fullName ? Dx.fullName(x) : x.firstAr + ' ' + x.lastAr)}</option>`).join('')}</select></div>
-            <label class="chk"><input type="checkbox" id="ecP" ${st.photo ? 'checked' : ''}> إظهار الصورة</label>
-            ${!st.all && e ? `<div class="sec-t" style="margin-top:12px">صورة الموظف(ة)</div>
-              <div class="btn-row"><button class="btn sm" id="ecPh">${ic('up')} ${e.photo ? 'تغيير الصورة' : 'إضافة صورة'}</button>${e.photo ? `<button class="btn sm danger" id="ecPhD">${ic('trash')} حذف</button>` : ''}</div>
+      <table class="ec-t"><thead><tr><th>ر.ت</th><th>المؤسسة</th><th>النيابة</th><th>الأكاديمية</th><th>من</th><th>إلى</th><th>ملاحظات</th></tr></thead><tbody>${d.join("")}</tbody></table>
+    </div>`}const P=()=>typeof sortedEmps=="function"?sortedEmps():DB.employees;window.pageEmpCard=function(a,t){t=t||{};const e={empId:t.empId||"",all:!!t.all,photo:!0,sy:MK.curSy()};MK.docPage(a,{title:"البطاقة الشخصية للأستاذ(ة)",icon:"🪪",modes:!1,state:e,word:!0,back:()=>go("employees"),form:(r,s,d)=>{const h=()=>{const f=P(),m=f.find(l=>l.id===s.empId)||null;if(r.innerHTML=`<div class="sec-t">الموظف(ة)</div>
+            <div class="fld"><select class="inp" id="ecE"><option value="__all" ${s.all?"selected":""}>كل الموظفين (بطاقة لكل واحد)</option>${f.map(l=>`<option value="${l.id}" ${!s.all&&l.id===s.empId?"selected":""}>${n(g.fullName?g.fullName(l):l.firstAr+" "+l.lastAr)}</option>`).join("")}</select></div>
+            <label class="chk"><input type="checkbox" id="ecP" ${s.photo?"checked":""}> إظهار الصورة</label>
+            ${!s.all&&m?`<div class="sec-t" style="margin-top:12px">صورة الموظف(ة)</div>
+              <div class="btn-row"><button class="btn sm" id="ecPh">${ic("up")} ${m.photo?"تغيير الصورة":"إضافة صورة"}</button>${m.photo?`<button class="btn sm danger" id="ecPhD">${ic("trash")} حذف</button>`:""}</div>
               <div class="sec-t" style="margin-top:12px">الخدمات السابقة</div>
-              <div id="ecSv"></div><div class="btn-row"><button class="btn sm" id="ecSvA">${ic('plus')} إضافة سطر</button></div>
-              <p class="muted" style="font-size:12px;line-height:1.7">باقي المعطيات (الحالة العائلية، الترسيم، الشواهد...) تُعدل من «تعديل» في صفحة الموظفين.</p>` : ''}`;
-          $('#ecE', box).onchange = ev => { if (ev.target.value === '__all') { st.all = true; } else { st.all = false; st.empId = ev.target.value; } draw(); refresh(); };
-          $('#ecP', box).onchange = ev => { st.photo = ev.target.checked; refresh(); };
-          if (!st.all && e) {
-            $('#ecPh', box).onclick = async () => { const p = await pickPhoto(); if (p) { e.photo = p; persist(); draw(); refresh(); } };
-            if ($('#ecPhD', box)) $('#ecPhD', box).onclick = () => { delete e.photo; persist(); draw(); refresh(); };
-            const sv = () => {
-              e.services = e.services || [];
-              $('#ecSv', box).innerHTML = e.services.map((r, i) => `<div class="fgrid" style="border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px">
-                ${[['inst', 'المؤسسة'], ['dir', 'النيابة'], ['acad', 'الأكاديمية']].map(([k, l]) => `<div class="fld"><label>${l}</label><input class="inp" data-i="${i}" data-k="${k}" value="${esc(r[k] || '')}"></div>`).join('')}
-                ${[['from', 'من'], ['to', 'إلى']].map(([k, l]) => `<div class="fld"><label>${l}</label><input class="inp" type="date" data-i="${i}" data-k="${k}" value="${esc(r[k] || '')}"></div>`).join('')}
-                <div class="fld"><label>ملاحظات</label><input class="inp" data-i="${i}" data-k="note" value="${esc(r.note || '')}"></div>
-                <button class="btn sm danger icon" data-del="${i}" title="حذف السطر">${ic('trash')}</button></div>`).join('');
-              $$('#ecSv [data-k]', box).forEach(inp => inp.oninput = () => { e.services[+inp.dataset.i][inp.dataset.k] = inp.value; persist(); refresh(); });
-              $$('#ecSv [data-del]', box).forEach(b => b.onclick = () => { e.services.splice(+b.dataset.del, 1); persist(); sv(); refresh(); });
-            };
-            sv();
-            $('#ecSvA', box).onclick = () => { (e.services = e.services || []).push({}); persist(); sv(); refresh(); };
-          }
-        };
-        if (!st.empId && !st.all) { const f = emps()[0]; if (f) st.empId = f.id; else st.all = true; }
-        draw();
-      },
-      build: st => {
-        const list = st.all ? emps() : emps().filter(x => x.id === st.empId);
-        return { page: 'a4', pages: (list.length ? list : [{}]).map(e => card(S(), e, st)) };
-      },
-      fname: st => st.all ? 'البطاقات_الشخصية_للأساتذة' : 'البطاقة_الشخصية_' + ((emps().find(x => x.id === st.empId) || {}).lastAr || '')
-    });
-  };
-  /* ---- 1.9.4: printable sheet of staff photo cards («بطاقات بالصور»): cards of the employees page, several per A4 page ---- */
-  const GCSS = `
+              <div id="ecSv"></div><div class="btn-row"><button class="btn sm" id="ecSvA">${ic("plus")} إضافة سطر</button></div>
+              <p class="muted" style="font-size:12px;line-height:1.7">باقي المعطيات (الحالة العائلية، الترسيم، الشواهد...) تُعدل من «تعديل» في صفحة الموظفين.</p>`:""}`,$("#ecE",r).onchange=l=>{l.target.value==="__all"?s.all=!0:(s.all=!1,s.empId=l.target.value),h(),d()},$("#ecP",r).onchange=l=>{s.photo=l.target.checked,d()},!s.all&&m){$("#ecPh",r).onclick=async()=>{const o=await J();o&&(m.photo=o,persist(),h(),d())},$("#ecPhD",r)&&($("#ecPhD",r).onclick=()=>{delete m.photo,persist(),h(),d()});const l=()=>{m.services=m.services||[],$("#ecSv",r).innerHTML=m.services.map((o,y)=>`<div class="fgrid" style="border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px">
+                ${[["inst","المؤسسة"],["dir","النيابة"],["acad","الأكاديمية"]].map(([x,D])=>`<div class="fld"><label>${D}</label><input class="inp" data-i="${y}" data-k="${x}" value="${n(o[x]||"")}"></div>`).join("")}
+                ${[["from","من"],["to","إلى"]].map(([x,D])=>`<div class="fld"><label>${D}</label><input class="inp" type="date" data-i="${y}" data-k="${x}" value="${n(o[x]||"")}"></div>`).join("")}
+                <div class="fld"><label>ملاحظات</label><input class="inp" data-i="${y}" data-k="note" value="${n(o.note||"")}"></div>
+                <button class="btn sm danger icon" data-del="${y}" title="حذف السطر">${ic("trash")}</button></div>`).join(""),$$("#ecSv [data-k]",r).forEach(o=>o.oninput=()=>{m.services[+o.dataset.i][o.dataset.k]=o.value,persist(),d()}),$$("#ecSv [data-del]",r).forEach(o=>o.onclick=()=>{m.services.splice(+o.dataset.del,1),persist(),l(),d()})};l(),$("#ecSvA",r).onclick=()=>{(m.services=m.services||[]).push({}),persist(),l(),d()}}};if(!s.empId&&!s.all){const f=P()[0];f?s.empId=f.id:s.all=!0}h()},build:r=>{const s=r.all?P():P().filter(d=>d.id===r.empId);return{page:"a4",pages:(s.length?s:[{}]).map(d=>R(S(),d,r))}},fname:r=>r.all?"البطاقات_الشخصية_للأساتذة":"البطاقة_الشخصية_"+((P().find(s=>s.id===r.empId)||{}).lastAr||"")})};const V=`
   .eg{display:flex;flex-direction:column;height:100%;box-sizing:border-box;font-family:'MAJ','Amiri',serif}
   .eg-h{display:flex;justify-content:space-between;align-items:center;border-bottom:1.4px solid #1f3864;margin:0 0 2.5mm;padding:0 0 1.2mm;font-size:10pt;line-height:1.5}
   .eg-h b{font-family:'MAJT','Amiri',serif;font-size:14pt;color:#1f3864}
@@ -155,52 +70,7 @@
   .eg-n{font-weight:700;font-size:11pt;line-height:1.35;color:#10213f}
   .eg-c{font-size:8.6pt;line-height:1.45;color:#333}
   .eg-c b{color:#1f3864}.eg-c .k{color:#555}
-  .eg-ft{margin-top:auto;font-size:8pt;text-align:center;color:#555;padding-top:1.5mm}`;
-  if (Dx) Dx.modCss = (Dx.modCss || '') + GCSS;
-  const GL = { '2x3': [2, 3], '3x3': [3, 3], '3x4': [3, 4], '4x4': [4, 4], '4x5': [4, 5] };
-  const GF = [['ppr', 'رقم التأجير'], ['cin', 'رقم البطاقة الوطنية'], ['cadre', 'الإطار'], ['task', 'المادة / المهمة'], ['unit', 'الوحدة المدرسية'], ['phone', 'الهاتف'], ['levels', 'المستويات المسندة']];
-  const G = { style: 'cards', layout: '3x3', cat: '', unit: '', fields: [true, false, true, true, true, false, false], title: true, onlyPhoto: false, q: '' };
-  const gCat = (e, B) => (B.a.has(e.id) ? 'admin' : B.t.has(e.id) ? 'teacher' : B.as.has(e.id) ? 'assigned' : B.p.has(e.id) ? 'preschool' : 'other');
-  function galleryList() {
-    const B = window.Board ? { a: new Set(Board.admins().map(e => e.id)), t: new Set(Board.teachers().map(e => e.id)), as: new Set(Board.assigned().map(e => e.id)), p: new Set(Board.preschool().map(e => e.id)) } : { a: new Set(), t: new Set(), as: new Set(), p: new Set() };
-    const q = String(G.q || '').trim().toLowerCase();
-    return emps().filter(e => (!q || [Dx.fullName ? Dx.fullName(e) : e.firstAr + ' ' + e.lastAr, e.firstFr, e.lastFr, e.ppr, e.cin, e.cadre].join(' ').toLowerCase().includes(q))
-      && (!G.cat || gCat(e, B) === G.cat) && (!G.unit || (window.K && K.U ? K.U.same(e.unit, G.unit) : e.unit === G.unit)) && (!G.onlyPhoto || e.photo));
-  }
-  function galleryPages(s, sy) {
-    const [cols, rows] = GL[G.layout] || GL['3x3'], per = cols * rows, list = galleryList(), pages = [];
-    // the photo (3:4) fills what the card leaves under the text; the rows share the height of the page
-    const nl = G.fields.filter(Boolean).length, rowH = 250 / rows - 2.6, textH = 6 + 4.3 * (nl + 0.5), colC = (186 - 2.6 * (cols + 1)) / cols - 5.6;
-    let ph = Math.max(16, Math.min(56, rowH - 6.4 - textH - 2)); const pw = Math.round(Math.min(ph * 0.75, colC)); ph = Math.round(pw / 0.75);
-    const cell = e => {
-      const nm = Dx.fullName ? Dx.fullName(e) : [e.firstAr, e.lastAr].filter(Boolean).join(' ');
-      const lines = GF.map(([k, l], i) => {
-        if (!G.fields[i]) return '';
-        const v = k === 'task' ? (e.subject || e.task || '') : e[k];
-        if (!String(v || '').trim()) return '';
-        return k === 'cadre' ? `<div>${esc(v)}</div>` : `<div><span class="k">${l}:</span> <b>${esc(v)}</b></div>`;
-      }).join('');
-      return `<div class="eg-ph" style="width:${pw}mm;height:${ph}mm">${e.photo ? `<img src="${e.photo}" alt="">` : `<span style="font-size:${Math.round(ph / 2.4)}pt">${esc(initials(e) || '؟')}</span>`}</div><div class="eg-n">${esc(nm)}</div><div class="eg-c">${lines}</div>`;
-    };
-    const total = Math.max(1, Math.ceil(list.length / per));
-    for (let p = 0; p < total; p++) {
-      const chunk = list.slice(p * per, (p + 1) * per);
-      let t = '<table class="eg-t">';
-      for (let r = 0; r < rows; r++) {
-        t += '<tr>';
-        for (let c = 0; c < cols; c++) { const e = chunk[r * cols + c]; t += e ? `<td style="height:${(rowH - 6.4).toFixed(1)}mm">${cell(e)}</td>` : `<td class="e" style="height:${(rowH - 6.4).toFixed(1)}mm"></td>`; }
-        t += '</tr>';
-      }
-      t += '</table>';
-      pages.push(`<div class="eg">${G.title ? `<div class="eg-h"><div><b>بطاقات موظفي المؤسسة</b><br>${esc(s.school || '')}</div><div style="text-align:left">الموسم الدراسي ${esc(MK.syDash(sy))}<br>${list.length} موظف(ة)</div></div>` : ''}${t}${total > 1 ? `<div class="eg-ft" dir="ltr">${p + 1} / ${total}</div>` : ''}</div>`);
-    }
-    return pages;
-  }
-  /* ---- 1.9.4: «الفريق التربوي والإداري للمؤسسة» — a poster: one column per school unit, a coloured card per teacher (photo, levels,
-     language, name), the director's card and a sentence at the bottom (A4 landscape) ---- */
-  const TB = { title: 'الفريق التربوي والإداري للمؤسسة', quote: 'أعظم الإنجازات في عالم التربية ليست ثمرة عمل فرد واحد، بل هي عمل فريق كامل.', admins: true, theme: 'blue' };
-  const TB_COL = { 12: ['#4a7ff0', '#1c56d6'], 34: ['#b77cf2', '#8e44d6'], 56: ['#12d6e0', '#0aa8b5'], mix: ['#6bc9c4', '#2f9d96'], dir: ['#e612e6', '#a10aa1'], adm: ['#f2a03d', '#c97810'] };
-  const TB_CSS = `
+  .eg-ft{margin-top:auto;font-size:8pt;text-align:center;color:#555;padding-top:1.5mm}`;g&&(g.modCss=(g.modCss||"")+V);const G={"2x3":[2,3],"3x3":[3,3],"3x4":[3,4],"4x4":[4,4],"4x5":[4,5]},Q=[["ppr","رقم التأجير"],["cin","رقم البطاقة الوطنية"],["cadre","الإطار"],["task","المادة / المهمة"],["unit","الوحدة المدرسية"],["phone","الهاتف"],["levels","المستويات المسندة"]],p={style:"cards",layout:"3x3",cat:"",unit:"",fields:[!0,!1,!0,!0,!0,!1,!1],title:!0,onlyPhoto:!1,q:""},X=(a,t)=>t.a.has(a.id)?"admin":t.t.has(a.id)?"teacher":t.as.has(a.id)?"assigned":t.p.has(a.id)?"preschool":"other";function L(){const a=window.Board?{a:new Set(Board.admins().map(e=>e.id)),t:new Set(Board.teachers().map(e=>e.id)),as:new Set(Board.assigned().map(e=>e.id)),p:new Set(Board.preschool().map(e=>e.id))}:{a:new Set,t:new Set,as:new Set,p:new Set},t=String(p.q||"").trim().toLowerCase();return P().filter(e=>(!t||[g.fullName?g.fullName(e):e.firstAr+" "+e.lastAr,e.firstFr,e.lastFr,e.ppr,e.cin,e.cadre].join(" ").toLowerCase().includes(t))&&(!p.cat||X(e,a)===p.cat)&&(!p.unit||(window.K&&K.U?K.U.same(e.unit,p.unit):e.unit===p.unit))&&(!p.onlyPhoto||e.photo))}function Y(a,t){const[e,r]=G[p.layout]||G["3x3"],s=e*r,d=L(),h=[],f=p.fields.filter(Boolean).length,m=250/r-2.6,l=6+4.3*(f+.5),o=(186-2.6*(e+1))/e-5.6;let y=Math.max(16,Math.min(56,m-6.4-l-2));const x=Math.round(Math.min(y*.75,o));y=Math.round(x/.75);const D=v=>{const q=g.fullName?g.fullName(v):[v.firstAr,v.lastAr].filter(Boolean).join(" "),A=Q.map(([w,j],I)=>{if(!p.fields[I])return"";const B=w==="task"?v.subject||v.task||"":v[w];return String(B||"").trim()?w==="cadre"?`<div>${n(B)}</div>`:`<div><span class="k">${j}:</span> <b>${n(B)}</b></div>`:""}).join("");return`<div class="eg-ph" style="width:${x}mm;height:${y}mm">${v.photo?`<img src="${v.photo}" alt="">`:`<span style="font-size:${Math.round(y/2.4)}pt">${n(_(v)||"؟")}</span>`}</div><div class="eg-n">${n(q)}</div><div class="eg-c">${A}</div>`},T=Math.max(1,Math.ceil(d.length/s));for(let v=0;v<T;v++){const q=d.slice(v*s,(v+1)*s);let A='<table class="eg-t">';for(let w=0;w<r;w++){A+="<tr>";for(let j=0;j<e;j++){const I=q[w*e+j];A+=I?`<td style="height:${(m-6.4).toFixed(1)}mm">${D(I)}</td>`:`<td class="e" style="height:${(m-6.4).toFixed(1)}mm"></td>`}A+="</tr>"}A+="</table>",h.push(`<div class="eg">${p.title?`<div class="eg-h"><div><b>بطاقات موظفي المؤسسة</b><br>${n(a.school||"")}</div><div style="text-align:left">الموسم الدراسي ${n(MK.syDash(t))}<br>${d.length} موظف(ة)</div></div>`:""}${A}${T>1?`<div class="eg-ft" dir="ltr">${v+1} / ${T}</div>`:""}</div>`)}return h}const k={title:"الفريق التربوي والإداري للمؤسسة",quote:"أعظم الإنجازات في عالم التربية ليست ثمرة عمل فرد واحد، بل هي عمل فريق كامل.",admins:!0,theme:"blue"},C={12:["#4a7ff0","#1c56d6"],34:["#b77cf2","#8e44d6"],56:["#12d6e0","#0aa8b5"],mix:["#6bc9c4","#2f9d96"],dir:["#e612e6","#a10aa1"],adm:["#f2a03d","#c97810"]},Z=`
   .tb{height:100%;display:flex;flex-direction:column;gap:2.2mm;font-family:'MAJT','NSA','Amiri',sans-serif;box-sizing:border-box}
   .tb-top{display:flex;align-items:center;gap:4mm}.tb-top img{height:20mm}.tb-ttl{flex:1;border:1.6px solid #111;border-radius:7mm;background:#79c2fb;text-align:center;font-weight:900;font-size:25pt;line-height:1.35;padding:1mm 4mm;color:#111;-webkit-text-stroke:.3px #fff;text-shadow:1px 1px 0 #fff,2px 2px 0 rgba(0,0,0,.25);-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .tb-sch{text-align:center;font-weight:700;font-size:11pt;margin-top:-1.4mm;color:#123}
@@ -214,76 +84,7 @@
   .tb-ph div{aspect-ratio:1/1;height:100%;max-width:100%;border-radius:50%;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1mm solid #fff}
   .tb-ph img{width:100%;height:100%;object-fit:cover;border-radius:50%}.tb-ph span{color:#9aa;font-weight:700}
   .tb-n{background:#fff;border-radius:4mm;text-align:center;font-weight:900;color:#1268d8;line-height:1.2;padding:.9mm 1mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .tb-q{border-radius:5mm;padding:2mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tb-q div{background:#fff;border-radius:4mm;text-align:center;font-weight:900;font-size:14pt;line-height:1.45;padding:2mm 4mm;color:#111}`;
-  if (Dx) Dx.modCss = (Dx.modCss || '') + TB_CSS;
-  function teamBoard(s, sy) {
-    const B = window.Board, all = galleryList(), ids = new Set(all.map(e => e.id));
-    const T = (B ? B.teachers().concat(B.assigned()) : all).filter(e => ids.has(e.id));
-    const dir = B ? B.director() : null;
-    const adm = TB.admins && B ? B.admins().filter(e => ids.has(e.id) && (!dir || e.id !== dir.id)) : [];
-    // the units of the teachers (in the order of the units list, then the others as written on the employees)
-    const known = B ? B.unitNames() : [], unitsL = [];
-    known.concat(T.map(e => String(e.unit || '').trim())).forEach(u => { if (u && T.some(e => K.U.same(e.unit, u)) && !unitsL.some(x => K.U.same(x, u))) unitsL.push(u); });
-    let cols = (window.Cyc && Cyc.single()) || !unitsL.length ? [['', T]] : unitsL.map(u => [u, T.filter(e => K.U.same(e.unit, u))]).concat(T.some(e => !String(e.unit || '').trim()) ? [['آخرون', T.filter(e => !String(e.unit || '').trim())]] : []);
-    // a long column (one institution without units) is shared on several columns
-    if (cols.length === 1 && cols[0][1].length > 5) { const L0 = cols[0][1], n = Math.min(6, Math.ceil(L0.length / 4)), per = Math.ceil(L0.length / n); cols = Array.from({ length: n }, (_, i) => [i ? '' : cols[0][0], L0.slice(i * per, (i + 1) * per)]); }
-    const lv = e => (B ? B.levelDigits(e) : []);
-    const key = e => { const d = lv(e); return d.length ? d[0] * 10 + (d[d.length - 1] || 0) : 99; };
-    cols.forEach(c => c[1].sort((a, b) => key(a) - key(b)));
-    const maxN = Math.max(1, ...cols.map(c => c[1].length), (dir ? 1 : 0) + adm.length + (dir || adm.length ? 1 : 0));
-    const cardH = Math.max(22, Math.min(58, (150 - 14) / maxN - 1.8));
-    const lang = e => { const t = String(e.teachLang || '').trim(); return /مزدوج|ثنائي/.test(t) ? 'مزدوج' : /فرنس/.test(t) ? 'فرنسية' : /عرب/.test(t) ? 'عربية' : /أمازيغ|امازيغ/.test(t) ? 'أمازيغية' : ''; };
-    const colorOf = e => { const d = lv(e); if (!d.length) return TB_COL.mix; const a = d[0], b = d[d.length - 1]; return b <= 2 ? TB_COL[12] : a >= 3 && b <= 4 ? TB_COL[34] : a >= 5 ? TB_COL[56] : TB_COL.mix; };
-    const name = e => (Dx.fullName ? Dx.fullName(e) : [e.firstAr, e.lastAr].filter(Boolean).join(' '));
-    const fs = Math.max(8, Math.min(14, cardH * .3));
-    const card = (e, col, lvHtml) => `<div class="tb-c" style="height:${cardH.toFixed(1)}mm;background:${col[0]}">
-        <div class="tb-r">${lvHtml != null ? (lvHtml ? `<div class="tb-lv" style="font-size:${(fs * 1.05).toFixed(1)}pt">${lvHtml}</div>` : '') : ''}<div class="tb-ph"><div>${e.photo ? `<img src="${e.photo}" alt="">` : `<span style="font-size:${(fs * 1.1).toFixed(1)}pt">${esc(initials(e) || '')}</span>`}</div></div></div>
-        <div class="tb-n" style="font-size:${fs.toFixed(1)}pt">${esc(name(e))}</div></div>`;
-    const lvTxt = e => { const d = lv(e), l = lang(e); return d.length ? d.join('<br>+<br>') + (l ? `<i>${l}</i>` : '') : (l ? `<i>${l}</i>` : (esc(e.subject || '') || '')); };
-    const colsHtml = cols.map(([u, L]) => `<div class="tb-col">${u ? `<div class="tb-uh">${esc(u)}</div>` : ''}${L.map(e => card(e, colorOf(e), lvTxt(e))).join('')}</div>`).join('');
-    const side = dir || adm.length ? `<div class="tb-col">${dir ? `<div class="tb-uh" style="border-color:#c58ae8">مدير المؤسسة</div>${card(dir, TB_COL.dir, '')}` : ''}${adm.length ? `<div class="tb-uh" style="border-color:#f2a03d">الإدارة التربوية</div>${adm.map(e => card(e, TB_COL.adm, `<i>${esc(String(e.task || e.cadre || '').split(/\s+/).slice(0, 3).join(' '))}</i>`)).join('')}` : ''}</div>` : '';
-    const emb = '<img src="assets/emblem.png" alt="">';
-    return [`<div class="tb"><div class="tb-top">${emb}<div class="tb-ttl">${esc(TB.title || '')}</div>${emb}</div><div class="tb-sch">${esc(s.school || '')} — الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}</div>
-      <div class="tb-cols">${colsHtml}${side}</div>${TB.quote ? `<div class="tb-q" style="background:#4a7ff0"><div>«${esc(TB.quote)}»</div></div>` : ''}</div>`];
-  }
-  window.pageEmpGallery = function (v, arg) {
-    arg = arg || {};
-    if (arg.q != null) G.q = arg.q;
-    MK.docPage(v, {
-      title: 'بطاقات الموظفين بالصور', icon: '🪪', modes: false, state: { sy: MK.curSy() }, word: true,
-      back: () => go('employees'),
-      form: (box, st, refresh) => {
-        const units = () => { const u = window.Units ? Units.names() : []; return [['', 'كل الوحدات']].concat(u.map(n => [n, n])); };
-        const defs = () => [{ sec: 'الموظفون المعنيون' },
-          { k: 'q', l: 'بحث (الاسم، رقم التأجير، الإطار...)', t: 'text', ph: 'اتركه فارغا لكل الموظفين' },
-          { k: 'cat', l: 'الفئة', t: 'select', half: true, opts: [['', 'كل الفئات'], ['teacher', 'هيئة التربية والتعليم'], ['admin', 'هيئة الإدارة التربوية والتدبير'], ['assigned', 'أساتذة مكلفون']].concat(window.Cyc && Cyc.isSec() ? [] : [['preschool', 'مربو التعليم الأولي']], [['other', 'أطر وأعوان آخرون']]) },
-          (window.Cyc && Cyc.single()) ? null : { k: 'unit', l: 'الوحدة المدرسية', t: 'select', half: true, opts: units },
-          { k: 'onlyPhoto', l: '', t: 'checks', opts: ['الموظفون الذين لهم صورة فقط'], map: true },
-          { sec: 'التصميم' },
-          { k: 'style', l: 'النموذج', t: 'select', opts: [['cards', 'بطاقات بالصور (شبكة، A4 عمودي)'], ['board', 'لوحة «الفريق التربوي والإداري للمؤسسة» حسب الوحدات (A4 أفقي)']] },
-          G.style === 'board' ? { k: 'tbTitle', l: 'عنوان اللوحة', t: 'text' } : null,
-          G.style === 'board' ? { k: 'tbQuote', l: 'العبارة في أسفل اللوحة (اتركها فارغة لحذفها)', t: 'text' } : null,
-          G.style === 'board' ? { k: 'tbAdm', l: '', t: 'checks', opts: ['إظهار الأطر الإدارية تحت مدير المؤسسة'], map: true } : null,
-          G.style === 'board' ? { note: 'لون البطاقة حسب المستويات المسندة: الأول والثاني أزرق، الثالث والرابع بنفسجي، الخامس والسادس فيروزي، ومدير المؤسسة وردي. المستويات ولغة التدريس من بطاقة الموظف (المستويات المسندة، لغة التدريس).' } : null,
-          G.style === 'board' ? null : { k: 'layout', l: 'عدد البطاقات في الصفحة', t: 'select', opts: [['2x3', '6 بطاقات (2 × 3) — صور كبيرة'], ['3x3', '9 بطاقات (3 × 3)'], ['3x4', '12 بطاقة (3 × 4)'], ['4x4', '16 بطاقة (4 × 4)'], ['4x5', '20 بطاقة (4 × 5) — صور صغيرة']] },
-          G.style === 'board' ? null : { k: 'fields', l: 'المعطيات المعروضة تحت الصورة', t: 'checks', opts: GF.map(x => x[1]) },
-          G.style === 'board' ? null : { k: 'title', l: '', t: 'checks', opts: ['عنوان أعلى كل صفحة (المؤسسة والموسم)'], map: true },
-          { note: 'لإضافة صورة لموظف(ة): افتح «البطاقة» الخاصة به أو بطاقته الشخصية ثم «إضافة صورة». المحاذاة والقص (3:4) تتم تلقائيا.' }].filter(Boolean);
-        // booleans edited as one-box «checks» fields
-        const st2 = Object.assign({}, G, { onlyPhoto: [!!G.onlyPhoto], title: [!!G.title], tbTitle: TB.title, tbQuote: TB.quote, tbAdm: [!!TB.admins], style: G.style || 'cards' });
-        let tm = null;
-        const sync = k => {
-          if (k === 'onlyPhoto') G.onlyPhoto = !!st2.onlyPhoto[0]; else if (k === 'title') G.title = !!st2.title[0];
-          else if (k === 'tbTitle') TB.title = st2.tbTitle; else if (k === 'tbQuote') TB.quote = st2.tbQuote; else if (k === 'tbAdm') TB.admins = !!st2.tbAdm[0];
-          else G[k] = st2[k];
-          if (k === 'style') { box.innerHTML = ''; K.form(box, defs, st2, sync); }
-          clearTimeout(tm); tm = setTimeout(refresh, k === 'q' || k === 'tbTitle' || k === 'tbQuote' ? 350 : 0);
-        };
-        K.form(box, defs, st2, sync);
-      },
-      build: st => (G.style === 'board' ? { page: 'a4l', pages: teamBoard(S(), st.sy) } : { page: 'a4', pages: galleryPages(S(), st.sy) }),
-      fname: () => (G.style === 'board' ? 'الفريق_التربوي_والإداري' : 'بطاقات_الموظفين_بالصور')
-    });
-  };
-  window.EmpPhoto = { pick: pickPhoto, fit: fitPhoto, initials, galleryList, G };
-})();
+  .tb-q{border-radius:5mm;padding:2mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tb-q div{background:#fff;border-radius:4mm;text-align:center;font-weight:900;font-size:14pt;line-height:1.45;padding:2mm 4mm;color:#111}`;g&&(g.modCss=(g.modCss||"")+Z);function W(a,t){const e=window.Board,r=L(),s=new Set(r.map(i=>i.id)),d=(e?e.teachers().concat(e.assigned()):r).filter(i=>s.has(i.id)),h=e?e.director():null,f=k.admins&&e?e.admins().filter(i=>s.has(i.id)&&(!h||i.id!==h.id)):[],m=e?e.unitNames():[],l=[];m.concat(d.map(i=>String(i.unit||"").trim())).forEach(i=>{i&&d.some(c=>K.U.same(c.unit,i))&&!l.some(c=>K.U.same(c,i))&&l.push(i)});let o=window.Cyc&&Cyc.single()||!l.length?[["",d]]:l.map(i=>[i,d.filter(c=>K.U.same(c.unit,i))]).concat(d.some(i=>!String(i.unit||"").trim())?[["آخرون",d.filter(i=>!String(i.unit||"").trim())]]:[]);if(o.length===1&&o[0][1].length>5){const i=o[0][1],c=Math.min(6,Math.ceil(i.length/4)),u=Math.ceil(i.length/c);o=Array.from({length:c},(E,F)=>[F?"":o[0][0],i.slice(F*u,(F+1)*u)])}const y=i=>e?e.levelDigits(i):[],x=i=>{const c=y(i);return c.length?c[0]*10+(c[c.length-1]||0):99};o.forEach(i=>i[1].sort((c,u)=>x(c)-x(u)));const D=Math.max(1,...o.map(i=>i[1].length),(h?1:0)+f.length+(h||f.length?1:0)),T=Math.max(22,Math.min(58,136/D-1.8)),v=i=>{const c=String(i.teachLang||"").trim();return/مزدوج|ثنائي/.test(c)?"مزدوج":/فرنس/.test(c)?"فرنسية":/عرب/.test(c)?"عربية":/أمازيغ|امازيغ/.test(c)?"أمازيغية":""},q=i=>{const c=y(i);if(!c.length)return C.mix;const u=c[0],E=c[c.length-1];return E<=2?C[12]:u>=3&&E<=4?C[34]:u>=5?C[56]:C.mix},A=i=>g.fullName?g.fullName(i):[i.firstAr,i.lastAr].filter(Boolean).join(" "),w=Math.max(8,Math.min(14,T*.3)),j=(i,c,u)=>`<div class="tb-c" style="height:${T.toFixed(1)}mm;background:${c[0]}">
+        <div class="tb-r">${u!=null&&u?`<div class="tb-lv" style="font-size:${(w*1.05).toFixed(1)}pt">${u}</div>`:""}<div class="tb-ph"><div>${i.photo?`<img src="${i.photo}" alt="">`:`<span style="font-size:${(w*1.1).toFixed(1)}pt">${n(_(i)||"")}</span>`}</div></div></div>
+        <div class="tb-n" style="font-size:${w.toFixed(1)}pt">${n(A(i))}</div></div>`,I=i=>{const c=y(i),u=v(i);return c.length?c.join("<br>+<br>")+(u?`<i>${u}</i>`:""):u?`<i>${u}</i>`:n(i.subject||"")||""},B=o.map(([i,c])=>`<div class="tb-col">${i?`<div class="tb-uh">${n(i)}</div>`:""}${c.map(u=>j(u,q(u),I(u))).join("")}</div>`).join(""),tt=h||f.length?`<div class="tb-col">${h?`<div class="tb-uh" style="border-color:#c58ae8">مدير المؤسسة</div>${j(h,C.dir,"")}`:""}${f.length?`<div class="tb-uh" style="border-color:#f2a03d">الإدارة التربوية</div>${f.map(i=>j(i,C.adm,`<i>${n(String(i.task||i.cadre||"").split(/\s+/).slice(0,3).join(" "))}</i>`)).join("")}`:""}</div>`:"",O='<img src="assets/emblem.png" alt="">';return[`<div class="tb"><div class="tb-top">${O}<div class="tb-ttl">${n(k.title||"")}</div>${O}</div><div class="tb-sch">${n(a.school||"")} — الموسم الدراسي ${n(MK.syDash(t).replace("-","/"))}</div>
+      <div class="tb-cols">${B}${tt}</div>${k.quote?`<div class="tb-q" style="background:#4a7ff0"><div>«${n(k.quote)}»</div></div>`:""}</div>`]}window.pageEmpGallery=function(a,t){t=t||{},t.q!=null&&(p.q=t.q),MK.docPage(a,{title:"بطاقات الموظفين بالصور",icon:"🪪",modes:!1,state:{sy:MK.curSy()},word:!0,back:()=>go("employees"),form:(e,r,s)=>{const d=()=>{const o=window.Units?Units.names():[];return[["","كل الوحدات"]].concat(o.map(y=>[y,y]))},h=()=>[{sec:"الموظفون المعنيون"},{k:"q",l:"بحث (الاسم، رقم التأجير، الإطار...)",t:"text",ph:"اتركه فارغا لكل الموظفين"},{k:"cat",l:"الفئة",t:"select",half:!0,opts:[["","كل الفئات"],["teacher","هيئة التربية والتعليم"],["admin","هيئة الإدارة التربوية والتدبير"],["assigned","أساتذة مكلفون"]].concat(window.Cyc&&Cyc.isSec()?[]:[["preschool","مربو التعليم الأولي"]],[["other","أطر وأعوان آخرون"]])},window.Cyc&&Cyc.single()?null:{k:"unit",l:"الوحدة المدرسية",t:"select",half:!0,opts:d},{k:"onlyPhoto",l:"",t:"checks",opts:["الموظفون الذين لهم صورة فقط"],map:!0},{sec:"التصميم"},{k:"style",l:"النموذج",t:"select",opts:[["cards","بطاقات بالصور (شبكة، A4 عمودي)"],["board","لوحة «الفريق التربوي والإداري للمؤسسة» حسب الوحدات (A4 أفقي)"]]},p.style==="board"?{k:"tbTitle",l:"عنوان اللوحة",t:"text"}:null,p.style==="board"?{k:"tbQuote",l:"العبارة في أسفل اللوحة (اتركها فارغة لحذفها)",t:"text"}:null,p.style==="board"?{k:"tbAdm",l:"",t:"checks",opts:["إظهار الأطر الإدارية تحت مدير المؤسسة"],map:!0}:null,p.style==="board"?{note:"لون البطاقة حسب المستويات المسندة: الأول والثاني أزرق، الثالث والرابع بنفسجي، الخامس والسادس فيروزي، ومدير المؤسسة وردي. المستويات ولغة التدريس من بطاقة الموظف (المستويات المسندة، لغة التدريس)."}:null,p.style==="board"?null:{k:"layout",l:"عدد البطاقات في الصفحة",t:"select",opts:[["2x3","6 بطاقات (2 × 3) — صور كبيرة"],["3x3","9 بطاقات (3 × 3)"],["3x4","12 بطاقة (3 × 4)"],["4x4","16 بطاقة (4 × 4)"],["4x5","20 بطاقة (4 × 5) — صور صغيرة"]]},p.style==="board"?null:{k:"fields",l:"المعطيات المعروضة تحت الصورة",t:"checks",opts:Q.map(o=>o[1])},p.style==="board"?null:{k:"title",l:"",t:"checks",opts:["عنوان أعلى كل صفحة (المؤسسة والموسم)"],map:!0},{note:"لإضافة صورة لموظف(ة): افتح «البطاقة» الخاصة به أو بطاقته الشخصية ثم «إضافة صورة». المحاذاة والقص (3:4) تتم تلقائيا."}].filter(Boolean),f=Object.assign({},p,{onlyPhoto:[!!p.onlyPhoto],title:[!!p.title],tbTitle:k.title,tbQuote:k.quote,tbAdm:[!!k.admins],style:p.style||"cards"});let m=null;const l=o=>{o==="onlyPhoto"?p.onlyPhoto=!!f.onlyPhoto[0]:o==="title"?p.title=!!f.title[0]:o==="tbTitle"?k.title=f.tbTitle:o==="tbQuote"?k.quote=f.tbQuote:o==="tbAdm"?k.admins=!!f.tbAdm[0]:p[o]=f[o],o==="style"&&(e.innerHTML="",K.form(e,h,f,l)),clearTimeout(m),m=setTimeout(s,o==="q"||o==="tbTitle"||o==="tbQuote"?350:0)};K.form(e,h,f,l)},build:e=>p.style==="board"?{page:"a4l",pages:W(S(),e.sy)}:{page:"a4",pages:Y(S(),e.sy)},fname:()=>p.style==="board"?"الفريق_التربوي_والإداري":"بطاقات_الموظفين_بالصور"})},window.EmpPhoto={pick:J,fit:U,initials:_,galleryList:L,G:p}})();

@@ -1,207 +1,9 @@
-'use strict';
-/* المجالس التقنية (مجالس المؤسسة سابقا) — composition of the school councils (مجلس التدبير، المجلس التربوي، المجالس التعليمية، مجالس الأقسام),
-   and the minutes of their sessions (restructuring, first session, mid-year, end of year), the synthetic report of the class councils,
-   the approval of the integrated school project and the internal rules. Everything is pre-filled and editable. */
-(function () {
-  const Dx = window.Docs;
-  const { esc, fmtDate } = Dx;
-  const { SB, LV, tr, thr, tbl, cell } = window.K;
-
-  function migrate(db) {
-    const c = db.councils = db.councils || {};
-    c.years = c.years && typeof c.years === 'object' ? c.years : {};
-  }
-  const store = sy => { migrate(DB); const y = DB.councils.years; return y[sy] || (y[sy] = {}); };
-  const B = () => window.Board;
-  const sameU = (a, b) => K.U.same(a, b);
-  const isF = e => e && (/^(F|f|أنثى|انثى)$/.test(String(e.sex || '')) || (!e.sex && /ة\s*$/.test(String(e.firstAr || '').trim())));
-  const ORD = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس'];
-
-  /* ---------- composition (defaults computed from the employees) ---------- */
-  function levelReps() {
-    const T = B().teachers().concat(B().assigned());
-    const used = new Set();
-    return ORD.map((o, i) => {
-      const L = T.filter(e => B().levelDigits(e).includes(i + 1));
-      const e = L.find(x => !used.has(x.id)) || L[0] || null;
-      if (e) used.add(e.id);
-      return e;
-    });
-  }
-  const capRep = (e, i) => `ممثل${e && isF(e) ? 'ة' : ''} مدرسي المستوى ${ORD[i]}`;
-  const row = (e, cap) => [e ? fullName(e) : '', e ? (e.ppr || '') : '', cap];
-  const dirRow = () => { const d = B().director(); return d ? row(d, 'مدير المؤسسة') : ['', '', 'مدير المؤسسة']; };
-  const langList = rx => {
-    const T = B().teachers().concat(B().assigned());
-    const anyLang = T.some(e => e.teachLang);
-    return T.filter(e => !anyLang || rx.test(e.teachLang || '') || /مزدوج/.test(e.teachLang || ''));
-  };
-  function defaultComp() {
-    const reps = levelReps();
-    const mgmt = [dirRow()].concat(reps.map((e, i) => (e ? row(e, capRep(e, i)) : ['', '', capRep(null, i)]))).concat([['', '', 'رئيس جمعية أمهات وآباء وأولياء التلاميذ'], ['', '', 'ممثل المجلس الجماعي']]);
-    const ped = [dirRow()].concat(reps.map((e, i) => (e ? row(e, capRep(e, i)) : ['', '', capRep(null, i)]))).concat([['', '', 'رئيس جمعية أمهات وآباء وأولياء التلاميذ']]);
-    const ar = [dirRow()].concat(langList(/عرب/).map(e => row(e, 'العربية')));
-    const fr = [dirRow()].concat(langList(/فرنس/).map(e => row(e, 'الفرنسية')));
-    const T = B().teachers().concat(B().assigned());
-    const classes = [];
-    [[1, 2], [3, 4], [5, 6]].forEach(([a, b]) => {
-      const lab = `${ORD[a - 1]} و${ORD[b - 1]}`;
-      classes.push(Object.assign(dirRow(), { 2: 'مدير المؤسسة', 3: lab }));
-      T.filter(e => B().levelDigits(e).some(d => d === a || d === b)).forEach(e => classes.push([fullName(e), e.ppr || '', 'أستاذ(ة)', lab]));
-    });
-    return { mgmt, ped, ar, fr, classes: classes.map(r => [r[0], r[1], r[3]]) };
-  }
-  function comp(sy) {
-    if (isSec()) return secToComp(sy);   // 1.9.3: collège / lycée — no level representatives, no multi-grade classes
-    const saved = store(sy).comp || {};
-    return Object.assign(defaultComp(), saved);
-  }
-  const named = rows => (rows || []).filter(r => String(r[0] || '').trim());
-
-  function compBlocks(sy, c) {
-    if (isSec()) return secBlocks(sy);
-    c = c || comp(sy);
-    const t3 = (title, rows, third) => ({ before: SB.cap(title, 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', third].map(t => ({ t, c: 'd' }))), rows: named(rows).map((r, i) => tr([i + 1, { t: r[0], c: 'b r' }, r[1], { t: r[2], c: 'sm' }])) }, keepNext: true });
-    const g = []; named(c.classes).forEach((r, i, a) => { g.push({ r, first: i === 0 || a[i - 1][2] !== r[2], span: a.filter(x => x[2] === r[2]).length }); });
-    return [t3('أعضاء مجلس التدبير', c.mgmt, 'الصفة: ممثل عن'), t3('أعضاء المجلس التربوي', c.ped, 'الصفة: ممثل عن'), t3('أعضاء المجلس التعليمي للغة العربية', c.ar, 'المادة المدرسة'), t3('أعضاء المجلس التعليمي للغة الفرنسية', c.fr, 'المادة المدرسة'),
-      { before: SB.cap('أعضاء مجالس الأقسام', 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', 'القسم'].map(t => ({ t, c: 'd' }))), rows: g.map(({ r, first, span }, i) => tr([i + 1, { t: r[0], c: 'b r' }, r[1]].concat(first ? [{ t: r[2], c: 'k', r: span }] : []))) } }];
-  }
-  function compositionDoc(s, sy) {
-    if (isSec()) return secCompBuild(s, secComp(sy), sy);
-    const c = comp(sy);
-    const half = rows => rows;
-    const mini = (title, rows, third) => `<div class="sb-box" style="padding:1mm"><h4>${title}</h4><table class="tbl sb-t cmp"><thead>${thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', third].map(t => ({ t, c: 'd' })))}</thead><tbody>${named(rows).map((r, i) => tr([i + 1, { t: r[0], c: 'b r' }, r[1], { t: r[2], c: 'xs' }])).join('')}</tbody></table></div>`;
-    return {
-      title: `تركيبة المجالس التقنية للمؤسسة الموسم الدراسي ${esc(MK.syDash(MK.curSy() === sy ? sy : sy).replace('-', '/'))}`, sign: SB.sign(s, { right: '', left: 'توقيع رئيس المؤسسة' }),
-      blocks: [`<div class="sb-g3">${mini('أعضاء مجلس التدبير', c.mgmt, 'الصفة: ممثل عن')}${mini('أعضاء المجلس التربوي', c.ped, 'الصفة: ممثل عن')}${mini('أعضاء مجالس الأقسام', c.classes.map(r => [r[0], r[1], r[2]]), 'القسم')}</div>`,
-        `<div class="sb-g2" style="margin-top:2mm">${mini('أعضاء المجلس التعليمي للغة العربية', c.ar, 'المادة المدرسة')}${mini('أعضاء المجلس التعليمي للغة الفرنسية', c.fr, 'المادة المدرسة')}</div>`]
-    };
-  }
-
-  /* ---------- results (from the pupils lists + typed passes) ---------- */
-  const cnt = (sy, f) => (window.Pupils ? Pupils.cnt(Pupils.current(sy), f) : { m: 0, f: 0, t: 0 });
-  const levelKeys = sy => { const l = window.Pupils ? Pupils.levelsOf(sy, Pupils.current(sy)).filter(k => !(LV.byK(k) || {}).pre) : []; return l.length ? l : (window.Cyc && Cyc.isSec() ? Cyc.levels() : ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']); };
-  const pc = (a, b) => (b ? (a / b * 100).toFixed(2) + '%' : '');
-  const resInit = sy => levelKeys(sy).map(k => [k, '', '']);
-  function resTable(sy, rows, sem) {
-    rows = rows || resInit(sy);
-    const head = `<tr><th rowspan="2" class="d">المستوى</th><th rowspan="2" class="d">عدد التلاميذ</th><th rowspan="2" class="d">الذكور</th><th rowspan="2" class="d">الإناث</th><th colspan="3" class="d">الحاصلون على المعدل</th><th colspan="3" class="d">غير الحاصلين على المعدل</th></tr><tr><th>المجموع</th><th>إناث</th><th>النسبة</th><th>المجموع</th><th>إناث</th><th>النسبة</th></tr>`;
-    let T = { n: 0, m: 0, f: 0, p: 0, pf: 0, any: false, ff: 0 };
-    const body = rows.map(r => {
-      const c = cnt(sy, p => p.lvl === r[0]);
-      const has = String(r[1]).trim() !== '';
-      const p = +r[1] || 0, pf = +r[2] || 0;
-      T.n += c.t; T.m += c.m; T.f += c.f; if (has) { T.p += p; T.pf += pf; T.any = true; T.ff += (c.f - pf); }
-      return tr([{ t: LV.sh(r[0]), c: 'k' }, c.t, c.m, c.f, has ? p : '', has ? pf : '', { t: has ? pc(p, c.t) : '', c: 'y' }, has ? c.t - p : '', has ? c.f - pf : '', { t: has ? pc(c.t - p, c.t) : '', c: 'gr' }]);
-    });
-    body.push(tr([{ t: 'المجموع', c: 'k' }, { t: T.n, c: 's' }, { t: T.m, c: 's' }, { t: T.f, c: 's' }, { t: T.any ? T.p : '', c: 's' }, { t: T.any ? T.pf : '', c: 's' }, { t: T.any ? pc(T.p, T.n) : '', c: 'g' }, { t: T.any ? T.n - T.p : '', c: 's' }, { t: T.any ? T.f - T.pf : '', c: 's' }, { t: T.any ? pc(T.n - T.p, T.n) : '', c: 's' }]));
-    return { block: tbl(head, body, 'cmp'), rate: T.any ? pc(T.p, T.n) : '..........' };
-  }
-  const resDef = (k, l) => ({ k, l, t: 'grid', cols: ['المستوى', 'الحاصلون على المعدل (المجموع)', 'منهم إناث'], widths: ['1fr', '1.3fr', '1fr'], types: ['ro', 'num', 'num'], rofmt: v => LV.sh(v) || v, fixed: true, hint: 'عدد التلاميذ والذكور والإناث تحسب من لوائح مسار؛ أدخل فقط عدد الحاصلين على المعدل (والإناث منهم). الراسبون يحسبون تلقائيا.' });
-
-  // pass table by level × gender (class councils' synthetic report)
-  function passTable(sy, rows) {
-    rows = rows || levelKeys(sy).map(k => [k, '', '']);
-    const head = thr(['المستوى', 'الجنس', 'المسجلون', 'الناجحون', 'الراسبون', 'نسبة النجاح'].map(t => ({ t, c: 'd' })));
-    const out = []; let T = { m: 0, f: 0, pm: 0, pf: 0, any: false };
-    rows.forEach(r => {
-      const c = cnt(sy, p => p.lvl === r[0]); const has = String(r[1]).trim() !== '' || String(r[2]).trim() !== '';
-      const pm = +r[1] || 0, pf = +r[2] || 0;
-      T.m += c.m; T.f += c.f; if (has) { T.pm += pm; T.pf += pf; T.any = true; }
-      const line = (g, n, p) => [has ? (p) : '', has ? n - p : ''];
-      out.push(tr([{ t: LV.sh(r[0]), c: 'k', r: 3 }, 'ذ', c.m, has ? pm : '', has ? c.m - pm : '', { t: has ? pc(pm, c.m) : '', c: 'y' }]));
-      out.push(tr(['إ', c.f, has ? pf : '', has ? c.f - pf : '', { t: has ? pc(pf, c.f) : '', c: 'y' }]));
-      out.push(tr([{ t: 'المجموع', c: 's' }, { t: c.t, c: 's' }, { t: has ? pm + pf : '', c: 's' }, { t: has ? c.t - pm - pf : '', c: 's' }, { t: has ? pc(pm + pf, c.t) : '', c: 't' }]));
-    });
-    const n = T.m + T.f;
-    out.push(tr([{ t: 'المجموع العام', c: 'k', r: 3 }, 'ذ', T.m, T.any ? T.pm : '', T.any ? T.m - T.pm : '', { t: T.any ? pc(T.pm, T.m) : '', c: 'y' }]));
-    out.push(tr(['إ', T.f, T.any ? T.pf : '', T.any ? T.f - T.pf : '', { t: T.any ? pc(T.pf, T.f) : '', c: 'y' }]));
-    out.push(tr([{ t: 'المجموع', c: 's' }, { t: n, c: 's' }, { t: T.any ? T.pm + T.pf : '', c: 's' }, { t: T.any ? n - T.pm - T.pf : '', c: 's' }, { t: T.any ? pc(T.pm + T.pf, n) : '', c: 'g' }]));
-    const lv = rows.map(r => LV.sh(r[0]));
-    const chart = T.any ? K.bars(lv, [{ name: 'نسبة النجاح %', color: K.COL.g, vals: rows.map(r => { const c = cnt(sy, p => p.lvl === r[0]); return c.t && String(r[1] + r[2]).trim() !== '' ? +(((+r[1] || 0) + (+r[2] || 0)) / c.t * 100).toFixed(2) : 0; }) }], { w: 560, h: 200, title: 'نسب النجاح حسب المستوى', fmt: v => v.toFixed(0) + '%' }) : '';
-    return { blocks: [tbl(head, out, 'cmp'), chart ? `<div class="sb-box" style="width:70%;margin:2mm auto 0">${chart}</div>` : ''], rate: T.any ? pc(T.pm + T.pf, n) : '..........' };
-  }
-
-  /* ---------- text → blocks with placeholders ---------- */
-  const dotsBlock = n => ({ html: Array.from({ length: n || 3 }, () => '<div class="rp-dots"></div>').join('') });
-  function bodyBlocks(text, ctx, extras) {
-    const out = []; const buf = [];
-    const flush = () => { if (buf.length) { out.push(...K.textBlocks(buf.join('\n'), ctx)); buf.length = 0; } };
-    String(text || '').split(/\r?\n/).forEach(line => {
-      const m = /^\[\[([\w:]+)\]\]\s*$/.exec(line.trim());
-      if (!m) { buf.push(line); return; }
-      flush();
-      const [name, arg] = m[1].split(':');
-      if (name === 'dots') out.push(dotsBlock(+arg || 3));
-      else if (extras && extras[name]) [].concat(extras[name]).forEach(b => out.push(b));
-    });
-    flush();
-    return out;
-  }
-
-  /* ---------- minutes ---------- */
-  const DEC = '..........';
-  const lastOf = (sy, k) => { const st = store(sy); for (const d of Object.keys(st)) if (st[d] && st[d][k]) return st[d][k]; return ''; };
-  const place = () => { if (window.Cyc && Cyc.single()) return 'بالمؤسسة'; const c = (B().unitNames().find(n => /مركزي/.test(n)) || ''); return c ? 'بمركزية ' + B().shortUnit(c) : 'بالمدرسة المركزية'; };
-  const attFor = (c, key) => ({ mgmt: c.mgmt, ped: c.ped, ar: c.ar, fr: c.fr, classes: c.classes.map(r => [r[0], r[1], r[2]]) }[key] || []);
-  const DEFAULT_DATES = { oct: sy => `${MK.syStart(sy)}-10-30`, mar: sy => `${MK.syStart(sy) + 1}-03-25`, jul: sy => `${MK.syStart(sy) + 1}-07-04` };
-  const COUNCIL_NAME = { mgmt: 'مجلس التدبير', ped: 'المجلس التربوي', ar: 'المجلس التعليمي للغة العربية', fr: 'المجلس التعليمي للغة الفرنسية', classes: 'مجالس الأقسام' };
-  const DOCS = [];
-  const add = d => DOCS.push(d);
-
-  const INTRO = 'تطبيقا لمقتضيات المقرر الوزاري عدد: {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وتنفيذا للنشرة الداخلية رقم: {{memo}}، عقد {{council}} اجتماعه {{session}} برئاسة السيد مدير المؤسسة {{place}} يوم {{dateLong}} على الساعة {{time}} لدراسة النقط التالية:';
-
-  const MIN = {};
-  function minutes(def) {
-    const key = def.council;
-    MIN[def.k] = def;
-    add({
-      k: def.k, t: def.t, grp: def.grp || 'm', d: def.d, auto: def.auto || 'تركيبة المجالس (قائمة الحاضرين) ولوائح التلاميذ', page: 'a4',
-      init: (s, sy) => {
-        const c = comp(sy);
-        const o = Object.assign({
-          city: s.city || '', date: DEFAULT_DATES[def.period || 'oct'](sy), time: def.time || 'التاسعة صباحا', place: place(), session: def.session || 'الأولى', decree: lastOf(sy, 'decree') || DEC, memo: DEC,
-          lang: def.fix || def.lang || '', custom: '', secretary: '', intro: def.intro == null ? INTRO : def.intro, agenda: def.agenda, body: def.body,
-          att: attFor(c, key).map(r => [r[0], r[1], r[2], '']), abs: [['', '', ''], ['', '', '']]
-        }, def.init ? def.init(s, sy, c) : {});
-        if (isSec()) Object.keys(o).forEach(k => { if (!/^(att|abs)$/.test(k)) o[k] = secTxt(o[k]); });
-        return o;
-      },
-      defs: (f, sy) => [
-        { sec: 'بيانات الاجتماع' }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'تاريخ الاجتماع', t: 'date', half: true }, { k: 'time', l: 'الساعة', half: true }, { k: 'place', l: 'المكان', half: true },
-        { k: 'session', l: 'الدورة', half: true }, { k: 'secretary', l: 'المقرر(ة)', half: true, list: 'k2Emps' }, { k: 'decree', l: 'رقم وتاريخ المقرر الوزاري لتنظيم السنة الدراسية', half: true }, { k: 'memo', l: 'رقم وتاريخ النشرة الداخلية', half: true },
-        ...(def.lang ? [{ k: 'lang', l: 'المجلس التعليمي', t: 'select', opts: [['ar', 'اللغة العربية'], ['fr', 'اللغة الفرنسية'], ['x', 'مادة أخرى (يحدد أدناه)']], half: true }, { k: 'custom', l: 'اسم المادة (إن كانت أخرى)', half: true }] : []),
-        { sec: 'نص المحضر (قابل للتعديل)' }, { note: 'المقاطع المسبوقة بـ # عناوين، والمسبوقة بـ - نقاط. يمكن استعمال {{school}} {{sy}} {{dateLong}} وغيرها.' },
-        { k: 'intro', l: 'الفقرة الافتتاحية', t: 'area', rows: 4 }, { k: 'agenda', l: 'جدول الأعمال (نقطة في كل سطر)', t: 'area', rows: 5 }, { k: 'body', l: 'وقائع الاجتماع والنقاش', t: 'area', rows: 14 },
-        ...(def.extra ? def.extra.defs(f, sy) : []),
-        { sec: 'الحاضرون والمتغيبون' },
-        { k: 'att', l: 'الحاضرون', t: 'grid', cols: ['الاسم', 'رقم التأجير', 'الصفة', 'ملاحظات'], widths: ['1.6fr', '1fr', '1.4fr', '1fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], e.ppr || '', r[2], r[3]] : null; } },
-        { k: 'abs', l: 'المتغيبون', t: 'grid', cols: ['الاسم', 'رقم التأجير', 'سبب الغياب'], widths: ['1.6fr', '1fr', '1.6fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], e.ppr || '', r[2]] : null; } }
-      ],
-      build: (s, f, sy) => {
-        const lang = def.fix || f.lang || def.lang || '';
-        const cname = key === 'ar' || key === 'fr' ? ({ ar: COUNCIL_NAME.ar, fr: COUNCIL_NAME.fr, x: `المجلس التعليمي ل${f.custom || 'المادة'}` })[lang] || COUNCIL_NAME[key] : COUNCIL_NAME[key];
-        const ex = def.extra ? def.extra.blocks(s, f, sy) : { blocks: {}, ctx: {} };
-        const ctx = K.tokens(Object.assign({ dateLong: K.ldate(f.date), day: K.dayName(f.date), time: f.time, place: f.place, session: f.session, decree: f.decree, memo: f.memo, council: cname }, ex.ctx || {}));
-        const title = def.title.replace('{{council}}', cname);
-        const blocks = [];
-        blocks.push(`<div style="text-align:left;font-weight:700;margin:0 0 1mm">${esc(f.city || s.city || '')} في: ${esc(K.ldate(f.date))}</div>`);
-        if (String(f.intro || '').trim()) blocks.push(...K.textBlocks(f.intro, ctx));
-        const ag = String(f.agenda || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-        if (ag.length) blocks.push({ html: `${SB.cap('جدول الأعمال', 'r')}<table class="tbl sb-t"><tbody>${ag.map((a, i) => `<tr><td style="width:7%" class="k">${i + 1}</td><td class="r">${esc(K.fill(a, ctx))}</td></tr>`).join('')}</tbody></table>`, keepNext: true });
-        blocks.push({ html: SB.cap('وقائع الاجتماع', 'r'), keepNext: true });
-        blocks.push(...bodyBlocks(f.body, ctx, ex.blocks));
-        const att = named(f.att);
-        blocks.push({ before: SB.cap('الحاضرون', 'r'), table: { cls: 'sb-t big', head: thr(['ر.ت', 'الاسم والنسب', 'رقم التأجير', 'الصفة', 'التوقيع', 'ملاحظات'].map(t => ({ t, c: 'd' }))), rows: att.map((r, i) => tr([i + 1, { t: r[0], c: 'b r' }, r[1], { t: r[2], c: 'sm' }, '', { t: r[3], c: 'sm' }])) }, keepNext: true });
-        const ab = named(f.abs);
-        blocks.push({ before: SB.cap('المتغيبون', 'r'), table: { cls: 'sb-t big', head: thr(['ر.ت', 'الاسم والنسب', 'رقم التأجير', 'أسباب الغياب'].map(t => ({ t, c: 'd' }))), rows: (ab.length ? ab : [['لا أحد', '', '']]).map((r, i) => tr([ab.length ? i + 1 : '', { t: r[0], c: 'r' }, r[1], r[2]])) }, keepNext: true });
-        return { title, sub: def.sub ? K.fill(def.sub, ctx) : '', page: 'a4', blocks, sign: SB.sign(s, { right: `المقرر(ة)${f.secretary ? ': ' + esc(f.secretary) : ''}`, left: 'مدير المؤسسة / رئيس المجلس' }) };
-      }
-    });
-  }
-
-  /* ---- texts ---- */
-  const T_PED_OCT = `# قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية:
+"use strict";(function(){const yt=window.Docs,{esc:l,fmtDate:Jt}=yt,{SB:h,LV:D,tr:u,thr:f,tbl:E,cell:It}=window.K;function G(t){const e=t.councils=t.councils||{};e.years=e.years&&typeof e.years=="object"?e.years:{}}const P=t=>{G(DB);const e=DB.councils.years;return e[t]||(e[t]={})},b=()=>window.Board,kt=(t,e)=>K.U.same(t,e),tt=t=>t&&(/^(F|f|أنثى|انثى)$/.test(String(t.sex||""))||!t.sex&&/ة\s*$/.test(String(t.firstAr||"").trim())),J=["الأول","الثاني","الثالث","الرابع","الخامس","السادس"];function $t(){const t=b().teachers().concat(b().assigned()),e=new Set;return J.map((c,a)=>{const s=t.filter(o=>b().levelDigits(o).includes(a+1)),n=s.find(o=>!e.has(o.id))||s[0]||null;return n&&e.add(n.id),n})}const I=(t,e)=>`ممثل${t&&tt(t)?"ة":""} مدرسي المستوى ${J[e]}`,R=(t,e)=>[t?fullName(t):"",t&&t.ppr||"",e],M=()=>{const t=b().director();return t?R(t,"مدير المؤسسة"):["","","مدير المؤسسة"]},et=t=>{const e=b().teachers().concat(b().assigned()),c=e.some(a=>a.teachLang);return e.filter(a=>!c||t.test(a.teachLang||"")||/مزدوج/.test(a.teachLang||""))};function st(){const t=$t(),e=[M()].concat(t.map((r,i)=>r?R(r,I(r,i)):["","",I(null,i)])).concat([["","","رئيس جمعية أمهات وآباء وأولياء التلاميذ"],["","","ممثل المجلس الجماعي"]]),c=[M()].concat(t.map((r,i)=>r?R(r,I(r,i)):["","",I(null,i)])).concat([["","","رئيس جمعية أمهات وآباء وأولياء التلاميذ"]]),a=[M()].concat(et(/عرب/).map(r=>R(r,"العربية"))),s=[M()].concat(et(/فرنس/).map(r=>R(r,"الفرنسية"))),n=b().teachers().concat(b().assigned()),o=[];return[[1,2],[3,4],[5,6]].forEach(([r,i])=>{const m=`${J[r-1]} و${J[i-1]}`;o.push(Object.assign(M(),{2:"مدير المؤسسة",3:m})),n.filter(p=>b().levelDigits(p).some(d=>d===r||d===i)).forEach(p=>o.push([fullName(p),p.ppr||"","أستاذ(ة)",m]))}),{mgmt:e,ped:c,ar:a,fr:s,classes:o.map(r=>[r[0],r[1],r[3]])}}function N(t){if(w())return Bt(t);const e=P(t).comp||{};return Object.assign(st(),e)}const j=t=>(t||[]).filter(e=>String(e[0]||"").trim());function ct(t,e){if(w())return Ut(t);e=e||N(t);const c=(s,n,o)=>({before:h.cap(s,"r"),table:{cls:"sb-t cmp",head:f(["ر.ت","الاسم الكامل","رقم التأجير",o].map(r=>({t:r,c:"d"}))),rows:j(n).map((r,i)=>u([i+1,{t:r[0],c:"b r"},r[1],{t:r[2],c:"sm"}]))},keepNext:!0}),a=[];return j(e.classes).forEach((s,n,o)=>{a.push({r:s,first:n===0||o[n-1][2]!==s[2],span:o.filter(r=>r[2]===s[2]).length})}),[c("أعضاء مجلس التدبير",e.mgmt,"الصفة: ممثل عن"),c("أعضاء المجلس التربوي",e.ped,"الصفة: ممثل عن"),c("أعضاء المجلس التعليمي للغة العربية",e.ar,"المادة المدرسة"),c("أعضاء المجلس التعليمي للغة الفرنسية",e.fr,"المادة المدرسة"),{before:h.cap("أعضاء مجالس الأقسام","r"),table:{cls:"sb-t cmp",head:f(["ر.ت","الاسم الكامل","رقم التأجير","القسم"].map(s=>({t:s,c:"d"}))),rows:a.map(({r:s,first:n,span:o},r)=>u([r+1,{t:s[0],c:"b r"},s[1]].concat(n?[{t:s[2],c:"k",r:o}]:[])))}}]}function wt(t,e){if(w())return ht(t,Y(e),e);const c=N(e),a=n=>n,s=(n,o,r)=>`<div class="sb-box" style="padding:1mm"><h4>${n}</h4><table class="tbl sb-t cmp"><thead>${f(["ر.ت","الاسم الكامل","رقم التأجير",r].map(i=>({t:i,c:"d"})))}</thead><tbody>${j(o).map((i,m)=>u([m+1,{t:i[0],c:"b r"},i[1],{t:i[2],c:"xs"}])).join("")}</tbody></table></div>`;return{title:`تركيبة المجالس التقنية للمؤسسة الموسم الدراسي ${l(MK.syDash((MK.curSy()===e,e)).replace("-","/"))}`,sign:h.sign(t,{right:"",left:"توقيع رئيس المؤسسة"}),blocks:[`<div class="sb-g3">${s("أعضاء مجلس التدبير",c.mgmt,"الصفة: ممثل عن")}${s("أعضاء المجلس التربوي",c.ped,"الصفة: ممثل عن")}${s("أعضاء مجالس الأقسام",c.classes.map(n=>[n[0],n[1],n[2]]),"القسم")}</div>`,`<div class="sb-g2" style="margin-top:2mm">${s("أعضاء المجلس التعليمي للغة العربية",c.ar,"المادة المدرسة")}${s("أعضاء المجلس التعليمي للغة الفرنسية",c.fr,"المادة المدرسة")}</div>`]}}const q=(t,e)=>window.Pupils?Pupils.cnt(Pupils.current(t),e):{m:0,f:0,t:0},H=t=>{const e=window.Pupils?Pupils.levelsOf(t,Pupils.current(t)).filter(c=>!(D.byK(c)||{}).pre):[];return e.length?e:window.Cyc&&Cyc.isSec()?Cyc.levels():["P1","P2","P3","P4","P5","P6"]},$=(t,e)=>e?(t/e*100).toFixed(2)+"%":"",X=t=>H(t).map(e=>[e,"",""]);function at(t,e,c){e=e||X(t);const a='<tr><th rowspan="2" class="d">المستوى</th><th rowspan="2" class="d">عدد التلاميذ</th><th rowspan="2" class="d">الذكور</th><th rowspan="2" class="d">الإناث</th><th colspan="3" class="d">الحاصلون على المعدل</th><th colspan="3" class="d">غير الحاصلين على المعدل</th></tr><tr><th>المجموع</th><th>إناث</th><th>النسبة</th><th>المجموع</th><th>إناث</th><th>النسبة</th></tr>';let s={n:0,m:0,f:0,p:0,pf:0,any:!1,ff:0};const n=e.map(o=>{const r=q(t,d=>d.lvl===o[0]),i=String(o[1]).trim()!=="",m=+o[1]||0,p=+o[2]||0;return s.n+=r.t,s.m+=r.m,s.f+=r.f,i&&(s.p+=m,s.pf+=p,s.any=!0,s.ff+=r.f-p),u([{t:D.sh(o[0]),c:"k"},r.t,r.m,r.f,i?m:"",i?p:"",{t:i?$(m,r.t):"",c:"y"},i?r.t-m:"",i?r.f-p:"",{t:i?$(r.t-m,r.t):"",c:"gr"}])});return n.push(u([{t:"المجموع",c:"k"},{t:s.n,c:"s"},{t:s.m,c:"s"},{t:s.f,c:"s"},{t:s.any?s.p:"",c:"s"},{t:s.any?s.pf:"",c:"s"},{t:s.any?$(s.p,s.n):"",c:"g"},{t:s.any?s.n-s.p:"",c:"s"},{t:s.any?s.f-s.pf:"",c:"s"},{t:s.any?$(s.n-s.p,s.n):"",c:"s"}])),{block:E(a,n,"cmp"),rate:s.any?$(s.p,s.n):".........."}}const rt=(t,e)=>({k:t,l:e,t:"grid",cols:["المستوى","الحاصلون على المعدل (المجموع)","منهم إناث"],widths:["1fr","1.3fr","1fr"],types:["ro","num","num"],rofmt:c=>D.sh(c)||c,fixed:!0,hint:"عدد التلاميذ والذكور والإناث تحسب من لوائح مسار؛ أدخل فقط عدد الحاصلين على المعدل (والإناث منهم). الراسبون يحسبون تلقائيا."});function jt(t,e){e=e||H(t).map(i=>[i,"",""]);const c=f(["المستوى","الجنس","المسجلون","الناجحون","الراسبون","نسبة النجاح"].map(i=>({t:i,c:"d"}))),a=[];let s={m:0,f:0,pm:0,pf:0,any:!1};e.forEach(i=>{const m=q(t,g=>g.lvl===i[0]),p=String(i[1]).trim()!==""||String(i[2]).trim()!=="",d=+i[1]||0,y=+i[2]||0;s.m+=m.m,s.f+=m.f,p&&(s.pm+=d,s.pf+=y,s.any=!0);const O=(g,L,V)=>[p?V:"",p?L-V:""];a.push(u([{t:D.sh(i[0]),c:"k",r:3},"ذ",m.m,p?d:"",p?m.m-d:"",{t:p?$(d,m.m):"",c:"y"}])),a.push(u(["إ",m.f,p?y:"",p?m.f-y:"",{t:p?$(y,m.f):"",c:"y"}])),a.push(u([{t:"المجموع",c:"s"},{t:m.t,c:"s"},{t:p?d+y:"",c:"s"},{t:p?m.t-d-y:"",c:"s"},{t:p?$(d+y,m.t):"",c:"t"}]))});const n=s.m+s.f;a.push(u([{t:"المجموع العام",c:"k",r:3},"ذ",s.m,s.any?s.pm:"",s.any?s.m-s.pm:"",{t:s.any?$(s.pm,s.m):"",c:"y"}])),a.push(u(["إ",s.f,s.any?s.pf:"",s.any?s.f-s.pf:"",{t:s.any?$(s.pf,s.f):"",c:"y"}])),a.push(u([{t:"المجموع",c:"s"},{t:n,c:"s"},{t:s.any?s.pm+s.pf:"",c:"s"},{t:s.any?n-s.pm-s.pf:"",c:"s"},{t:s.any?$(s.pm+s.pf,n):"",c:"g"}]));const o=e.map(i=>D.sh(i[0])),r=s.any?K.bars(o,[{name:"نسبة النجاح %",color:K.COL.g,vals:e.map(i=>{const m=q(t,p=>p.lvl===i[0]);return m.t&&String(i[1]+i[2]).trim()!==""?+(((+i[1]||0)+(+i[2]||0))/m.t*100).toFixed(2):0})}],{w:560,h:200,title:"نسب النجاح حسب المستوى",fmt:i=>i.toFixed(0)+"%"}):"";return{blocks:[E(c,a,"cmp"),r?`<div class="sb-box" style="width:70%;margin:2mm auto 0">${r}</div>`:""],rate:s.any?$(s.pm+s.pf,n):".........."}}const xt=t=>({html:Array.from({length:t||3},()=>'<div class="rp-dots"></div>').join("")});function nt(t,e,c){const a=[],s=[],n=()=>{s.length&&(a.push(...K.textBlocks(s.join(`
+`),e)),s.length=0)};return String(t||"").split(/\r?\n/).forEach(o=>{const r=/^\[\[([\w:]+)\]\]\s*$/.exec(o.trim());if(!r){s.push(o);return}n();const[i,m]=r[1].split(":");i==="dots"?a.push(xt(+m||3)):c&&c[i]&&[].concat(c[i]).forEach(p=>a.push(p))}),n(),a}const A="..........",z=(t,e)=>{const c=P(t);for(const a of Object.keys(c))if(c[a]&&c[a][e])return c[a][e];return""},Q=()=>{if(window.Cyc&&Cyc.single())return"بالمؤسسة";const t=b().unitNames().find(e=>/مركزي/.test(e))||"";return t?"بمركزية "+b().shortUnit(t):"بالمدرسة المركزية"},ot=(t,e)=>({mgmt:t.mgmt,ped:t.ped,ar:t.ar,fr:t.fr,classes:t.classes.map(c=>[c[0],c[1],c[2]])})[e]||[],B={oct:t=>`${MK.syStart(t)}-10-30`,mar:t=>`${MK.syStart(t)+1}-03-25`,jul:t=>`${MK.syStart(t)+1}-07-04`},U={mgmt:"مجلس التدبير",ped:"المجلس التربوي",ar:"المجلس التعليمي للغة العربية",fr:"المجلس التعليمي للغة الفرنسية",classes:"مجالس الأقسام"},T=[],x=t=>T.push(t),_t="تطبيقا لمقتضيات المقرر الوزاري عدد: {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وتنفيذا للنشرة الداخلية رقم: {{memo}}، عقد {{council}} اجتماعه {{session}} برئاسة السيد مدير المؤسسة {{place}} يوم {{dateLong}} على الساعة {{time}} لدراسة النقط التالية:",C={};function v(t){const e=t.council;C[t.k]=t,x({k:t.k,t:t.t,grp:t.grp||"m",d:t.d,auto:t.auto||"تركيبة المجالس (قائمة الحاضرين) ولوائح التلاميذ",page:"a4",init:(c,a)=>{const s=N(a),n=Object.assign({city:c.city||"",date:B[t.period||"oct"](a),time:t.time||"التاسعة صباحا",place:Q(),session:t.session||"الأولى",decree:z(a,"decree")||A,memo:A,lang:t.fix||t.lang||"",custom:"",secretary:"",intro:t.intro==null?_t:t.intro,agenda:t.agenda,body:t.body,att:ot(s,e).map(o=>[o[0],o[1],o[2],""]),abs:[["","",""],["","",""]]},t.init?t.init(c,a,s):{});return w()&&Object.keys(n).forEach(o=>{/^(att|abs)$/.test(o)||(n[o]=Z(n[o]))}),n},defs:(c,a)=>[{sec:"بيانات الاجتماع"},{k:"city",l:"حرر ب",half:!0},{k:"date",l:"تاريخ الاجتماع",t:"date",half:!0},{k:"time",l:"الساعة",half:!0},{k:"place",l:"المكان",half:!0},{k:"session",l:"الدورة",half:!0},{k:"secretary",l:"المقرر(ة)",half:!0,list:"k2Emps"},{k:"decree",l:"رقم وتاريخ المقرر الوزاري لتنظيم السنة الدراسية",half:!0},{k:"memo",l:"رقم وتاريخ النشرة الداخلية",half:!0},...t.lang?[{k:"lang",l:"المجلس التعليمي",t:"select",opts:[["ar","اللغة العربية"],["fr","اللغة الفرنسية"],["x","مادة أخرى (يحدد أدناه)"]],half:!0},{k:"custom",l:"اسم المادة (إن كانت أخرى)",half:!0}]:[],{sec:"نص المحضر (قابل للتعديل)"},{note:"المقاطع المسبوقة بـ # عناوين، والمسبوقة بـ - نقاط. يمكن استعمال {{school}} {{sy}} {{dateLong}} وغيرها."},{k:"intro",l:"الفقرة الافتتاحية",t:"area",rows:4},{k:"agenda",l:"جدول الأعمال (نقطة في كل سطر)",t:"area",rows:5},{k:"body",l:"وقائع الاجتماع والنقاش",t:"area",rows:14},...t.extra?t.extra.defs(c,a):[],{sec:"الحاضرون والمتغيبون"},{k:"att",l:"الحاضرون",t:"grid",cols:["الاسم","رقم التأجير","الصفة","ملاحظات"],widths:["1.6fr","1fr","1.4fr","1fr"],list:["k2Emps"],fill:s=>{const n=K.E.byName(s[0]);return n?[s[0],n.ppr||"",s[2],s[3]]:null}},{k:"abs",l:"المتغيبون",t:"grid",cols:["الاسم","رقم التأجير","سبب الغياب"],widths:["1.6fr","1fr","1.6fr"],list:["k2Emps"],fill:s=>{const n=K.E.byName(s[0]);return n?[s[0],n.ppr||"",s[2]]:null}}],build:(c,a,s)=>{const n=t.fix||a.lang||t.lang||"",o=(e==="ar"||e==="fr")&&{ar:U.ar,fr:U.fr,x:`المجلس التعليمي ل${a.custom||"المادة"}`}[n]||U[e],r=t.extra?t.extra.blocks(c,a,s):{blocks:{},ctx:{}},i=K.tokens(Object.assign({dateLong:K.ldate(a.date),day:K.dayName(a.date),time:a.time,place:a.place,session:a.session,decree:a.decree,memo:a.memo,council:o},r.ctx||{})),m=t.title.replace("{{council}}",o),p=[];p.push(`<div style="text-align:left;font-weight:700;margin:0 0 1mm">${l(a.city||c.city||"")} في: ${l(K.ldate(a.date))}</div>`),String(a.intro||"").trim()&&p.push(...K.textBlocks(a.intro,i));const d=String(a.agenda||"").split(/\r?\n/).map(g=>g.trim()).filter(Boolean);d.length&&p.push({html:`${h.cap("جدول الأعمال","r")}<table class="tbl sb-t"><tbody>${d.map((g,L)=>`<tr><td style="width:7%" class="k">${L+1}</td><td class="r">${l(K.fill(g,i))}</td></tr>`).join("")}</tbody></table>`,keepNext:!0}),p.push({html:h.cap("وقائع الاجتماع","r"),keepNext:!0}),p.push(...nt(a.body,i,r.blocks));const y=j(a.att);p.push({before:h.cap("الحاضرون","r"),table:{cls:"sb-t big",head:f(["ر.ت","الاسم والنسب","رقم التأجير","الصفة","التوقيع","ملاحظات"].map(g=>({t:g,c:"d"}))),rows:y.map((g,L)=>u([L+1,{t:g[0],c:"b r"},g[1],{t:g[2],c:"sm"},"",{t:g[3],c:"sm"}]))},keepNext:!0});const O=j(a.abs);return p.push({before:h.cap("المتغيبون","r"),table:{cls:"sb-t big",head:f(["ر.ت","الاسم والنسب","رقم التأجير","أسباب الغياب"].map(g=>({t:g,c:"d"}))),rows:(O.length?O:[["لا أحد","",""]]).map((g,L)=>u([O.length?L+1:"",{t:g[0],c:"r"},g[1],g[2]]))},keepNext:!0}),{title:m,sub:t.sub?K.fill(t.sub,i):"",page:"a4",blocks:p,sign:h.sign(c,{right:`المقرر(ة)${a.secretary?": "+l(a.secretary):""}`,left:"مدير المؤسسة / رئيس المجلس"})}}})}v({k:"ped_oct",t:"محضر المجلس التربوي — الدورة الأولى (أكتوبر)",council:"ped",title:"محضر اجتماع المجلس التربوي في دورته الأولى",period:"oct",session:"الأولى",d:"قراءة التقارير، برنامج الأنشطة، الأندية، الدعم المؤسساتي والاجتماعي.",agenda:`قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية؛
+التداول في مشروع برنامج العمل السنوي للأنشطة التربوية خاصة محور الأنشطة الموازية ورفعه لمجلس التدبير لدراسته والمصادقة عليه؛
+تأسيس الأندية التربوية والبحث في صيغ تنزيل برامجها؛
+التداول في صيغ الدعم المؤسساتي والاجتماعي الممكنة ورفع المقترح إلى مجلس التدبير للدراسة والمصادقة؛
+مختلفات.`,body:`# قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية:
 تمت خلال الاجتماع مناقشة نسب التحكم في المواد الأساسية (اللغة العربية واللغة الفرنسية والرياضيات) بعد استكمال مرحلة الدعم المكثف وتمرير الروائز البعدية، ومقارنة نتائجها بنتائج الروائز القبلية، مع الاطلاع على الإحصائيات المفصلة الخاصة بكل مستوى دراسي وبكل وحدة مدرسية بمنظومة مسار قصد تحديد نقط الضعف والتعثرات المسجلة، واتُّفق على التدخل عبر خطة دعم مؤسساتي مستهدِفة للتلاميذ المتعثرين.
 # التداول في مشروع برنامج العمل السنوي للأنشطة التربوية ورفعه إلى مجلس التدبير:
 تداول أعضاء المجلس التربوي في مسودة مشروع برنامج العمل السنوي للأنشطة التربوية، وتمت مناقشتها قصد ملاءمتها مع حاجيات المؤسسة وأهدافها التربوية، وأسفرت المناقشات عن التركيز على الأولويات التالية:
@@ -216,14 +18,7 @@
 # التداول في صيغ الدعم المؤسساتي ووضع خطة الدعم التربوي للمؤسسة:
 تم التداول في صيغ الدعم المؤسساتي بهدف تعزيز جودة التعلمات وتحسين نجاعة الأداء التربوي، مع التأكيد على بلورة خطة دعم تربوي خاصة بالمؤسسة تأخذ بعين الاعتبار نتائج الروائز القبلية والبعدية، وتحديد أولويات التدخل التربوي وتوزيع الأدوار بين الفريق التربوي وهيئة التفتيش والتأطير والمراقبة والتقييم والمواكبة. وتمت مناقشة الخطوط العريضة للبرمجة الزمنية لهذه الخطة باعتماد مقاربة مرنة تراعي القدرات البدنية والفيزيولوجية للمتعلمين والمسافة بين المساكن والوحدات المدرسية.
 # التداول في موضوع الدعم الاجتماعي ورفع المقترحات إلى مجلس التدبير:
-اقترح أعضاء المجلس تخصيص نسبة ....... % من مداخيل التعاونية المدرسية للمساهمة في دعم الفئات الهشة (فحص واقتناء النظارات الطبية للتلاميذ الذين يعانون من ضعف البصر، مساعدة التلاميذ المحتاجين...). كما دعا رئيس المجلس إلى التواصل مع أمهات وآباء وأولياء التلاميذ لاستكمال معطيات بطاقة التلميذ بمنظومة مسار، وخصوصا ما يتعلق بالولي لارتباطه بالدعم الاجتماعي للأسر، وتشجيع تلاميذ المستوى السادس على استكمال الدراسة وطلب المنحة.`;
-  minutes({
-    k: 'ped_oct', t: 'محضر المجلس التربوي — الدورة الأولى (أكتوبر)', council: 'ped', title: 'محضر اجتماع المجلس التربوي في دورته الأولى', period: 'oct', session: 'الأولى', d: 'قراءة التقارير، برنامج الأنشطة، الأندية، الدعم المؤسساتي والاجتماعي.',
-    agenda: 'قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية؛\nالتداول في مشروع برنامج العمل السنوي للأنشطة التربوية خاصة محور الأنشطة الموازية ورفعه لمجلس التدبير لدراسته والمصادقة عليه؛\nتأسيس الأندية التربوية والبحث في صيغ تنزيل برامجها؛\nالتداول في صيغ الدعم المؤسساتي والاجتماعي الممكنة ورفع المقترح إلى مجلس التدبير للدراسة والمصادقة؛\nمختلفات.',
-    body: T_PED_OCT, extra: { defs: () => [], blocks: () => ({ ctx: { clubs: window.Clubs && Clubs.names ? (Clubs.names(MK.curSy()).join(' ، ') || '..........') : '..........' }, blocks: {} }) }
-  });
-
-  const T_PED_MAR = `# النتائج العامة للأسدوس الأول من السنة الدراسية {{syslash}}:
+اقترح أعضاء المجلس تخصيص نسبة ....... % من مداخيل التعاونية المدرسية للمساهمة في دعم الفئات الهشة (فحص واقتناء النظارات الطبية للتلاميذ الذين يعانون من ضعف البصر، مساعدة التلاميذ المحتاجين...). كما دعا رئيس المجلس إلى التواصل مع أمهات وآباء وأولياء التلاميذ لاستكمال معطيات بطاقة التلميذ بمنظومة مسار، وخصوصا ما يتعلق بالولي لارتباطه بالدعم الاجتماعي للأسر، وتشجيع تلاميذ المستوى السادس على استكمال الدراسة وطلب المنحة.`,extra:{defs:()=>[],blocks:()=>({ctx:{clubs:window.Clubs&&Clubs.names&&Clubs.names(MK.curSy()).join(" ، ")||".........."},blocks:{}})}});const Et=`# النتائج العامة للأسدوس الأول من السنة الدراسية {{syslash}}:
 [[results]]
 بعد دراسة تقارير مجالس الأقسام والمجالس التعليمية خلص المجلس إلى تحديد جملة من الأولويات التي من شأنها أن تساهم في الرفع من نتائج المتعلمات والمتعلمين، وهي:
 - دعم وتشجيع الأنشطة التربوية والموازية بالمؤسسة؛
@@ -231,32 +26,27 @@
 - الحرص على تقديم دروس الدعم والتقوية للمتعثرين وفق برنامج خاص بكل أستاذ؛
 - تفعيل التواصل والتعاون بين الإدارة والآباء والأساتذة من أجل مصلحة التلاميذ من خلال اللقاءات التواصلية الدورية؛
 - العمل بشكل جماعي لتحديد حاجيات المؤسسة من وسائل تعليمية وديداكتيكية حسب الإمكانيات المتوفرة.
-وفي الختام سجل المجلس ارتياحه للنتائج المحققة، وأوصى بمواصلة الجهود خلال الأسدوس الثاني.`;
-  const resExtra = (k, label) => ({
-    defs: (f, sy) => [{ sec: 'نتائج الأسدوس' }, resDef(k, label || 'النتائج حسب المستوى')],
-    blocks: (s, f, sy) => { const r = resTable(sy, f[k]); return { ctx: { rate: r.rate }, blocks: { results: [r.block] } }; }
-  });
-  const withRes = (def, k) => { const e = resExtra(k); def.extra = e; const ini = def.init; def.init = (s, sy, c) => Object.assign({ [k]: resInit(sy) }, ini ? ini(s, sy, c) : {}); minutes(def); };
-  withRes({
-    k: 'ped_mar', t: 'محضر المجلس التربوي — دورة منتصف السنة (مارس)', council: 'ped', title: 'محضر اجتماع المجلس التربوي', period: 'mar', session: 'الثانية', time: 'الثالثة بعد الزوال', d: 'نتائج الأسدوس الأول وأولويات الدعم وتتبع الزمن المدرسي.',
-    agenda: 'عرض ودراسة نتائج مجالس الأقسام؛\nقراءة في التقارير المرفوعة إلى المجلس من لدن مجالس الأقسام والمجالس التعليمية؛\nاقتراح أنشطة وخطط دعم تربوية مناسبة؛\nتتبع تفعيل الخطة المحلية لتدبير الزمن المدرسي والتنظيم التربوي للتعلمات.', body: T_PED_MAR
-  }, 'res');
-
-  const T_PED_JUL = `# النقطة الأولى: مناقشة تقريري المجلس التعليمي ومجالس الأقسام والمصادقة عليهما:
+وفي الختام سجل المجلس ارتياحه للنتائج المحققة، وأوصى بمواصلة الجهود خلال الأسدوس الثاني.`,Kt=(t,e)=>({defs:(c,a)=>[{sec:"نتائج الأسدوس"},rt(t,e||"النتائج حسب المستوى")],blocks:(c,a,s)=>{const n=at(s,a[t]);return{ctx:{rate:n.rate},blocks:{results:[n.block]}}}});((t,e)=>{const c=Kt(e);t.extra=c;const a=t.init;t.init=(s,n,o)=>Object.assign({[e]:X(n)},a?a(s,n,o):{}),v(t)})({k:"ped_mar",t:"محضر المجلس التربوي — دورة منتصف السنة (مارس)",council:"ped",title:"محضر اجتماع المجلس التربوي",period:"mar",session:"الثانية",time:"الثالثة بعد الزوال",d:"نتائج الأسدوس الأول وأولويات الدعم وتتبع الزمن المدرسي.",agenda:`عرض ودراسة نتائج مجالس الأقسام؛
+قراءة في التقارير المرفوعة إلى المجلس من لدن مجالس الأقسام والمجالس التعليمية؛
+اقتراح أنشطة وخطط دعم تربوية مناسبة؛
+تتبع تفعيل الخطة المحلية لتدبير الزمن المدرسي والتنظيم التربوي للتعلمات.`,body:Et},"res"),v({k:"ped_jul",t:"محضر المجلس التربوي — دورة يوليوز",council:"ped",title:"محضر اجتماع المجلس التربوي — دورة يوليوز",period:"jul",session:"الثالثة",time:"الحادية عشرة صباحا",d:"مصادقة التقارير، تقييم الدعم والأنشطة، الإعداد للدخول المدرسي.",agenda:`مناقشة تقريري المجلس التعليمي ومجالس الأقسام والمصادقة عليهما؛
+تقييم برنامج الدعم التربوي على مستوى المؤسسة ووضع اقتراحات في هذا الشأن لبداية الموسم الدراسي المقبل؛
+تقييم برنامج الأنشطة التربوية؛
+الإعداد للدخول المدرسي المقبل؛
+مختلفات.`,body:`# النقطة الأولى: مناقشة تقريري المجلس التعليمي ومجالس الأقسام والمصادقة عليهما:
 ثمن الحاضرون المجهودات الطيبة التي يبذلها الطاقم التربوي للرفع من المردودية التربوية بالمؤسسة وتحسين نتائج المتعلمين، كما حث السيد المدير الطاقم التربوي على بذل المزيد من المجهودات وتنويع الطرق البيداغوجية لتجاوز الصعوبات التي يصادفها التلاميذ، وتمت المصادقة على التقريرين.
 # النقطة الثانية: تقييم برنامج الدعم التربوي على مستوى المؤسسة:
 نوه جميع الأعضاء بالانخراط الجاد والمسؤول للسادة الأساتذة في أجرأة برنامج الدعم الممتد، كما تم التطرق إلى ضرورة مواكبة جميع التلاميذ، خصوصا المتعثرين منهم، خلال الموسم المقبل، وذلك بتحديد اللائحة الاسمية للمتعثرين مع تحديد نوع التعثرات ووضع برمجة دقيقة مبنية على مبدأ التفريد وتنويع أساليب وحوامل إنجاز الدعم التربوي.
 # النقطة الثالثة: تقييم برنامج الأنشطة التربوية:
 في إطار متابعة تنفيذ برنامج أنشطة الأندية التربوية، تم تثمين المجهودات المبذولة في أجرأة برنامج الأنشطة الذي خلق دينامية ملحوظة في تنشيط الحياة المدرسية، رغم قلة الموارد المالية. كما دعا أعضاء المجلس إلى التواصل الدائم مع المجلس الجماعي ومختلف الشركاء من أجل دعم الأنشطة التربوية المزمع تنظيمها خلال الموسم المقبل.
 # النقطة الرابعة: الإعداد للدخول المدرسي {{y2}}/{{y3}}:
-استعدادا للموسم الدراسي المقبل، تم الاتفاق على تفعيل دور خلية اليقظة مع ضرورة التنسيق مع السلطات المحلية وجمعيات المجتمع المدني للتعبئة لإنجاح التسجيلات الجديدة بالسنة الأولى من التعليم الابتدائي برسم الموسم الدراسي {{y2}}/{{y3}}.`;
-  minutes({
-    k: 'ped_jul', t: 'محضر المجلس التربوي — دورة يوليوز', council: 'ped', title: 'محضر اجتماع المجلس التربوي — دورة يوليوز', period: 'jul', session: 'الثالثة', time: 'الحادية عشرة صباحا', d: 'مصادقة التقارير، تقييم الدعم والأنشطة، الإعداد للدخول المدرسي.',
-    agenda: 'مناقشة تقريري المجلس التعليمي ومجالس الأقسام والمصادقة عليهما؛\nتقييم برنامج الدعم التربوي على مستوى المؤسسة ووضع اقتراحات في هذا الشأن لبداية الموسم الدراسي المقبل؛\nتقييم برنامج الأنشطة التربوية؛\nالإعداد للدخول المدرسي المقبل؛\nمختلفات.',
-    body: T_PED_JUL
-  });
-
-  const T_MGMT_OCT = `# التداول في قرارات المجلس التربوي والمجالس التعليمية والمصادقة عليها:
+استعدادا للموسم الدراسي المقبل، تم الاتفاق على تفعيل دور خلية اليقظة مع ضرورة التنسيق مع السلطات المحلية وجمعيات المجتمع المدني للتعبئة لإنجاح التسجيلات الجديدة بالسنة الأولى من التعليم الابتدائي برسم الموسم الدراسي {{y2}}/{{y3}}.`}),v({k:"mgmt_oct",t:"محضر مجلس التدبير — الدورة الأولى (أكتوبر)",council:"mgmt",title:"محضر اجتماع مجلس التدبير في دورته الأولى",period:"oct",session:"الأولى",time:"الثانية بعد الزوال",d:"قرارات المجالس، التعاونية، الصيانة، الحاجيات، النظام الداخلي، اللقاءات التواصلية.",agenda:`التداول في قرارات المجلس التربوي والمجالس التعليمية والمصادقة عليها؛
+انتداب منسقي التعاونية المدرسية؛
+دراسة تدابير صيانة وحماية ممتلكات المؤسسة والحفاظ على نظافة مرافق ومحيط المؤسسة؛
+اقتراح حاجيات المؤسسة للموسم الحالي؛
+وضع مشروع النظام الداخلي للمؤسسة والمصادقة عليه؛
+الإعداد لتنظيم اللقاءات التواصلية مع أمهات وآباء وأولياء أمور التلاميذ؛
+مختلفات.`,body:`# التداول في قرارات المجلس التربوي والمجالس التعليمية والمصادقة عليها:
 تداول مجلس التدبير وصادق على اقتراحات المجلس التربوي والمجالس التعليمية بخصوص البرنامج السنوي للعمل التربوي وصيغ الدعم الاجتماعي الممكنة، وذلك بعد مناقشة مستفيضة لمختلف الأولويات والأنشطة المزمع تنفيذها خلال السنة الدراسية.
 # انتداب منسقي التعاونية المدرسية:
 انتدب مجلس التدبير الأستاذ(ة) ........................ منسقا(ة) للتعاونية المدرسية، والأستاذ(ة) ........................ كاتبا(ة) للتعاونية. ودعا رئيس المجلس إلى الإسراع بتأسيس تعاونيات الأقسام وجمع الانخراطات قبل متم شهر نونبر ضمانا لحسن انطلاق الأنشطة وتفعيل المشاريع المبرمجة في حينها.
@@ -272,14 +62,10 @@
 # مختلفات:
 - اتفق أعضاء المجلس على احترام ميثاق العلاقة بين المؤسسة وجمعية أمهات وآباء وأولياء التلاميذ بما يحترم فيه كل طرف مجالات اختصاصه وفق المرسوم رقم 2.20.475 المتعلق بتحديد قواعد اشتغال وأدوار ومهام جمعيات أمهات وآباء وأولياء التلاميذ في علاقتها بمؤسسات التربية والتكوين؛
 - التذكير بأن كل موظف ملزم بكتمان السر المهني في كل ما يخص الأعمال والأخبار التي يحملها أثناء تأدية مهامه أو بمناسبة مزاولتها، ويدخل في هذا النطاق المعلومات والوثائق المتداولة؛
-- ضرورة تزويد الوحدات التابعة للمؤسسة بوسائل المراقبة والحراسة ضمانا لأمن وسلامة الممتلكات والمرتفقين.`;
-  minutes({
-    k: 'mgmt_oct', t: 'محضر مجلس التدبير — الدورة الأولى (أكتوبر)', council: 'mgmt', title: 'محضر اجتماع مجلس التدبير في دورته الأولى', period: 'oct', session: 'الأولى', time: 'الثانية بعد الزوال', d: 'قرارات المجالس، التعاونية، الصيانة، الحاجيات، النظام الداخلي، اللقاءات التواصلية.',
-    agenda: 'التداول في قرارات المجلس التربوي والمجالس التعليمية والمصادقة عليها؛\nانتداب منسقي التعاونية المدرسية؛\nدراسة تدابير صيانة وحماية ممتلكات المؤسسة والحفاظ على نظافة مرافق ومحيط المؤسسة؛\nاقتراح حاجيات المؤسسة للموسم الحالي؛\nوضع مشروع النظام الداخلي للمؤسسة والمصادقة عليه؛\nالإعداد لتنظيم اللقاءات التواصلية مع أمهات وآباء وأولياء أمور التلاميذ؛\nمختلفات.',
-    body: T_MGMT_OCT
-  });
-
-  const T_MGMT_MAR = `افتتح الاجتماع من طرف رئيس المجلس، حيث رحب بجميع الأعضاء، ثم طرح جدول الأعمال للمناقشة، وبعد نقاش مستفيض لكل نقطة من الجدول على حدة، توصل المجلس إلى الخلاصات التالية:
+- ضرورة تزويد الوحدات التابعة للمؤسسة بوسائل المراقبة والحراسة ضمانا لأمن وسلامة الممتلكات والمرتفقين.`}),v({k:"mgmt_mar",t:"محضر مجلس التدبير — دورة منتصف السنة (مارس)",council:"mgmt",title:"محضر اجتماع مجلس التدبير",period:"mar",session:"الثانية",time:"الثالثة بعد الزوال",intro:"تطبيقا لمقتضيات المقرر الوزاري عدد: {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، انعقد اجتماع {{council}} {{place}} يوم {{dateLong}} على الساعة {{time}} لدراسة النقط الواردة في جدول الأعمال:",d:"قراءة تقارير المجالس التعليمية، تقويم مرحلي للبرنامج السنوي، برنامج الأسدوس الثاني.",agenda:`قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية؛
+تقويم مرحلي لحصيلة البرنامج السنوي للعمل التربوي؛
+تدقيق برنامج الأنشطة الخاص بالأسدوس الثاني؛
+مختلفات.`,body:`افتتح الاجتماع من طرف رئيس المجلس، حيث رحب بجميع الأعضاء، ثم طرح جدول الأعمال للمناقشة، وبعد نقاش مستفيض لكل نقطة من الجدول على حدة، توصل المجلس إلى الخلاصات التالية:
 # قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية:
 بعد قراءة التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية تم تثمين مضامينها والمصادقة عليها، خصوصا فيما يتعلق بالدعم التربوي والتواصل مع أسر التلاميذ. وتمت الإشارة إلى ضرورة العمل على استثمار نتائج الأسدوس الأول لرصد مكامن الضعف لدى المتعثرين وتفييئهم حسب المكونات واختيار طرق الدعم المناسبة (فردي / جماعي).
 # تقويم مرحلي لحصيلة البرنامج السنوي للعمل التربوي:
@@ -294,14 +80,13 @@
 - تنظيم لقاءات تواصلية مع أمهات وآباء وأولياء التلاميذ حول التحصيل الدراسي لأبنائهم ومواظبتهم وسلوكهم؛
 - السهر على أجرأة الخطة المحلية المتعلقة بتدبير الزمن المدرسي والتنظيم التربوي للتعلمات؛
 - توعية المتعلمين والمتعلمات وجميع المرتفقين بترشيد استهلاك الماء والكهرباء والإبلاغ في حينه عن أي تسرب مائي لإصلاحه بشكل مستعجل.
-وفي الختام سجل المجلس ارتياحه وأشاد بالنتائج المحققة تربويا وتنظيميا على صعيد المؤسسة.`;
-  minutes({
-    k: 'mgmt_mar', t: 'محضر مجلس التدبير — دورة منتصف السنة (مارس)', council: 'mgmt', title: 'محضر اجتماع مجلس التدبير', period: 'mar', session: 'الثانية', time: 'الثالثة بعد الزوال', intro: 'تطبيقا لمقتضيات المقرر الوزاري عدد: {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، انعقد اجتماع {{council}} {{place}} يوم {{dateLong}} على الساعة {{time}} لدراسة النقط الواردة في جدول الأعمال:',
-    d: 'قراءة تقارير المجالس التعليمية، تقويم مرحلي للبرنامج السنوي، برنامج الأسدوس الثاني.',
-    agenda: 'قراءة في التقارير المرفوعة إلى المجلس من لدن المجالس التعليمية؛\nتقويم مرحلي لحصيلة البرنامج السنوي للعمل التربوي؛\nتدقيق برنامج الأنشطة الخاص بالأسدوس الثاني؛\nمختلفات.', body: T_MGMT_MAR
-  });
-
-  const T_MGMT_JUL = `# النقطة الأولى: تقويم الحصيلة السنوية والمصادقة على التقرير السنوي العام:
+وفي الختام سجل المجلس ارتياحه وأشاد بالنتائج المحققة تربويا وتنظيميا على صعيد المؤسسة.`}),v({k:"mgmt_jul",t:"محضر مجلس التدبير — دورة يوليوز",council:"mgmt",title:"محضر اجتماع أعضاء مجلس تدبير المؤسسة — دورة يوليوز",period:"jul",session:"الرابعة",time:"الثانية عشرة زوالا",d:"الحصيلة السنوية، التقارير المالية، البنية التربوية المقبلة.",agenda:`تقويم الحصيلة السنوية والمصادقة على التقرير السنوي العام المتعلق بنشاط وسير المؤسسة؛
+دراسة ومناقشة تقارير المجالس الأخرى والمصادقة عليها؛
+تقييم العمل بمشروع المؤسسة؛
+الترافع حول القضايا المرتبطة بالمجموعة المدرسية أمام مختلف الجهات المعنية؛
+الاطلاع على الجانب المالي للمؤسسة والمصادقة على التقرير السنوي؛
+اقتراح البنية التربوية للدخول المدرسي المقبل؛
+إعداد مشروع البرنامج السنوي للمؤسسة للموسم الدراسي المقبل.`,body:`# النقطة الأولى: تقويم الحصيلة السنوية والمصادقة على التقرير السنوي العام:
 تم إعداد التقرير السنوي العام المتعلق بنشاط وسير المؤسسة، وأشير فيه إلى مختلف الإنجازات والأنشطة بالإضافة إلى الوضعية المالية لكل من: التعاونية المدرسية، جمعية دعم مدرسة النجاح، الجمعية الرياضية المدرسية، وجمعية أمهات وآباء وأولياء أمور التلاميذ.
 # النقطة الثانية: دراسة تقارير المجالس الأخرى والمصادقة عليها:
 تم الاطلاع على تقارير المجالس الأخرى ومناقشتها والمصادقة عليها، مع تثمين ما ورد فيها خصوصا السيرورة الإيجابية للتعليم والدعم التربوي الممتد المنجز من طرف أساتذة المؤسسة، وكذا دينامية الأنشطة التربوية الموازية المنظمة بالمؤسسة.
@@ -317,20 +102,7 @@
 # النقطة السادسة: اقتراح البنية التربوية للدخول المدرسي المقبل:
 اقترح المجلس البنية التربوية للموسم الدراسي المقبل على النحو التالي: ..............................................................................................................
 # النقطة السابعة: إعداد مشروع البرنامج السنوي للمؤسسة للموسم الدراسي المقبل:
-قام المجلس بوضع النقط الأساسية لمشروع البرنامج السنوي للمؤسسة للموسم الدراسي المقبل.`;
-  minutes({
-    k: 'mgmt_jul', t: 'محضر مجلس التدبير — دورة يوليوز', council: 'mgmt', title: 'محضر اجتماع أعضاء مجلس تدبير المؤسسة — دورة يوليوز', period: 'jul', session: 'الرابعة', time: 'الثانية عشرة زوالا', d: 'الحصيلة السنوية، التقارير المالية، البنية التربوية المقبلة.',
-    agenda: 'تقويم الحصيلة السنوية والمصادقة على التقرير السنوي العام المتعلق بنشاط وسير المؤسسة؛\nدراسة ومناقشة تقارير المجالس الأخرى والمصادقة عليها؛\nتقييم العمل بمشروع المؤسسة؛\nالترافع حول القضايا المرتبطة بالمجموعة المدرسية أمام مختلف الجهات المعنية؛\nالاطلاع على الجانب المالي للمؤسسة والمصادقة على التقرير السنوي؛\nاقتراح البنية التربوية للدخول المدرسي المقبل؛\nإعداد مشروع البرنامج السنوي للمؤسسة للموسم الدراسي المقبل.', body: T_MGMT_JUL
-  });
-
-  /* teaching councils */
-  const SUBJ = { ar: ['اللغة العربية', 'التربية الإسلامية', 'الاجتماعيات'], fr: ['اللغة الفرنسية', 'الرياضيات', 'النشاط العلمي'], x: ['المادة'] };
-  const subjInit = (sy, lang) => { const L = levelKeys(sy); const out = []; L.forEach(k => { const n = +String(k).replace(/\D/g, ''); SUBJ[lang].forEach((m, j) => { if (lang === 'ar' && j === 2 && n < 4) return; if (lang === 'fr' && j === 2 && n < 3) return; out.push([k, m].concat(Array.from({ length: Math.max(1, B().unitNames().length) }, () => ''))); }); }); return out; };
-  /* 1.9.4: the teaching councils of the Arabic language and of the French language are two separate councils, each with its own documents
-     (members, subjects, content), for the three sessions (October, March, July). */
-  const LANGN = { ar: 'اللغة العربية', fr: 'اللغة الفرنسية' };
-  const T_TEACH_OCT = {
-    ar: `# تقييم مراحل الدعم التربوي في اللغة العربية (التدريس وفق المستوى المناسب TaRL):
+قام المجلس بوضع النقط الأساسية لمشروع البرنامج السنوي للمؤسسة للموسم الدراسي المقبل.`});const St={ar:["اللغة العربية","التربية الإسلامية","الاجتماعيات"],fr:["اللغة الفرنسية","الرياضيات","النشاط العلمي"],x:["المادة"]},Tt=(t,e)=>{const c=H(t),a=[];return c.forEach(s=>{const n=+String(s).replace(/\D/g,"");St[e].forEach((o,r)=>{e==="ar"&&r===2&&n<4||e==="fr"&&r===2&&n<3||a.push([s,o].concat(Array.from({length:Math.max(1,b().unitNames().length)},()=>"")))})}),a},_={ar:"اللغة العربية",fr:"اللغة الفرنسية"},vt={ar:`# تقييم مراحل الدعم التربوي في اللغة العربية (التدريس وفق المستوى المناسب TaRL):
 تم استعراض نتائج الروائز التشخيصية في اللغة العربية وتوزيع المتعلمات والمتعلمين حسب مستويات التحكم في القراءة (مبتدئ – حرف – كلمة – فقرة – قصة)، وتكوين مجموعات الدعم داخل كل قسم.
 [[dots:3]]
 # مناقشة تقارير دعم التعلمات الأساس في مكونات اللغة العربية:
@@ -347,8 +119,7 @@
 الحلول: حصص قرائية يومية قصيرة، تفعيل المكتبة الصفية والقصص المصورة، ألعاب قرائية وبطاقات المقاطع، إشراك الأسر في القراءة المنزلية.
 [[dots:2]]
 # إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات في اللغة العربية:
-[[dots:3]]`,
-    fr: `# تقييم مراحل الدعم التربوي في اللغة الفرنسية (التدريس وفق المستوى المناسب TaRL):
+[[dots:3]]`,fr:`# تقييم مراحل الدعم التربوي في اللغة الفرنسية (التدريس وفق المستوى المناسب TaRL):
 تم استعراض نتائج الروائز التشخيصية في اللغة الفرنسية وتوزيع المتعلمات والمتعلمين حسب مستويات القراءة (Débutant – Lettre – Mot – Paragraphe – Histoire)، وتكوين مجموعات الدعم داخل كل قسم.
 [[dots:3]]
 # مناقشة تقارير دعم التعلمات الأساس في مكونات اللغة الفرنسية:
@@ -365,319 +136,48 @@
 الحلول: أنشطة تواصلية يومية (comptines, jeux de rôle)، بطاقات الأصوات والمقاطع، القراءة المصورة، استعمال الموارد السمعية البصرية، القراءة المنزلية بمساعدة الأسر.
 [[dots:2]]
 # إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات في اللغة الفرنسية:
-[[dots:3]]`
-  };
-  const teachAgendaOct = l => `تقييم مراحل الدعم التربوي في ${LANGN[l]} وفق مقاربة التدريس وفق المستوى المناسب؛\nمناقشة تقارير دعم التعلمات الأساس في مكونات ${LANGN[l]}؛\nمناقشة المشاكل المعيقة لاكتساب التعلمات في ${LANGN[l]}؛\nإعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات.`;
-  const T_TEACH_MAR = l => `بناء على المقرر الوزاري رقم {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وبناء على المذكرة الداخلية رقم {{memo}}، انعقد اجتماع {{council}} {{place}}، يومه {{day}} {{dateLong}} على الساعة {{time}}، وذلك لدراسة ومناقشة النقط التالية:
-- تتبع النتائج العامة ونتائج تحصيل التلاميذ في ${LANGN[l]} خلال الأسدوس الأول ودراسة القضايا التربوية التي ينبغي التركيز عليها خلال الأسدوس الثاني؛
+[[dots:3]]`},Lt=t=>`تقييم مراحل الدعم التربوي في ${_[t]} وفق مقاربة التدريس وفق المستوى المناسب؛
+مناقشة تقارير دعم التعلمات الأساس في مكونات ${_[t]}؛
+مناقشة المشاكل المعيقة لاكتساب التعلمات في ${_[t]}؛
+إعداد الخطة السنوية للدعم المؤسساتي ومعالجة التعثرات.`,Dt=t=>`بناء على المقرر الوزاري رقم {{decree}} بشأن تنظيم السنة الدراسية {{syslash}}، وبناء على المذكرة الداخلية رقم {{memo}}، انعقد اجتماع {{council}} {{place}}، يومه {{day}} {{dateLong}} على الساعة {{time}}، وذلك لدراسة ومناقشة النقط التالية:
+- تتبع النتائج العامة ونتائج تحصيل التلاميذ في ${_[t]} خلال الأسدوس الأول ودراسة القضايا التربوية التي ينبغي التركيز عليها خلال الأسدوس الثاني؛
 - جرد الصعوبات واقتراح الحلول؛
-- وضع خطة للدعم البيداغوجي في ${LANGN[l]}.
+- وضع خطة للدعم البيداغوجي في ${_[t]}.
 # النتائج العامة للأسدوس الأول من السنة الدراسية {{syslash}}:
 [[results]]
 بعد قراءة النتائج المحصل عليها خلال الأسدوس الأول من السنة الدراسية الحالية تبين أن النسبة العامة للنجاح بلغت {{rate}}.
-# تتبع نتائج التلاميذ في ${LANGN[l]} والمواد المرتبطة بالمجلس:
+# تتبع نتائج التلاميذ في ${_[t]} والمواد المرتبطة بالمجلس:
 من خلال نتائج الأسدوس الأول، يتبين أن مستوى المتعلمين والمتعلمات في تحسن، وسيتم تكثيف الجهود في الفترة المتبقية من السنة الدراسية للرفع من مستوى التحصيل وتجاوز التعثرات المرصودة من خلال وضع خطة للدعم على مستوى كل قسم.
 [[subj]]
-# وضع خطة للدعم البيداغوجي في ${LANGN[l]}:
-تم الاتفاق على وضع خطة للدعم على مستوى كل قسم انطلاقا من تحليل نتائج المتعلمين، وتفييء التلاميذ إلى ثلاث مجموعات حسب كل مكون (${l === 'fr' ? 'communication orale، lecture، écriture، production de l\'écrit' : 'التواصل الشفهي، القراءة، الكتابة، الظواهر اللغوية، التعبير الكتابي'}) (متمكنة – في طور التمكن – متعثرة)، واختيار الأنشطة المناسبة لمعالجة التعثرات مع استحضار مقاربة التدريس وفق المستوى المناسب:
+# وضع خطة للدعم البيداغوجي في ${_[t]}:
+تم الاتفاق على وضع خطة للدعم على مستوى كل قسم انطلاقا من تحليل نتائج المتعلمين، وتفييء التلاميذ إلى ثلاث مجموعات حسب كل مكون (${t==="fr"?"communication orale، lecture، écriture، production de l'écrit":"التواصل الشفهي، القراءة، الكتابة، الظواهر اللغوية، التعبير الكتابي"}) (متمكنة – في طور التمكن – متعثرة)، واختيار الأنشطة المناسبة لمعالجة التعثرات مع استحضار مقاربة التدريس وفق المستوى المناسب:
 - دعم التلاميذ المتعثرين بالموازاة مع أنشطة بناء التعلمات؛
 - تمكين المتعثرين من الاستفادة من تتبع فردي خلال أسابيع الدعم.
-# وضع برمجة للعمليات التقويمية الخاصة بـ${LANGN[l]}:
+# وضع برمجة للعمليات التقويمية الخاصة بـ${_[t]}:
 تم الاتفاق على أن يضع كل أستاذ برمجة خاصة بالعمليات التقويمية للمكونات التي تعرف تعثرات.
 # العوائق والصعوبات:
-${l === 'fr' ? `- قلة التعرض للغة الفرنسية خارج الفصل وضعف التواصل الشفهي؛
-- صعوبات في فك الترميز والأصوات المركبة وفي الإنتاج الكتابي؛` : `- ضعف الطلاقة القرائية والفهم لدى فئة من المتعلمين؛
+${t==="fr"?`- قلة التعرض للغة الفرنسية خارج الفصل وضعف التواصل الشفهي؛
+- صعوبات في فك الترميز والأصوات المركبة وفي الإنتاج الكتابي؛`:`- ضعف الطلاقة القرائية والفهم لدى فئة من المتعلمين؛
 - صعوبات في الإملاء والتعبير الكتابي؛`}
 - تعدد الأقسام المشتركة في أغلب الوحدات المدرسية مما يؤثر سلبا على مردودية المتعلمين؛
 - عدم متابعة جل الأسر للمسار الدراسي لأبنائها.
 # الحلول والإجراءات:
-${l === 'fr' ? `- تكثيف الأنشطة التواصلية الشفهية (dialogues, comptines, jeux de rôle) واستعمال الموارد السمعية البصرية؛
-- اعتماد بطاقات الأصوات والمقاطع والقراءة المصورة؛` : `- حصص قرائية يومية قصيرة وتفعيل المكتبة الصفية؛
+${t==="fr"?`- تكثيف الأنشطة التواصلية الشفهية (dialogues, comptines, jeux de rôle) واستعمال الموارد السمعية البصرية؛
+- اعتماد بطاقات الأصوات والمقاطع والقراءة المصورة؛`:`- حصص قرائية يومية قصيرة وتفعيل المكتبة الصفية؛
 - أنشطة إملائية وتعبيرية متدرجة؛`}
 - عقد لقاءات تواصلية مع المحيط الأسري للمتعلمين لحثهم على تتبع ومراقبة سير تعلم أطفالهم؛
-- تأطير ومواكبة المدرسين في شأن المستجدات التربوية والديداكتيكية الخاصة بـ${LANGN[l]}.
-وفي الختام شكر رئيس المؤسسة الأساتذة على المجهودات المبذولة في الأسدوس الأول، وحثهم على الالتزام بتوصيات المجلس أملا في تجاوز الصعوبات التي تم رصدها.`;
-  function subjBlock(sy, rows) {
-    const curSy = sy;
-    const U = B().unitNames().map(n => B().shortUnit(n));
-    const head = `<tr><th rowspan="2" class="d">المستوى</th><th rowspan="2" class="d">مجموع التلاميذ</th><th rowspan="2" class="d">المادة</th><th colspan="${U.length + 1}" class="d">عدد التلاميذ الحاصلين على المعدل</th></tr><tr>${U.map(u => `<th>${esc(u)}</th>`).join('')}<th>المجموع</th></tr>`;
-    const R = rows.filter(r => String(r[1] || '').trim());
-    const g = []; R.forEach((r, i) => g.push({ r, first: i === 0 || R[i - 1][0] !== r[0], span: R.filter(x => x[0] === r[0]).length }));
-    const body = g.map(({ r, first, span }) => tr((first ? [{ t: LV.sh(r[0]), c: 'k', r: span }, { t: cnt(curSy, p => p.lvl === r[0]).t, c: 'k', r: span }] : []).concat([{ t: r[1], c: 'b r' }]).concat(U.map((u, i) => r[2 + i] || '')).concat([{ t: r.slice(2, 2 + U.length).reduce((a, x) => a + (+x || 0), 0) || '', c: 'y' }])));
-    return tbl(head, body, 'cmp');
-  }
-  const teachExtra = {
-    defs: (f, sy) => [{ sec: 'نتائج الأسدوس' }, resDef('res', 'النتائج العامة حسب المستوى'),
-      { k: 'subj', l: 'الحاصلون على المعدل في كل مادة (حسب الوحدة)', t: 'grid', cols: ['المستوى', 'المادة'].concat(B().unitNames().map(n => B().shortUnit(n))), widths: ['.8fr', '1.4fr'].concat(B().unitNames().map(() => '.7fr')), types: ['ro'], rofmt: v => LV.sh(v) || v }],
-    blocks: (s, f, sy) => { const r = resTable(sy, f.res); return { ctx: { rate: r.rate }, blocks: { results: [r.block], subj: [subjBlock(sy, f.subj || [])] } }; }
-  };
-  const J1 = [
-    ['نسبة إنجاز المقرر الدراسي وسبل تجاوز التعثرات', '100%', 'مواصلة وتيرة الإنجاز بكل مسؤولية؛ تخصيص شهر شتنبر لدعم ما تم إنجازه'],
-    ['الصعوبات التي تعترض تطبيق المقرر واقتراحات لتجاوزها', 'تفاوت إيقاعات التعلم؛ الوضعية الاجتماعية للأسر', 'اقتراح مقرر خاص بالعالم القروي؛ الاستعانة بالموارد الرقمية وحوامل حديثة'],
-    ['مدى ملاءمة الغلاف الزمني المخصص للمقرر الدراسي', 'عدم كفاية الحيز الزمني للمقرر', 'تبسيط المحتويات وتقليص المضامين؛ اعتماد مقرر يعتمد نظام المراحل'],
-    ['مدى احترام الزمن المدرسي وأثره على سير إنجاز المقرر', 'الاحترام التام للزمن المدرسي', 'مواصلة العمل بنفس المسؤولية والانضباط؛ مأسسة الحصص الاستدراكية'],
-    ['مدى ملاءمة المقرر مع مستوى التلاميذ', 'مقرر على العموم ملائم رغم الكم', 'تخفيف وتبسيط المضامين'],
-    ['سيرورة التقويم (عدد الفروض والغلاف الزمني ومواكبتها للمقرر)', 'تم إنجاز الفروض في تواريخها', 'لا شيء'],
-    ['أنشطة الدعم التربوي', 'منجزة في تواريخها المحددة', 'مواصلة تنفيذ خطة الدعم خلال شهر شتنبر'],
-    ['نتائج تحصيل التلاميذ في المادة (مدى تحكمهم في الكفايات المستهدفة)', 'على العموم نتائج مستحسنة', 'تركيز الدعم للمتعثرين'],
-    ['الخطوط العريضة لبرامج عمل المجالس التعليمية لتحسين مردودية التلاميذ خلال الموسم المقبل', 'تكثيف التواصل البيني للسادة الأساتذة والحرص على الاستهداف الدقيق للجودة والمردودية', 'تسطير برامج واضحة ودقيقة وفق تشخيص للوضعية وتبني مقاربة التدبير بالنتائج']
-  ];
-  const J2 = [['حاجيات تكوين أساتذة المادة', 'قلة التكوينات', 'برمجة لقاءات تربوية؛ دورات تكوينية في تدبير الأقسام المشتركة؛ تكوين في مشروع المؤسسة المندمج'], ['تحديد الحاجيات من الوسائل التعليمية الخاصة بالمادة', 'قلة الوسائل التعليمية', 'العمل على توفير الموارد الرقمية والوسائل التعليمية المدرجة في مشروع المؤسسة المندمج']];
-  const J3 = [['التنسيق عموديا وأفقيا بين مدرسي المادة الواحدة', 'تنسيق يحتاج للتطوير', 'تخصيص لقاءات دورية للتقاسم وتدارس وضعية تدريس المادة؛ خلق مجموعة على وسائل التواصل الاجتماعي'],
-    ['أساليب تطوير وتجديد الممارسة التربوية الخاصة بالمادة', 'رغم المجهودات المبذولة ما زالت الأساليب تقليدية', 'تشجيع تحليل الممارسة التربوية؛ الانفتاح على الوسائل التكنولوجية الجديدة'],
-    ['مدى مساهمة المجالس التعليمية والتربوية في اختيار الكتب المدرسية', 'عدم مساهمة المجالس التعليمية في اختيار الكتب المدرسية', 'إتاحة الفرصة للمجالس التعليمية في اختيار الكتب المعتمدة'],
-    ['الأنشطة التربوية الخاصة بالمادة الدراسية', 'تفعيل المكتبات الصفية؛ التصريف التربوي لمشروع المؤسسة', 'مواصلة الانخراط في أجرأة مشروع المؤسسة المندمج؛ التشجيع والتعريف بالممارسات الفضلى']];
-  const semi = x => String(x || '').split(/[;؛]/).map(t => t.trim()).filter(Boolean).map(t => esc(t)).join('<br>');
-  const j3 = (title, rows) => ({ before: SB.cap(title, ''), table: { cls: 'sb-t cmp', head: thr(['المجال', 'الوضعية الراهنة', 'الاقتراحات'].map(t => ({ t, c: 'd' }))), rows: rows.map(r => tr([{ t: r[0], c: 'k sm r' }, { h: semi(r[1]), c: 'r sm' }, { h: semi(r[2]), c: 'r sm' }])) } });
-  // rows specific to each language in the July tables
-  const JL = {
-    ar: { j1: ['التحكم في مكونات اللغة العربية (القراءة، الكتابة، التعبير)', 'تحسن ملحوظ في القراءة مع تعثرات في التعبير الكتابي', 'تعزيز القراءة اليومية والإنتاج الكتابي المتدرج'],
-      j2: ['الموارد الخاصة باللغة العربية', 'قلة القصص والمعاجم المناسبة للمستويات', 'تزويد المكتبات الصفية بقصص ومعاجم مصورة؛ بطاقات الحروف والمقاطع'] },
-    fr: { j1: ['Maîtrise des composantes du français (oral, lecture, écrit)', 'Difficultés à l\'oral et en production de l\'écrit', 'Activités orales quotidiennes؛ ateliers d\'écriture؛ lecture suivie'],
-      j2: ['Ressources spécifiques au français', 'Manque de livres de lecture et de supports audio', 'Albums illustrés et petits livres؛ supports audio-visuels؛ cartes des sons'] }
-  };
-  const teach = {};
-  ['ar', 'fr'].forEach(l => {
-    const N = LANGN[l], key = l === 'ar' ? '' : '_fr';
-    minutes({
-      k: 'teach_oct' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — الدورة الأولى (أكتوبر)`, council: l, title: 'محضر اجتماع {{council}} في دورته الأولى', period: 'oct', session: 'الأولى', time: 'الثالثة بعد الزوال',
-      d: `${N}: تقييم الدعم التربوي (TaRL)، تقارير دعم التعلمات الأساس، المشاكل المعيقة، الخطة السنوية للدعم.`,
-      agenda: teachAgendaOct(l), body: T_TEACH_OCT[l]
-    });
-    teach['oct' + l] = DOCS[DOCS.length - 1];
-    [DOCS[DOCS.length - 1], MIN['teach_oct' + key]].forEach(o => Object.defineProperty(o, 'd', { configurable: true, enumerable: true, get: () => ((() => { try { return isSec(); } catch (_) { return false; } })() ? `${N}: تقييم الدعم التربوي، تقارير دعم التعلمات، المشاكل المعيقة، الخطة السنوية للدعم.` : `${N}: تقييم الدعم التربوي (TaRL)، تقارير دعم التعلمات الأساس، المشاكل المعيقة، الخطة السنوية للدعم.`) }));
-    minutes({ k: 'teach_mar' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — دورة منتصف السنة (مارس)`, council: l, title: 'محضر اجتماع {{council}}', period: 'mar', session: 'الثانية', time: 'الثالثة بعد الزوال',
-      d: `${N}: نتائج الأسدوس الأول، خطة الدعم، الصعوبات والحلول.`,
-      agenda: `التداول في وضعية تدريس ${N}؛\nاقتراح أنشطة داعمة (تقارير – خطة عمل للدعم – استثمار – لوائح المقترحين للدعم…)`, body: T_TEACH_MAR(l), intro: '',
-      init: (s, sy) => ({ res: resInit(sy), subj: subjInit(sy, l) }), extra: teachExtra });
-    const jr = (rows, extra) => rows.map(r => r.slice().map(x => String(x).replace(/المادة الدراسية|المادة/g, N))).concat([extra.slice()]);
-    minutes({
-      k: 'teach_jul' + key, fix: l, t: `محضر المجلس التعليمي ${N.replace(/^ا/, '')} — الدورة الرابعة (يوليوز)`, council: l, title: 'محضر اجتماع {{council}} — الدورة الرابعة', sub: 'دورة يوليوز', period: 'jul', session: 'الرابعة', time: 'العاشرة صباحا',
-      d: `${N}: تتبع إنجاز المقرر والتقويم، حاجيات المادة، التنسيق والمشاركة.`,
-      agenda: `تتبع إنجاز المقرر الدراسي والتقويم في ${N}؛\nتحديد حاجيات ${N}؛\nتتبع أنشطة التنسيق والمشاركة؛\nمختلفات.`, body: '[[t1]]\n[[t2]]\n[[t3]]',
-      init: () => ({ j1: jr(J1, JL[l].j1), j2: jr(J2, JL[l].j2), j3: jr(J3, ['التنسيق بين أساتذة ' + N + ' بالوحدات المدرسية', 'لقاءات غير منتظمة', 'لقاء شهري لتقاسم الممارسات وتتبع خطة الدعم']) }),
-      extra: {
-        defs: () => [{ sec: 'الجداول (الفصل بين الفقرات بفاصلة منقوطة ؛)' }, ...[['j1', 'إنجاز المقرر الدراسي والتقويم'], ['j2', 'حاجيات ' + N], ['j3', 'التنسيق والمشاركة']].map(([k, lb]) => ({ k, l: lb, t: 'grid', cols: ['المجال', 'الوضعية الراهنة', 'الاقتراحات'], widths: ['1.3fr', '1fr', '1.3fr'] }))],
-        blocks: (s, f) => ({ ctx: {}, blocks: { t1: [j3('إنجاز المقرر الدراسي والتقويم', f.j1 || [])], t2: [j3('حاجيات ' + N, f.j2 || [])], t3: [j3('التنسيق والمشاركة', f.j3 || [])] } })
-      }
-    });
-  });
-
-  /* synthetic report of the class councils */
-  const T_CLASSES = `# القضايا التربوية المطروحة:
+- تأطير ومواكبة المدرسين في شأن المستجدات التربوية والديداكتيكية الخاصة بـ${_[t]}.
+وفي الختام شكر رئيس المؤسسة الأساتذة على المجهودات المبذولة في الأسدوس الأول، وحثهم على الالتزام بتوصيات المجلس أملا في تجاوز الصعوبات التي تم رصدها.`;function Ct(t,e){const c=t,a=b().unitNames().map(i=>b().shortUnit(i)),s=`<tr><th rowspan="2" class="d">المستوى</th><th rowspan="2" class="d">مجموع التلاميذ</th><th rowspan="2" class="d">المادة</th><th colspan="${a.length+1}" class="d">عدد التلاميذ الحاصلين على المعدل</th></tr><tr>${a.map(i=>`<th>${l(i)}</th>`).join("")}<th>المجموع</th></tr>`,n=e.filter(i=>String(i[1]||"").trim()),o=[];n.forEach((i,m)=>o.push({r:i,first:m===0||n[m-1][0]!==i[0],span:n.filter(p=>p[0]===i[0]).length}));const r=o.map(({r:i,first:m,span:p})=>u((m?[{t:D.sh(i[0]),c:"k",r:p},{t:q(c,d=>d.lvl===i[0]).t,c:"k",r:p}]:[]).concat([{t:i[1],c:"b r"}]).concat(a.map((d,y)=>i[2+y]||"")).concat([{t:i.slice(2,2+a.length).reduce((d,y)=>d+(+y||0),0)||"",c:"y"}])));return E(s,r,"cmp")}const Mt={defs:(t,e)=>[{sec:"نتائج الأسدوس"},rt("res","النتائج العامة حسب المستوى"),{k:"subj",l:"الحاصلون على المعدل في كل مادة (حسب الوحدة)",t:"grid",cols:["المستوى","المادة"].concat(b().unitNames().map(c=>b().shortUnit(c))),widths:[".8fr","1.4fr"].concat(b().unitNames().map(()=>".7fr")),types:["ro"],rofmt:c=>D.sh(c)||c}],blocks:(t,e,c)=>{const a=at(c,e.res);return{ctx:{rate:a.rate},blocks:{results:[a.block],subj:[Ct(c,e.subj||[])]}}}},Nt=[["نسبة إنجاز المقرر الدراسي وسبل تجاوز التعثرات","100%","مواصلة وتيرة الإنجاز بكل مسؤولية؛ تخصيص شهر شتنبر لدعم ما تم إنجازه"],["الصعوبات التي تعترض تطبيق المقرر واقتراحات لتجاوزها","تفاوت إيقاعات التعلم؛ الوضعية الاجتماعية للأسر","اقتراح مقرر خاص بالعالم القروي؛ الاستعانة بالموارد الرقمية وحوامل حديثة"],["مدى ملاءمة الغلاف الزمني المخصص للمقرر الدراسي","عدم كفاية الحيز الزمني للمقرر","تبسيط المحتويات وتقليص المضامين؛ اعتماد مقرر يعتمد نظام المراحل"],["مدى احترام الزمن المدرسي وأثره على سير إنجاز المقرر","الاحترام التام للزمن المدرسي","مواصلة العمل بنفس المسؤولية والانضباط؛ مأسسة الحصص الاستدراكية"],["مدى ملاءمة المقرر مع مستوى التلاميذ","مقرر على العموم ملائم رغم الكم","تخفيف وتبسيط المضامين"],["سيرورة التقويم (عدد الفروض والغلاف الزمني ومواكبتها للمقرر)","تم إنجاز الفروض في تواريخها","لا شيء"],["أنشطة الدعم التربوي","منجزة في تواريخها المحددة","مواصلة تنفيذ خطة الدعم خلال شهر شتنبر"],["نتائج تحصيل التلاميذ في المادة (مدى تحكمهم في الكفايات المستهدفة)","على العموم نتائج مستحسنة","تركيز الدعم للمتعثرين"],["الخطوط العريضة لبرامج عمل المجالس التعليمية لتحسين مردودية التلاميذ خلال الموسم المقبل","تكثيف التواصل البيني للسادة الأساتذة والحرص على الاستهداف الدقيق للجودة والمردودية","تسطير برامج واضحة ودقيقة وفق تشخيص للوضعية وتبني مقاربة التدبير بالنتائج"]],Ot=[["حاجيات تكوين أساتذة المادة","قلة التكوينات","برمجة لقاءات تربوية؛ دورات تكوينية في تدبير الأقسام المشتركة؛ تكوين في مشروع المؤسسة المندمج"],["تحديد الحاجيات من الوسائل التعليمية الخاصة بالمادة","قلة الوسائل التعليمية","العمل على توفير الموارد الرقمية والوسائل التعليمية المدرجة في مشروع المؤسسة المندمج"]],Pt=[["التنسيق عموديا وأفقيا بين مدرسي المادة الواحدة","تنسيق يحتاج للتطوير","تخصيص لقاءات دورية للتقاسم وتدارس وضعية تدريس المادة؛ خلق مجموعة على وسائل التواصل الاجتماعي"],["أساليب تطوير وتجديد الممارسة التربوية الخاصة بالمادة","رغم المجهودات المبذولة ما زالت الأساليب تقليدية","تشجيع تحليل الممارسة التربوية؛ الانفتاح على الوسائل التكنولوجية الجديدة"],["مدى مساهمة المجالس التعليمية والتربوية في اختيار الكتب المدرسية","عدم مساهمة المجالس التعليمية في اختيار الكتب المدرسية","إتاحة الفرصة للمجالس التعليمية في اختيار الكتب المعتمدة"],["الأنشطة التربوية الخاصة بالمادة الدراسية","تفعيل المكتبات الصفية؛ التصريف التربوي لمشروع المؤسسة","مواصلة الانخراط في أجرأة مشروع المؤسسة المندمج؛ التشجيع والتعريف بالممارسات الفضلى"]],it=t=>String(t||"").split(/[;؛]/).map(e=>e.trim()).filter(Boolean).map(e=>l(e)).join("<br>"),W=(t,e)=>({before:h.cap(t,""),table:{cls:"sb-t cmp",head:f(["المجال","الوضعية الراهنة","الاقتراحات"].map(c=>({t:c,c:"d"}))),rows:e.map(c=>u([{t:c[0],c:"k sm r"},{h:it(c[1]),c:"r sm"},{h:it(c[2]),c:"r sm"}]))}}),lt={ar:{j1:["التحكم في مكونات اللغة العربية (القراءة، الكتابة، التعبير)","تحسن ملحوظ في القراءة مع تعثرات في التعبير الكتابي","تعزيز القراءة اليومية والإنتاج الكتابي المتدرج"],j2:["الموارد الخاصة باللغة العربية","قلة القصص والمعاجم المناسبة للمستويات","تزويد المكتبات الصفية بقصص ومعاجم مصورة؛ بطاقات الحروف والمقاطع"]},fr:{j1:["Maîtrise des composantes du français (oral, lecture, écrit)","Difficultés à l'oral et en production de l'écrit","Activités orales quotidiennes؛ ateliers d'écriture؛ lecture suivie"],j2:["Ressources spécifiques au français","Manque de livres de lecture et de supports audio","Albums illustrés et petits livres؛ supports audio-visuels؛ cartes des sons"]}},Rt={};["ar","fr"].forEach(t=>{const e=_[t],c=t==="ar"?"":"_fr";v({k:"teach_oct"+c,fix:t,t:`محضر المجلس التعليمي ${e.replace(/^ا/,"")} — الدورة الأولى (أكتوبر)`,council:t,title:"محضر اجتماع {{council}} في دورته الأولى",period:"oct",session:"الأولى",time:"الثالثة بعد الزوال",d:`${e}: تقييم الدعم التربوي (TaRL)، تقارير دعم التعلمات الأساس، المشاكل المعيقة، الخطة السنوية للدعم.`,agenda:Lt(t),body:vt[t]}),Rt["oct"+t]=T[T.length-1],[T[T.length-1],C["teach_oct"+c]].forEach(s=>Object.defineProperty(s,"d",{configurable:!0,enumerable:!0,get:()=>(()=>{try{return w()}catch{return!1}})()?`${e}: تقييم الدعم التربوي، تقارير دعم التعلمات، المشاكل المعيقة، الخطة السنوية للدعم.`:`${e}: تقييم الدعم التربوي (TaRL)، تقارير دعم التعلمات الأساس، المشاكل المعيقة، الخطة السنوية للدعم.`})),v({k:"teach_mar"+c,fix:t,t:`محضر المجلس التعليمي ${e.replace(/^ا/,"")} — دورة منتصف السنة (مارس)`,council:t,title:"محضر اجتماع {{council}}",period:"mar",session:"الثانية",time:"الثالثة بعد الزوال",d:`${e}: نتائج الأسدوس الأول، خطة الدعم، الصعوبات والحلول.`,agenda:`التداول في وضعية تدريس ${e}؛
+اقتراح أنشطة داعمة (تقارير – خطة عمل للدعم – استثمار – لوائح المقترحين للدعم…)`,body:Dt(t),intro:"",init:(s,n)=>({res:X(n),subj:Tt(n,t)}),extra:Mt});const a=(s,n)=>s.map(o=>o.slice().map(r=>String(r).replace(/المادة الدراسية|المادة/g,e))).concat([n.slice()]);v({k:"teach_jul"+c,fix:t,t:`محضر المجلس التعليمي ${e.replace(/^ا/,"")} — الدورة الرابعة (يوليوز)`,council:t,title:"محضر اجتماع {{council}} — الدورة الرابعة",sub:"دورة يوليوز",period:"jul",session:"الرابعة",time:"العاشرة صباحا",d:`${e}: تتبع إنجاز المقرر والتقويم، حاجيات المادة، التنسيق والمشاركة.`,agenda:`تتبع إنجاز المقرر الدراسي والتقويم في ${e}؛
+تحديد حاجيات ${e}؛
+تتبع أنشطة التنسيق والمشاركة؛
+مختلفات.`,body:`[[t1]]
+[[t2]]
+[[t3]]`,init:()=>({j1:a(Nt,lt[t].j1),j2:a(Ot,lt[t].j2),j3:a(Pt,["التنسيق بين أساتذة "+e+" بالوحدات المدرسية","لقاءات غير منتظمة","لقاء شهري لتقاسم الممارسات وتتبع خطة الدعم"])}),extra:{defs:()=>[{sec:"الجداول (الفصل بين الفقرات بفاصلة منقوطة ؛)"},...[["j1","إنجاز المقرر الدراسي والتقويم"],["j2","حاجيات "+e],["j3","التنسيق والمشاركة"]].map(([s,n])=>({k:s,l:n,t:"grid",cols:["المجال","الوضعية الراهنة","الاقتراحات"],widths:["1.3fr","1fr","1.3fr"]}))],blocks:(s,n)=>({ctx:{},blocks:{t1:[W("إنجاز المقرر الدراسي والتقويم",n.j1||[])],t2:[W("حاجيات "+e,n.j2||[])],t3:[W("التنسيق والمشاركة",n.j3||[])]}})}})});const At=`# القضايا التربوية المطروحة:
 [[dots:4]]
 # الحلول المقترحة لمعالجتها على مستوى المؤسسة:
 [[dots:4]]
 # القضايا التربوية التي تتطلب معالجتها تدخل جهات أخرى:
-[[dots:4]]`;
-  add({
-    k: 'classes_rep', t: 'التقرير التركيبي لأشغال مجالس الأقسام', grp: 'm', d: 'نتائج نهاية الأسدوس بكل مستوى حسب الجنس مع النسب والمبيان.', auto: 'لوائح التلاميذ (المسجلون) — تدخل أعداد الناجحين فقط', page: 'a4',
-    init: (s, sy) => ({ city: s.city || '', date: DEFAULT_DATES.jul(sy), time: 'العاشرة صباحا', sem: 'الأسدس الثاني', decree: lastOf(sy, 'decree') || DEC, memo: DEC, place: place(), pass: levelKeys(sy).map(k => [k, '', '']), body: T_CLASSES, secretary: '' }),
-    defs: (f, sy) => [{ sec: 'بيانات الاجتماع' }, { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'تاريخ الاجتماع', t: 'date', half: true }, { k: 'time', l: 'الساعة', half: true }, { k: 'sem', l: 'الأسدس', half: true }, { k: 'decree', l: 'المقرر الوزاري', half: true }, { k: 'memo', l: 'النشرة الداخلية', half: true }, { k: 'place', l: 'المكان', half: true }, { k: 'secretary', l: 'المقرر(ة)', half: true, list: 'k2Emps' },
-      { sec: 'النتائج' }, { k: 'pass', l: 'الناجحون بكل مستوى (ذكور / إناث)', t: 'grid', cols: ['المستوى', 'الناجحون ذكور', 'الناجحات إناث'], widths: ['1fr', '1fr', '1fr'], types: ['ro', 'num', 'num'], rofmt: v => LV.sh(v) || v, fixed: true }, { k: 'body', l: 'القضايا والحلول', t: 'area', rows: 8 }],
-    build: (s, f, sy) => {
-      const ctx = K.tokens({ dateLong: K.ldate(f.date) });
-      const pt = passTable(sy, f.pass);
-      const blocks = [`<div style="text-align:left;font-weight:700">${esc(f.city || s.city || '')} في: ${esc(K.ldate(f.date))}</div>`,
-        ...K.textBlocks(`تطبيقا لمقتضيات المقرر الوزاري عدد: ${f.decree} بشأن تنظيم السنة الدراسية {{syslash}}، وتنفيذا للنشرة الداخلية رقم: ${f.memo}، عقدت مجالس الأقسام اجتماعا برئاسة السيد مدير المؤسسة ${f.place} يوم ${K.ldate(f.date)} على الساعة ${f.time} لتدارس النتائج الدراسية لنهاية ${f.sem} من السنة الدراسية {{syslash}} وعرضها على المجلس التربوي. وكانت النتائج على الشكل التالي:`, ctx), ...pt.blocks,
-        ...bodyBlocks(f.body, ctx, {})];
-      return { title: `تقرير تركيبي لأشغال مجالس الأقسام ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4', blocks, sign: SB.sign(s, { right: `المقرر(ة)${f.secretary ? ': ' + esc(f.secretary) : ''}`, left: 'رئيس المؤسسة' }) };
-    }
-  });
-
-  /* restructuring of the councils */
-  add({
-    k: 'comp', t: 'تركيبة المجالس (هيكلة وإرساء المجالس)', grp: 'm', d: 'أعضاء مجلس التدبير والمجلس التربوي والمجالس التعليمية ومجالس الأقسام — تعتمدها بقية المحاضر.', auto: 'لائحة الموظفين والمستويات والتكوين المسندة لكل أستاذ', page: 'a4',
-    init: () => defaultComp(),
-    defs: () => [{ note: 'هذه التركيبة هي التي تُملأ منها لوائح الحاضرين في كل المحاضر. أكمل أسماء رئيس جمعية الآباء وممثل المجلس الجماعي (والرقم الوطني في خانة رقم التأجير).' },
-      ...[['mgmt', 'مجلس التدبير', 'الصفة'], ['ped', 'المجلس التربوي', 'الصفة'], ['ar', 'المجلس التعليمي للغة العربية', 'المادة'], ['fr', 'المجلس التعليمي للغة الفرنسية', 'المادة'], ['classes', 'مجالس الأقسام', 'القسم']].map(([k, l, c]) => ({ k, l, t: 'grid', cols: ['الاسم الكامل', 'رقم التأجير', c], widths: ['1.6fr', '1fr', '1.4fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], e.ppr || r[1], r[2]] : null; } }))],
-    build: (s, f, sy) => ({ title: `تركيبة مجالس المؤسسة الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4', blocks: compBlocks(sy, f), sign: SB.sign(s, { right: '', left: 'توقيع رئيس المؤسسة' }) })
-  });
-  add({
-    k: 'restr', t: 'محضر إعادة هيكلة وإرساء مجالس المؤسسة', grp: 'm', d: 'محضر انتخاب هياكل المجالس وتوقيعات الحاضرين.', auto: 'تركيبة المجالس ولائحة الموظفين', page: 'a4',
-    init: (s, sy) => ({ city: s.city || '', date: DEFAULT_DATES.oct(sy), time: 'التاسعة صباحا', decree: lastOf(sy, 'decree') || DEC, secretary: '' }),
-    defs: () => [{ k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true }, { k: 'time', l: 'الساعة', half: true }, { k: 'decree', l: 'المقرر الوزاري', half: true }, { k: 'secretary', l: 'المقرر(ة)', half: true, list: 'k2Emps' }],
-    build: (s, f, sy) => {
-      const ctx = K.tokens({});
-      const E = emps => emps.filter(e => ['admin', 'teacher', 'assigned'].includes(K.E.cat(e)));
-      const sig = E(sortedEmps());
-      return { title: 'محضر إعادة هيكلة وإرساء مجالس المؤسسة', page: 'a4', sign: SB.sign(s, { right: `المقرر(ة)${f.secretary ? ': ' + esc(f.secretary) : ''}`, left: 'توقيع رئيس المؤسسة' }),
-        blocks: [`<div style="text-align:left;font-weight:700">${esc(f.city || s.city || '')} في: ${esc(K.dayName(f.date))} ${esc(K.ldate(f.date))}</div>`,
-          ...K.textBlocks(`بناء على المرسوم رقم 2.02.376 الصادر بتاريخ 17 يوليوز 2003 بمثابة النظام الأساسي الخاص بمؤسسات التربية والتعليم العمومي وخصوصا الفرع الثاني منه؛ وبناء على المقرر الوزاري رقم ${f.decree} بشأن تنظيم السنة الدراسية {{syslash}}؛ واعتبارا لما تلعبه مجالس المؤسسة في التأطير والتدبير الإداري والتربوي للمؤسسات التعليمية، انعقد يومه ${K.dayName(f.date)} ${K.ldate(f.date)} على الساعة ${f.time} اجتماع الأطر الإدارية والتربوية من أجل هيكلة مجالس المؤسسة (مجلس التدبير، المجلس التربوي، المجالس التعليمية، مجالس الأقسام). وقد أسفر الاجتماع عن انتخاب الهياكل التالية:`, ctx),
-          ...compBlocks(sy),
-          { before: SB.cap('توقيعات الحاضرين', 'r'), table: { cls: 'sb-t big', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', 'التوقيع'].map(t => ({ t, c: 'd' }))), rows: sig.map((e, i) => tr([i + 1, { t: fullName(e), c: 'b r' }, e.ppr || '', ''])) } }] };
-    }
-  });
-
-  /* approval of the integrated school project */
-  add({
-    k: 'project', t: 'محضر المصادقة على مشروع المؤسسة المندمج', grp: 'm', d: 'شهادة مجلس التدبير على صياغة المشروع ومصادقته عليه.', auto: 'إعدادات المؤسسة وتركيبة مجلس التدبير', page: 'a4',
-    init: (s, sy) => ({ city: s.city || '', date: DEFAULT_DATES.jul(sy).slice(0, 5) + '06-25', items: ['قد تمت صياغته بمنهجية تشاركية؛', 'يستجيب للمعايير المطلوبة؛', 'يحترم الإطار الميزانياتي التوقعي؛', 'أنهم اطلعوا على المشروع وناقشوه وصادقوا عليه.'], gresa: s.gresa || '', directorate: s.directorate || '', secretary: '', att: comp(sy).mgmt.map(r => [r[0], r[1], r[2], '']), abs: [['', '', ''], ['', '', '']] }),
-    defs: () => [{ k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'التاريخ', t: 'date', half: true }, { k: 'directorate', l: 'المديرية الإقليمية', half: true }, { k: 'gresa', l: 'رمز GRESA', half: true }, { k: 'secretary', l: 'المقرر(ة)', half: true, list: 'k2Emps' },
-      { k: 'items', l: 'ما يشهد به المجلس (سطر لكل بند)', t: 'area', rows: 5 },
-      { k: 'att', l: 'الحاضرون', t: 'grid', cols: ['الاسم', 'رقم التأجير', 'الصفة', 'ملاحظات'], widths: ['1.6fr', '1fr', '1.4fr', '1fr'], list: ['k2Emps'], link: { src: 'emp', cols: { ppr: 1 } } },
-      { k: 'abs', l: 'المتغيبون', t: 'grid', cols: ['الاسم', 'رقم التأجير', 'سبب الغياب'], widths: ['1.6fr', '1fr', '1.6fr'], list: ['k2Emps'], link: { src: 'emp', cols: { ppr: 1 } } }],
-    build: (s, f, sy) => {
-      const items = (Array.isArray(f.items) ? f.items : String(f.items || '').split(/\r?\n/)).map(x => x.trim()).filter(Boolean);
-      const att = named(f.att), ab = named(f.abs);
-      return { title: 'محضر المصادقة على مشروع المؤسسة المندمج', sub: 'من طرف مجلس التدبير', page: 'a4', sign: SB.sign(s, { right: `المقرر(ة)${f.secretary ? ': ' + esc(f.secretary) : ''}`, left: 'مدير المؤسسة' }),
-        blocks: [`<div style="text-align:left;font-weight:700">${esc(f.city || s.city || '')} في: ${esc(K.ldate(f.date))}</div>`,
-          tbl('', [tr([{ t: 'المديرية الإقليمية', c: 'k' }, f.directorate, { t: 'التاريخ', c: 'k' }, K.ldate(f.date)]), tr([{ t: 'المؤسسة', c: 'k' }, s.school || '', { t: 'رمز GRESA', c: 'k' }, f.gresa])], 'kv big'),
-          `<p class="sb-p" style="margin-top:2mm">يشهد أعضاء مجلس التدبير المجتمعون بالتاريخ أعلاه والموقعون في اللائحة رفقته:</p><p class="sb-p"><b>أن مشروع المؤسسة المندمج:</b></p>`,
-          tbl('', items.map((x, i) => tr([{ t: i + 1, c: 'k' }, { t: x, c: 'r' }])), 'big'),
-          `<p class="sb-p" style="margin-top:2mm">وبذلك يلتمسون من السيد مدير المؤسسة إرساله إلى المديرية الإقليمية من أجل المصادقة والحصول على الدعم المالي المرصود.</p>`,
-          { before: SB.cap('الحاضرون', 'r'), table: { cls: 'sb-t big', head: thr(['ر.ت', 'الاسم والنسب', 'رقم التأجير', 'الصفة', 'التوقيع', 'ملاحظات'].map(t => ({ t, c: 'd' }))), rows: att.map((r, i) => tr([i + 1, { t: r[0], c: 'b r' }, r[1], { t: r[2], c: 'sm' }, '', { t: r[3], c: 'sm' }])) }, keepNext: true },
-          { before: SB.cap('المتغيبون', 'r'), table: { cls: 'sb-t big', head: thr(['ر.ت', 'الاسم والنسب', 'رقم التأجير', 'أسباب الغياب'].map(t => ({ t, c: 'd' }))), rows: (ab.length ? ab : [['لا أحد', '', '']]).map((r, i) => tr([ab.length ? i + 1 : '', { t: r[0], c: 'r' }, r[1], r[2]])) } }] };
-    }
-  });
-
-  /* internal rules */
-  add({
-    k: 'rules', t: 'النظام الداخلي للمؤسسة المتضمن لميثاق التلميذ(ة)', grp: 'm', d: 'النص النموذجي كاملا (ديباجة، وظائف المؤسسة، حقوق وواجبات كل الفاعلين...) قابل للتعديل.', page: 'a4',
-    init: () => ({ body: isSec() ? secTxt(window.RULES_MD || '') : (window.RULES_MD || ''), sign: '' }),
-    defs: () => [{ k: 'body', l: 'نص النظام الداخلي (# عناوين، - نقاط)', t: 'area', rows: 22 }],
-    build: (s, f, sy) => ({ title: 'النظام الداخلي للمؤسسة المتضمن لميثاق التلميذ(ة)', sub: `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', ' / '))}`, page: 'a4', blocks: K.textBlocks(f.body, K.tokens({})), sign: SB.sign(s, { right: '', left: 'توقيع رئيس المؤسسة' }) })
-  });
-
-  /* cover page listing the minutes of a session */
-  add({
-    k: 'cover', t: 'غلاف ملف محاضر دورة المجالس', grp: 'm', d: 'صفحة فهرس لمحاضر دورة (مجلس التدبير، المجلس التربوي، المجالس التعليمية، مجالس الأقسام).', page: 'a4',
-    init: () => ({ session: 'دورة يوليوز', items: ['محضر اجتماع مجلس التدبير', 'محضر اجتماع المجلس التربوي', 'محضر اجتماع المجلس التعليمي للغة العربية', 'محضر اجتماع المجلس التعليمي للغة الفرنسية', 'محاضر اجتماعات مجالس الأقسام'] }),
-    defs: () => [{ k: 'session', l: 'الدورة', half: true }, { k: 'items', l: 'المحاضر (سطر لكل محضر)', t: 'area', rows: 7 }],
-    build: (s, f, sy) => {
-      const items = (Array.isArray(f.items) ? f.items : String(f.items || '').split(/\r?\n/)).map(x => x.trim()).filter(Boolean);
-      return { title: `ملف محاضر مجالس المؤسسة — ${esc(f.session)}`, sub: `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', ' / '))}`, page: 'a4', sign: false,
-        blocks: [tbl('', items.map((x, i) => tr([{ t: i + 1, c: 'k' }, { t: x + ' ' + f.session, c: 'r b' }])), 'big')] };
-    }
-  });
-
-  /* ---------- 1.9.2: secondary schools (collège / lycée): subject teaching councils and class councils ---------- */
-  const nm = t => String(t == null ? '' : t).trim();
-  const isSec = () => /إعدادي|تأهيلي/.test((S().cycle || ''));
-  const secTeachers = () => B().teachers().concat(B().assigned());
-  const subjectsOf = () => Array.from(new Set(secTeachers().map(e => String(e.subject || '').trim()).filter(Boolean)));
-  function secDefault() {
-    const dir = dirRow();
-    const T = secTeachers();
-    const mgmt = [dir, ['', '', 'الحارس العام للخارجية'], ['', '', 'ممثل هيأة التدريس'], ['', '', 'ممثل هيأة التدريس'], ['', '', 'ممثل الأطر الإدارية'], ['', '', 'ممثل جمعية آباء وأمهات وأولياء التلاميذ'], ['', '', 'ممثل جمعية آباء وأمهات وأولياء التلاميذ'], ['', '', 'ممثل المجلس الجماعي'], ['', '', 'ممثل التلاميذ'], ['', '', 'ممثل الشركاء']];
-    const ped = [dir, ['', '', 'الحارس العام للخارجية'], ['', '', 'المستشار في التوجيه التربوي'], ['', '', 'منسق الحياة المدرسية']].concat(subjectsOf().map(sj => { const e = T.find(x => String(x.subject || '').trim() === sj); return e ? [fullName(e), e.ppr || '', 'منسق(ة) مادة ' + sj] : ['', '', 'منسق(ة) مادة ' + sj]; }));
-    const subj = [];
-    subjectsOf().forEach(sj => T.filter(e => String(e.subject || '').trim() === sj).forEach(e => subj.push([fullName(e), e.ppr || '', sj])));
-    return { mgmt, ped, subj };
-  }
-  const secComp = sy => Object.assign(secDefault(), store(sy).sec_comp || {});
-  // 1.9.3: the composition of the secondary councils feeds every minute (attendance lists) and the composition tables
-  function secToComp(sy) {
-    const c = secComp(sy), dir = dirRow();
-    const bySubj = rx => (c.subj || []).filter(r => rx.test(String(r[2] || ''))).map(r => [r[0], r[1], r[2]]);
-    return { mgmt: c.mgmt, ped: c.ped, ar: [dir].concat(bySubj(/عرب/)), fr: [dir].concat(bySubj(/فرنس/)), classes: [], subj: c.subj };
-  }
-  function secBlocks(sy) {
-    const c = secComp(sy);
-    const t3 = (title, rows, third) => ({ before: SB.cap(title, 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', third].map(t => ({ t, c: 'd' }))), rows: named(rows).map((r, i) => tr([i + 1, { t: r[0], c: 'r b' }, r[1], { t: r[2], c: 'sm' }])) } });
-    return [t3('أعضاء مجلس التدبير', c.mgmt, 'الصفة'), t3('أعضاء المجلس التربوي', c.ped, 'الصفة'), t3('أعضاء المجالس التعليمية', c.subj, 'المادة')];
-  }
-  // 1.9.3: wording of the default texts of the minutes for a collège / a lycée (no school units, no cooperative, no multi-grade classes)
-  const SEC_TXT = [
-    // 1.9.4: collège / lycée: no TaRL, no diagnostic tests of the primary school
-    [' (التدريس وفق المستوى المناسب TaRL)', ''], [' (TaRL)', ''], ['بالوحدات المدرسية', 'بالمؤسسة'],
-    ['نتائج الروائز القبلية والبعدية', 'نتائج التقويم التشخيصي والمراقبة المستمرة'], ['وتمرير الروائز البعدية، ومقارنة نتائجها بنتائج الروائز القبلية', 'وإنجاز التقويمات المرحلية، ومقارنة نتائجها بنتائج التقويم التشخيصي'],
-    ['نتائج الروائز القبلية والبعدية', 'نتائج التقويم التشخيصي والتقويمات المرحلية'], ['الروائز القبلية', 'التقويم التشخيصي'], ['الروائز البعدية', 'التقويمات المرحلية'], ['الروائز', 'التقويمات التشخيصية'], ['تم استعراض نتائج الروائز التشخيصية', 'تم استعراض نتائج التقويم التشخيصي'], ['دعم التعلمات الأساس', 'دعم التعلمات'],
-    ['وبكل وحدة مدرسية', 'وبكل قسم'], ['والمسافة بين المساكن والوحدات المدرسية', 'والمسافة بين المساكن والمؤسسة'],
-    ['من مداخيل التعاونية المدرسية', 'من مداخيل جمعية دعم مدرسة النجاح'],
-    ['وتشجيع تلاميذ المستوى السادس على استكمال الدراسة وطلب المنحة', 'وتشجيع تلاميذ المستويات النهائية على استكمال الدراسة وطلب المنحة'],
-    ['# انتداب منسقي التعاونية المدرسية:', '# انتداب منسقي الجمعية الرياضية المدرسية:'],
-    ['منسقا(ة) للتعاونية المدرسية، والأستاذ(ة) ........................ كاتبا(ة) للتعاونية. ودعا رئيس المجلس إلى الإسراع بتأسيس تعاونيات الأقسام وجمع الانخراطات', 'منسقا(ة) للجمعية الرياضية المدرسية، والأستاذ(ة) ........................ كاتبا(ة) للجمعية. ودعا رئيس المجلس إلى الإسراع بجمع الانخراطات'],
-    ['..... دراهم لواجب الانخراط في التعاونية المدرسية، و', ''],
-    ['الأندية التربوية والتعاونية المدرسية', 'الأندية التربوية والجمعية الرياضية المدرسية'], ['انتداب منسقي التعاونية المدرسية', 'انتداب منسقي الجمعية الرياضية المدرسية'],
-    ['لكل من: التعاونية المدرسية، جمعية دعم مدرسة النجاح', 'لكل من: جمعية دعم مدرسة النجاح'],
-    ['تهيئة ساحات الوحدات المدرسية', 'تهيئة ساحة المؤسسة'], ['القضايا المرتبطة بالمجموعة المدرسية', 'القضايا المرتبطة بالمؤسسة'],
-    ['- تعدد الأقسام المشتركة في أغلب الوحدات المدرسية مما', '- الاكتظاظ بعدد من الأقسام مما'], ['دورات تكوينية في تدبير الأقسام المشتركة', 'دورات تكوينية في تدبير الأقسام'],
-    ['ومواكبة المدرسين في', 'ومواكبة الأساتذة في'], ['بين مدرسي المادة الواحدة', 'بين أساتذة المادة الواحدة'],
-    ['بالسنة الأولى من التعليم الابتدائي', '{{firstLv}}'], ['لسلك التعليم الابتدائي', 'لسلك {{cycLabel}}']];
-  const secTxt = t => {
-    if (typeof t !== 'string') return Array.isArray(t) ? t.map(secTxt) : t;
-    const k = window.Cyc ? Cyc.kind() : 'col';
-    let o = t;
-    SEC_TXT.forEach(([a, b]) => { if (o.indexOf(a) >= 0) o = o.split(a).join(b); });
-    return o.split('{{firstLv}}').join(k === 'lyc' ? 'بالجذع المشترك' : 'بالسنة الأولى من التعليم الثانوي الإعدادي').split('{{cycLabel}}').join(window.Cyc ? Cyc.label() : 'التعليم الثانوي');
-  };
-  function secCompBuild(s, f, sy) {
-    const t3 = (title, rows, third) => ({ before: SB.cap(title, 'r'), table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'رقم التأجير', third].map(t => ({ t, c: 'd' }))), rows: named(rows).map((r, i) => tr([i + 1, { t: r[0], c: 'r b' }, r[1], { t: r[2], c: 'sm' }])) } });
-    return { title: `تركيبة مجالس المؤسسة الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4', sign: SB.sign(s, { right: '', left: 'توقيع رئيس المؤسسة' }), blocks: [t3('أعضاء مجلس التدبير', f.mgmt, 'الصفة'), t3('أعضاء المجلس التربوي', f.ped, 'الصفة'), t3('أعضاء المجالس التعليمية', f.subj, 'المادة')] };
-  }
-  add({
-    k: 'sec_comp', cyc: 'sec', t: 'تركيبة المجالس (الثانوي)', grp: 'm', d: 'مجلس التدبير، المجلس التربوي، المجالس التعليمية للمواد، حسب النظام الأساسي النموذجي للمؤسسات التعليمية.', auto: 'لائحة الموظفين والمواد', page: 'a4',
-    init: () => secDefault(),
-    defs: () => [{ note: 'تُملأ تلقائيا من لائحة الموظفين (المادة المدرسة). أكمل ممثلي الأساتذة والآباء والجماعة والتلاميذ.' }].concat([['mgmt', 'مجلس التدبير', 'الصفة'], ['ped', 'المجلس التربوي', 'الصفة'], ['subj', 'المجالس التعليمية (أساتذة كل مادة)', 'المادة']].map(([k, l, c]) => ({ k, l, t: 'grid', cols: ['الاسم الكامل', 'رقم التأجير', c], widths: ['1.6fr', '1fr', '1.4fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], e.ppr || r[1], r[2] || e.subject || ''] : null; } }))),
-    build: (s, f, sy) => secCompBuild(s, f, sy)
-  });
-  const classesOf = sy => Array.from(new Set((window.Pupils ? Pupils.current(sy) : []).map(p => p.cls).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
-  const DECIS = ['', 'مواصلة الدراسة', 'تشجيعات', 'لوحة الشرف', 'تنويه', 'تنبيه', 'إنذار', 'توبيخ', 'دعم', 'دراسة ملف الانتقال/التوجيه', 'التكرار'];
-  add({
-    k: 'sec_class', cyc: 'sec', t: 'محضر مجلس القسم (الأسدوس)', grp: 'm', d: 'محضر مجلس قسم بالثانوي: التركيبة، النتائج العامة للقسم، وقرارات المجلس في حق كل تلميذ (تشجيع، إنذار، توبيخ، توجيه...).', auto: 'لوائح التلاميذ والأساتذة', page: 'a4',
-    init: (s, sy) => { const cl = classesOf(sy); return { city: s.city || '', date: `${MK.syStart(sy) + 1}-01-20`, sem: '1', cls: cl[0] || '', time: '15:00', mean: '', max: '', min: '', above: '', teachers: [['', '', '']], parents: '', pupilsRep: '', pupilsList: [], remarks: 'ناقش المجلس النتائج العامة للقسم والصعوبات المسجلة، واتخذ القرارات التالية في حق التلاميذ، وأوصى بتفعيل الدعم والمواكبة للتلاميذ المتعثرين وبتتبع حالات الغياب.' }; },
-    defs: (f, sy) => [{ k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'تاريخ المجلس', t: 'date', half: true }, { k: 'sem', l: 'الأسدوس', t: 'select', opts: [['1', 'الأول'], ['2', 'الثاني']], half: true }, { k: 'cls', l: 'القسم', t: 'select', opts: classesOf(sy).map(c => [c, c]), half: true }, { k: 'time', l: 'الساعة', half: true },
-      { sec: 'التركيبة' }, { k: 'teachers', l: 'أساتذة القسم', t: 'grid', cols: ['الاسم', 'المادة', 'ملاحظات'], widths: ['1.6fr', '1.2fr', '1fr'], list: ['k2Emps'], fill: r => { const e = K.E.byName(r[0]); return e ? [r[0], r[1] || e.subject || '', r[2]] : null; } },
-      { k: 'parents', l: 'ممثلا أولياء التلاميذ', half: true }, { k: 'pupilsRep', l: 'ممثلا التلاميذ', half: true },
-      { sec: 'نتائج القسم' }, { k: 'mean', l: 'معدل القسم', t: 'num', half: true }, { k: 'above', l: 'عدد الحاصلين على 10 فما فوق', t: 'num', half: true }, { k: 'max', l: 'أعلى معدل', t: 'num', half: true }, { k: 'min', l: 'أدنى معدل', t: 'num', half: true },
-      { sec: 'قرارات المجلس في حق التلاميذ' }, { t: 'html', html: '<button type="button" class="btn sm pri" data-act="fill">ملء لائحة تلاميذ القسم</button>' },
-      { k: 'pupilsList', l: 'التلاميذ', t: 'grid', cols: ['التلميذ(ة)', 'المعدل', 'القرار', 'ملاحظات'], widths: ['1.6fr', '.6fr', '1.2fr', '1.2fr'], types: ['ro', 'num', 'text', 'text'], fixed: true, list: [null, null, 'sec_dec'] },
-      { k: 'remarks', l: 'خلاصات وتوصيات المجلس', t: 'area', rows: 4 }, { t: 'html', html: `<datalist id="sec_dec">${DECIS.map(d => `<option value="${d}">`).join('')}</datalist>` }],
-    act: { fill: (f, sy, c) => { const old = f.pupilsList || []; f.pupilsList = (window.Pupils ? Pupils.massarOrder(Pupils.current(sy).filter(p => p.cls === f.cls), sy) : []).map(p => { const nm2 = `${p.last || ''} ${p.first || ''}`.trim(), o = old.find(r => r[0] === nm2) || []; return [nm2, o[1] || '', o[2] || '', o[3] || '']; }); c.save('pupilsList'); } },
-    build: (s, f, sy) => {
-      const T = (f.teachers || []).filter(r => nm(r[0])), P = f.pupilsList || [];
-      const cnt2 = P.length, dec = {}; P.forEach(r => { if (nm(r[2])) dec[r[2]] = (dec[r[2]] || 0) + 1; });
-      return { title: `محضر مجلس القسم ${esc(f.cls || '')} — الأسدوس ${f.sem === '2' ? 'الثاني' : 'الأول'}`, sub: `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}`, page: 'a4', sign: SB.sign(s, { right: `${esc(f.city || s.city || '')} في: ${esc(K.ldate(f.date))}`, left: 'رئيس مجلس القسم' }), blocks: [
-        { html: `<p class="sb-p">انعقد مجلس القسم <b>${esc(f.cls || '....')}</b> بتاريخ ${esc(K.ldate(f.date))} على الساعة ${esc(f.time || '....')} برئاسة مدير المؤسسة أو من ينوب عنه، بحضور أساتذة القسم وممثلي أولياء التلاميذ (<b>${esc(f.parents || '..........')}</b>) وممثلي التلاميذ (<b>${esc(f.pupilsRep || '..........')}</b>)، وبعد دراسة نتائج الأسدوس ${f.sem === '2' ? 'الثاني' : 'الأول'}:</p>` },
-        SB.cap('أساتذة القسم', 'r'), tbl(thr(['ر.ت', 'الاسم والنسب', 'المادة', 'ملاحظات', 'التوقيع'].map(t => ({ t, c: 'd' }))), (T.length ? T : [['', '', '']]).map((r, i) => tr([i + 1, { t: r[0], c: 'r b' }, r[1], { t: r[2], c: 'sm' }, ''])), 'cmp'),
-        SB.cap('نتائج القسم', 'r'), tbl(thr(['عدد التلاميذ', 'معدل القسم', 'أعلى معدل', 'أدنى معدل', 'الحاصلون على 10 فما فوق', 'النسبة'].map(t => ({ t, c: 'd' }))), [tr([cnt2 || '', f.mean || '', f.max || '', f.min || '', f.above || '', cnt2 && f.above ? (+f.above / cnt2 * 100).toFixed(1) + '%' : ''])], 'cmp'),
-        SB.cap('قرارات المجلس', 'r'), tbl(thr(['ر.ت', 'التلميذ(ة)', 'المعدل', 'القرار', 'ملاحظات'].map(t => ({ t, c: 'd' }))), (P.length ? P : [['', '', '', '']]).map((r, i) => tr([i + 1, { t: r[0], c: 'r b' }, r[1], { t: r[2], c: 'b' }, { t: r[3], c: 'sm' }])), 'cmp'),
-        Object.keys(dec).length ? { html: `<p class="sb-p"><b>حصيلة القرارات:</b> ${Object.keys(dec).map(k => esc(k) + ': ' + dec[k]).join(' — ')}</p>` } : '',
-        { html: `<p class="sb-p"><b>الخلاصات والتوصيات:</b> ${esc(f.remarks || '')}</p>` }] };
-    }
-  });
-
-  /* 1.9.4 — individual invitations of the members of a council to its session (date, time, place and agenda taken from the minute of the session) */
-  add({
-    k: 'inv', t: 'دعوات حضور اجتماعات المجالس', grp: 'm', d: 'دعوة فردية لكل عضو(ة) في المجلس (من تركيبة المجالس) لحضور الدورة: التاريخ والساعة والمكان وجدول الأعمال من محضر الدورة.', auto: 'تركيبة المجالس ومحضر الدورة', page: 'a4',
-    init: (s, sy) => ({ src: 'ped_oct', city: s.city || '', date: Docs.todayIso(), mdate: '', time: '', where: '', agenda: '', perPage: '2', skipDir: true, extra: '' }),
-    defs: () => [{ k: 'src', l: 'الاجتماع', t: 'select', opts: Object.keys(MIN).filter(k => (MIN[k].cyc === 'sec') === isSec() || !MIN[k].cyc).map(k => [k, MIN[k].t.replace(/^محضر\s+/, '')]) },
-      { note: 'التاريخ والساعة والمكان وجدول الأعمال تؤخذ من محضر الدورة (أو قيمها الافتراضية) إذا تُركت فارغة هنا.' },
-      { k: 'mdate', l: 'تاريخ الاجتماع', t: 'date', half: true }, { k: 'time', l: 'الساعة', half: true }, { k: 'where', l: 'المكان', half: true, ph: 'بالمدرسة المركزية' },
-      { k: 'perPage', l: 'عدد الدعوات في الصفحة', t: 'select', half: true, opts: [['1', 'دعوة واحدة'], ['2', 'دعوتان'], ['3', 'ثلاث دعوات']] },
-      { k: 'agenda', l: 'جدول الأعمال (نقطة في كل سطر)', t: 'area', rows: 4 }, { k: 'extra', l: 'مدعوون آخرون (اسم في كل سطر)', t: 'area', rows: 2 },
-      { k: 'city', l: 'حرر ب', half: true }, { k: 'date', l: 'تاريخ الدعوة', t: 'date', half: true }],
-    build: (s, f, sy) => {
-      const def = MIN[f.src] || MIN.ped_oct, saved = store(sy)[def.k] || {};
-      const council = def.council === 'ar' && (saved.lang || def.lang) === 'fr' ? 'fr' : def.council;
-      const cname = COUNCIL_NAME[council] || '';
-      const mdate = f.mdate || saved.date || DEFAULT_DATES[def.period || 'oct'](sy);
-      const time = f.time || saved.time || def.time || 'التاسعة صباحا';
-      const where = String(f.where || saved.place || place()).replace(/^ب(?=ال|م)/, '');
-      const ag = String(f.agenda || saved.agenda || def.agenda || '').split('\n').map(x => x.trim().replace(/[؛;.]$/, '')).filter(Boolean);
-      const dir = B().director();
-      const rows = named(attFor(comp(sy), council)).filter(r => !(f.skipDir !== false && dir && sameU(r[0], fullName(dir))));
-      const isFem = n => { const e = K.E && K.E.byName ? K.E.byName(n) : null; return isF(e) || !!(e && !e.sex && /(ة|ات)\b|أستاذة|مديرة|متصرفة/.test(String(e.cadre || '') + ' ' + String(e.grade || ''))); };
-      const to = rows.map(r => `${isFem(r[0]) ? 'السيدة' : 'السيد'}: <b>${esc(r[0])}</b>${r[2] ? ` — ${esc(r[2])}` : ''}`)
-        .concat(String(f.extra || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => `السيد(ة): <b>${esc(x)}</b>`));
-      const dl = K.ldate(mdate), dn = K.dayName(mdate);
-      return { page: 'a4', pages: Partners.invitePages({ hdr: Partners.compactHdr(s), place: f.city || s.city, date: f.date, to: to.length ? to : [''],
-        subject: `دعوة لحضور اجتماع ${cname} — الدورة ${def.session || ''}`,
-        body: [`وبعد، يشرفني أن أدعوكم لحضور اجتماع <b>${esc(cname)}</b> في دورته ${esc(def.session || '')} برسم السنة الدراسية ${esc(MK.syDash(sy).replace('-', '/'))}، الذي سينعقد يوم ${esc(dn)} <b>${esc(dl)}</b> على الساعة <b>${esc(time)}</b> ب<b>${esc(where)}</b>، وذلك لتدارس النقاط التالية:`],
-        agenda: ag, outro: 'ونظرا لأهمية هذا الاجتماع، أرجو منكم الحرص على الحضور في الوقت المحدد.', sigTitle: 'رئيس المجلس، مدير(ة) المؤسسة', sigName: dir ? fullName(dir) : '', perPage: f.perPage }) };
-    }
-  });
-
-  const ORDER = ['comp', 'restr', 'inv', 'ped_oct', 'mgmt_oct', 'teach_oct', 'teach_oct_fr', 'ped_mar', 'mgmt_mar', 'teach_mar', 'teach_mar_fr', 'classes_rep', 'ped_jul', 'mgmt_jul', 'teach_jul', 'teach_jul_fr', 'project', 'rules', 'cover', 'sec_comp', 'sec_class'];
-  DOCS.sort((a, b) => ORDER.indexOf(a.k) - ORDER.indexOf(b.k));
-  const C = K.center({
-    id: 'councils', title: 'المجالس التقنية', icon: '🏛️', route: 'councilDoc', hubRoute: 'councils',
-    groups: [['m', 'تركيبة المجالس ومحاضر الاجتماعات', 'تُملأ الحاضرون تلقائيا من تركيبة المجالس']],
-    intro: 'ابدأ ب«تركيبة المجالس» (تُحسب من لائحة الموظفين والمستويات المسندة لكل أستاذ)، ثم اختر محضر الدورة: كل محضر يقترح نصا جاهزا قابلا للتعديل مع جداول النتائج المحسوبة من لوائح التلاميذ، ولوائح الحاضرين والمتغيبين والتوقيعات.',
-    docs: () => DOCS.filter(d => d.cyc === 'sec' ? isSec() : !(isSec() && /^(comp|classes_rep)$/.test(d.k) && d.cyc !== 'sec')), store: sy => store(sy)
-  });
-  window.Council = { migrate, comp, compositionDoc, DOCS: () => DOCS.filter(d => d.cyc === 'sec' ? isSec() : !(isSec() && /^(comp|classes_rep)$/.test(d.k))), summary: () => ({ docs: DOCS.length }) };
-  window.pageCouncils = (v, a) => { migrate(DB); C.hub(v, a); };
-  window.pageCouncilDoc = (v, a) => { migrate(DB); C.doc(v, a); };
-})();
+[[dots:4]]`;x({k:"classes_rep",t:"التقرير التركيبي لأشغال مجالس الأقسام",grp:"m",d:"نتائج نهاية الأسدوس بكل مستوى حسب الجنس مع النسب والمبيان.",auto:"لوائح التلاميذ (المسجلون) — تدخل أعداد الناجحين فقط",page:"a4",init:(t,e)=>({city:t.city||"",date:B.jul(e),time:"العاشرة صباحا",sem:"الأسدس الثاني",decree:z(e,"decree")||A,memo:A,place:Q(),pass:H(e).map(c=>[c,"",""]),body:At,secretary:""}),defs:(t,e)=>[{sec:"بيانات الاجتماع"},{k:"city",l:"حرر ب",half:!0},{k:"date",l:"تاريخ الاجتماع",t:"date",half:!0},{k:"time",l:"الساعة",half:!0},{k:"sem",l:"الأسدس",half:!0},{k:"decree",l:"المقرر الوزاري",half:!0},{k:"memo",l:"النشرة الداخلية",half:!0},{k:"place",l:"المكان",half:!0},{k:"secretary",l:"المقرر(ة)",half:!0,list:"k2Emps"},{sec:"النتائج"},{k:"pass",l:"الناجحون بكل مستوى (ذكور / إناث)",t:"grid",cols:["المستوى","الناجحون ذكور","الناجحات إناث"],widths:["1fr","1fr","1fr"],types:["ro","num","num"],rofmt:c=>D.sh(c)||c,fixed:!0},{k:"body",l:"القضايا والحلول",t:"area",rows:8}],build:(t,e,c)=>{const a=K.tokens({dateLong:K.ldate(e.date)}),s=jt(c,e.pass),n=[`<div style="text-align:left;font-weight:700">${l(e.city||t.city||"")} في: ${l(K.ldate(e.date))}</div>`,...K.textBlocks(`تطبيقا لمقتضيات المقرر الوزاري عدد: ${e.decree} بشأن تنظيم السنة الدراسية {{syslash}}، وتنفيذا للنشرة الداخلية رقم: ${e.memo}، عقدت مجالس الأقسام اجتماعا برئاسة السيد مدير المؤسسة ${e.place} يوم ${K.ldate(e.date)} على الساعة ${e.time} لتدارس النتائج الدراسية لنهاية ${e.sem} من السنة الدراسية {{syslash}} وعرضها على المجلس التربوي. وكانت النتائج على الشكل التالي:`,a),...s.blocks,...nt(e.body,a,{})];return{title:`تقرير تركيبي لأشغال مجالس الأقسام ${l(MK.syDash(c).replace("-","/"))}`,page:"a4",blocks:n,sign:h.sign(t,{right:`المقرر(ة)${e.secretary?": "+l(e.secretary):""}`,left:"رئيس المؤسسة"})}}}),x({k:"comp",t:"تركيبة المجالس (هيكلة وإرساء المجالس)",grp:"m",d:"أعضاء مجلس التدبير والمجلس التربوي والمجالس التعليمية ومجالس الأقسام — تعتمدها بقية المحاضر.",auto:"لائحة الموظفين والمستويات والتكوين المسندة لكل أستاذ",page:"a4",init:()=>st(),defs:()=>[{note:"هذه التركيبة هي التي تُملأ منها لوائح الحاضرين في كل المحاضر. أكمل أسماء رئيس جمعية الآباء وممثل المجلس الجماعي (والرقم الوطني في خانة رقم التأجير)."},...[["mgmt","مجلس التدبير","الصفة"],["ped","المجلس التربوي","الصفة"],["ar","المجلس التعليمي للغة العربية","المادة"],["fr","المجلس التعليمي للغة الفرنسية","المادة"],["classes","مجالس الأقسام","القسم"]].map(([t,e,c])=>({k:t,l:e,t:"grid",cols:["الاسم الكامل","رقم التأجير",c],widths:["1.6fr","1fr","1.4fr"],list:["k2Emps"],fill:a=>{const s=K.E.byName(a[0]);return s?[a[0],s.ppr||a[1],a[2]]:null}}))],build:(t,e,c)=>({title:`تركيبة مجالس المؤسسة الموسم الدراسي ${l(MK.syDash(c).replace("-","/"))}`,page:"a4",blocks:ct(c,e),sign:h.sign(t,{right:"",left:"توقيع رئيس المؤسسة"})})}),x({k:"restr",t:"محضر إعادة هيكلة وإرساء مجالس المؤسسة",grp:"m",d:"محضر انتخاب هياكل المجالس وتوقيعات الحاضرين.",auto:"تركيبة المجالس ولائحة الموظفين",page:"a4",init:(t,e)=>({city:t.city||"",date:B.oct(e),time:"التاسعة صباحا",decree:z(e,"decree")||A,secretary:""}),defs:()=>[{k:"city",l:"حرر ب",half:!0},{k:"date",l:"التاريخ",t:"date",half:!0},{k:"time",l:"الساعة",half:!0},{k:"decree",l:"المقرر الوزاري",half:!0},{k:"secretary",l:"المقرر(ة)",half:!0,list:"k2Emps"}],build:(t,e,c)=>{const a=K.tokens({}),n=(o=>o.filter(r=>["admin","teacher","assigned"].includes(K.E.cat(r))))(sortedEmps());return{title:"محضر إعادة هيكلة وإرساء مجالس المؤسسة",page:"a4",sign:h.sign(t,{right:`المقرر(ة)${e.secretary?": "+l(e.secretary):""}`,left:"توقيع رئيس المؤسسة"}),blocks:[`<div style="text-align:left;font-weight:700">${l(e.city||t.city||"")} في: ${l(K.dayName(e.date))} ${l(K.ldate(e.date))}</div>`,...K.textBlocks(`بناء على المرسوم رقم 2.02.376 الصادر بتاريخ 17 يوليوز 2003 بمثابة النظام الأساسي الخاص بمؤسسات التربية والتعليم العمومي وخصوصا الفرع الثاني منه؛ وبناء على المقرر الوزاري رقم ${e.decree} بشأن تنظيم السنة الدراسية {{syslash}}؛ واعتبارا لما تلعبه مجالس المؤسسة في التأطير والتدبير الإداري والتربوي للمؤسسات التعليمية، انعقد يومه ${K.dayName(e.date)} ${K.ldate(e.date)} على الساعة ${e.time} اجتماع الأطر الإدارية والتربوية من أجل هيكلة مجالس المؤسسة (مجلس التدبير، المجلس التربوي، المجالس التعليمية، مجالس الأقسام). وقد أسفر الاجتماع عن انتخاب الهياكل التالية:`,a),...ct(c),{before:h.cap("توقيعات الحاضرين","r"),table:{cls:"sb-t big",head:f(["ر.ت","الاسم الكامل","رقم التأجير","التوقيع"].map(o=>({t:o,c:"d"}))),rows:n.map((o,r)=>u([r+1,{t:fullName(o),c:"b r"},o.ppr||"",""]))}}]}}}),x({k:"project",t:"محضر المصادقة على مشروع المؤسسة المندمج",grp:"m",d:"شهادة مجلس التدبير على صياغة المشروع ومصادقته عليه.",auto:"إعدادات المؤسسة وتركيبة مجلس التدبير",page:"a4",init:(t,e)=>({city:t.city||"",date:B.jul(e).slice(0,5)+"06-25",items:["قد تمت صياغته بمنهجية تشاركية؛","يستجيب للمعايير المطلوبة؛","يحترم الإطار الميزانياتي التوقعي؛","أنهم اطلعوا على المشروع وناقشوه وصادقوا عليه."],gresa:t.gresa||"",directorate:t.directorate||"",secretary:"",att:N(e).mgmt.map(c=>[c[0],c[1],c[2],""]),abs:[["","",""],["","",""]]}),defs:()=>[{k:"city",l:"حرر ب",half:!0},{k:"date",l:"التاريخ",t:"date",half:!0},{k:"directorate",l:"المديرية الإقليمية",half:!0},{k:"gresa",l:"رمز GRESA",half:!0},{k:"secretary",l:"المقرر(ة)",half:!0,list:"k2Emps"},{k:"items",l:"ما يشهد به المجلس (سطر لكل بند)",t:"area",rows:5},{k:"att",l:"الحاضرون",t:"grid",cols:["الاسم","رقم التأجير","الصفة","ملاحظات"],widths:["1.6fr","1fr","1.4fr","1fr"],list:["k2Emps"],link:{src:"emp",cols:{ppr:1}}},{k:"abs",l:"المتغيبون",t:"grid",cols:["الاسم","رقم التأجير","سبب الغياب"],widths:["1.6fr","1fr","1.6fr"],list:["k2Emps"],link:{src:"emp",cols:{ppr:1}}}],build:(t,e,c)=>{const a=(Array.isArray(e.items)?e.items:String(e.items||"").split(/\r?\n/)).map(o=>o.trim()).filter(Boolean),s=j(e.att),n=j(e.abs);return{title:"محضر المصادقة على مشروع المؤسسة المندمج",sub:"من طرف مجلس التدبير",page:"a4",sign:h.sign(t,{right:`المقرر(ة)${e.secretary?": "+l(e.secretary):""}`,left:"مدير المؤسسة"}),blocks:[`<div style="text-align:left;font-weight:700">${l(e.city||t.city||"")} في: ${l(K.ldate(e.date))}</div>`,E("",[u([{t:"المديرية الإقليمية",c:"k"},e.directorate,{t:"التاريخ",c:"k"},K.ldate(e.date)]),u([{t:"المؤسسة",c:"k"},t.school||"",{t:"رمز GRESA",c:"k"},e.gresa])],"kv big"),'<p class="sb-p" style="margin-top:2mm">يشهد أعضاء مجلس التدبير المجتمعون بالتاريخ أعلاه والموقعون في اللائحة رفقته:</p><p class="sb-p"><b>أن مشروع المؤسسة المندمج:</b></p>',E("",a.map((o,r)=>u([{t:r+1,c:"k"},{t:o,c:"r"}])),"big"),'<p class="sb-p" style="margin-top:2mm">وبذلك يلتمسون من السيد مدير المؤسسة إرساله إلى المديرية الإقليمية من أجل المصادقة والحصول على الدعم المالي المرصود.</p>',{before:h.cap("الحاضرون","r"),table:{cls:"sb-t big",head:f(["ر.ت","الاسم والنسب","رقم التأجير","الصفة","التوقيع","ملاحظات"].map(o=>({t:o,c:"d"}))),rows:s.map((o,r)=>u([r+1,{t:o[0],c:"b r"},o[1],{t:o[2],c:"sm"},"",{t:o[3],c:"sm"}]))},keepNext:!0},{before:h.cap("المتغيبون","r"),table:{cls:"sb-t big",head:f(["ر.ت","الاسم والنسب","رقم التأجير","أسباب الغياب"].map(o=>({t:o,c:"d"}))),rows:(n.length?n:[["لا أحد","",""]]).map((o,r)=>u([n.length?r+1:"",{t:o[0],c:"r"},o[1],o[2]]))}}]}}}),x({k:"rules",t:"النظام الداخلي للمؤسسة المتضمن لميثاق التلميذ(ة)",grp:"m",d:"النص النموذجي كاملا (ديباجة، وظائف المؤسسة، حقوق وواجبات كل الفاعلين...) قابل للتعديل.",page:"a4",init:()=>({body:w()?Z(window.RULES_MD||""):window.RULES_MD||"",sign:""}),defs:()=>[{k:"body",l:"نص النظام الداخلي (# عناوين، - نقاط)",t:"area",rows:22}],build:(t,e,c)=>({title:"النظام الداخلي للمؤسسة المتضمن لميثاق التلميذ(ة)",sub:`الموسم الدراسي ${l(MK.syDash(c).replace("-"," / "))}`,page:"a4",blocks:K.textBlocks(e.body,K.tokens({})),sign:h.sign(t,{right:"",left:"توقيع رئيس المؤسسة"})})}),x({k:"cover",t:"غلاف ملف محاضر دورة المجالس",grp:"m",d:"صفحة فهرس لمحاضر دورة (مجلس التدبير، المجلس التربوي، المجالس التعليمية، مجالس الأقسام).",page:"a4",init:()=>({session:"دورة يوليوز",items:["محضر اجتماع مجلس التدبير","محضر اجتماع المجلس التربوي","محضر اجتماع المجلس التعليمي للغة العربية","محضر اجتماع المجلس التعليمي للغة الفرنسية","محاضر اجتماعات مجالس الأقسام"]}),defs:()=>[{k:"session",l:"الدورة",half:!0},{k:"items",l:"المحاضر (سطر لكل محضر)",t:"area",rows:7}],build:(t,e,c)=>{const a=(Array.isArray(e.items)?e.items:String(e.items||"").split(/\r?\n/)).map(s=>s.trim()).filter(Boolean);return{title:`ملف محاضر مجالس المؤسسة — ${l(e.session)}`,sub:`الموسم الدراسي ${l(MK.syDash(c).replace("-"," / "))}`,page:"a4",sign:!1,blocks:[E("",a.map((s,n)=>u([{t:n+1,c:"k"},{t:s+" "+e.session,c:"r b"}])),"big")]}}});const pt=t=>String(t??"").trim(),w=()=>/إعدادي|تأهيلي/.test(S().cycle||""),mt=()=>b().teachers().concat(b().assigned()),ut=()=>Array.from(new Set(mt().map(t=>String(t.subject||"").trim()).filter(Boolean)));function dt(){const t=M(),e=mt(),c=[t,["","","الحارس العام للخارجية"],["","","ممثل هيأة التدريس"],["","","ممثل هيأة التدريس"],["","","ممثل الأطر الإدارية"],["","","ممثل جمعية آباء وأمهات وأولياء التلاميذ"],["","","ممثل جمعية آباء وأمهات وأولياء التلاميذ"],["","","ممثل المجلس الجماعي"],["","","ممثل التلاميذ"],["","","ممثل الشركاء"]],a=[t,["","","الحارس العام للخارجية"],["","","المستشار في التوجيه التربوي"],["","","منسق الحياة المدرسية"]].concat(ut().map(n=>{const o=e.find(r=>String(r.subject||"").trim()===n);return o?[fullName(o),o.ppr||"","منسق(ة) مادة "+n]:["","","منسق(ة) مادة "+n]})),s=[];return ut().forEach(n=>e.filter(o=>String(o.subject||"").trim()===n).forEach(o=>s.push([fullName(o),o.ppr||"",n]))),{mgmt:c,ped:a,subj:s}}const Y=t=>Object.assign(dt(),P(t).sec_comp||{});function Bt(t){const e=Y(t),c=M(),a=s=>(e.subj||[]).filter(n=>s.test(String(n[2]||""))).map(n=>[n[0],n[1],n[2]]);return{mgmt:e.mgmt,ped:e.ped,ar:[c].concat(a(/عرب/)),fr:[c].concat(a(/فرنس/)),classes:[],subj:e.subj}}function Ut(t){const e=Y(t),c=(a,s,n)=>({before:h.cap(a,"r"),table:{cls:"sb-t cmp",head:f(["ر.ت","الاسم الكامل","رقم التأجير",n].map(o=>({t:o,c:"d"}))),rows:j(s).map((o,r)=>u([r+1,{t:o[0],c:"r b"},o[1],{t:o[2],c:"sm"}]))}});return[c("أعضاء مجلس التدبير",e.mgmt,"الصفة"),c("أعضاء المجلس التربوي",e.ped,"الصفة"),c("أعضاء المجالس التعليمية",e.subj,"المادة")]}const Ft=[[" (التدريس وفق المستوى المناسب TaRL)",""],[" (TaRL)",""],["بالوحدات المدرسية","بالمؤسسة"],["نتائج الروائز القبلية والبعدية","نتائج التقويم التشخيصي والمراقبة المستمرة"],["وتمرير الروائز البعدية، ومقارنة نتائجها بنتائج الروائز القبلية","وإنجاز التقويمات المرحلية، ومقارنة نتائجها بنتائج التقويم التشخيصي"],["نتائج الروائز القبلية والبعدية","نتائج التقويم التشخيصي والتقويمات المرحلية"],["الروائز القبلية","التقويم التشخيصي"],["الروائز البعدية","التقويمات المرحلية"],["الروائز","التقويمات التشخيصية"],["تم استعراض نتائج الروائز التشخيصية","تم استعراض نتائج التقويم التشخيصي"],["دعم التعلمات الأساس","دعم التعلمات"],["وبكل وحدة مدرسية","وبكل قسم"],["والمسافة بين المساكن والوحدات المدرسية","والمسافة بين المساكن والمؤسسة"],["من مداخيل التعاونية المدرسية","من مداخيل جمعية دعم مدرسة النجاح"],["وتشجيع تلاميذ المستوى السادس على استكمال الدراسة وطلب المنحة","وتشجيع تلاميذ المستويات النهائية على استكمال الدراسة وطلب المنحة"],["# انتداب منسقي التعاونية المدرسية:","# انتداب منسقي الجمعية الرياضية المدرسية:"],["منسقا(ة) للتعاونية المدرسية، والأستاذ(ة) ........................ كاتبا(ة) للتعاونية. ودعا رئيس المجلس إلى الإسراع بتأسيس تعاونيات الأقسام وجمع الانخراطات","منسقا(ة) للجمعية الرياضية المدرسية، والأستاذ(ة) ........................ كاتبا(ة) للجمعية. ودعا رئيس المجلس إلى الإسراع بجمع الانخراطات"],["..... دراهم لواجب الانخراط في التعاونية المدرسية، و",""],["الأندية التربوية والتعاونية المدرسية","الأندية التربوية والجمعية الرياضية المدرسية"],["انتداب منسقي التعاونية المدرسية","انتداب منسقي الجمعية الرياضية المدرسية"],["لكل من: التعاونية المدرسية، جمعية دعم مدرسة النجاح","لكل من: جمعية دعم مدرسة النجاح"],["تهيئة ساحات الوحدات المدرسية","تهيئة ساحة المؤسسة"],["القضايا المرتبطة بالمجموعة المدرسية","القضايا المرتبطة بالمؤسسة"],["- تعدد الأقسام المشتركة في أغلب الوحدات المدرسية مما","- الاكتظاظ بعدد من الأقسام مما"],["دورات تكوينية في تدبير الأقسام المشتركة","دورات تكوينية في تدبير الأقسام"],["ومواكبة المدرسين في","ومواكبة الأساتذة في"],["بين مدرسي المادة الواحدة","بين أساتذة المادة الواحدة"],["بالسنة الأولى من التعليم الابتدائي","{{firstLv}}"],["لسلك التعليم الابتدائي","لسلك {{cycLabel}}"]],Z=t=>{if(typeof t!="string")return Array.isArray(t)?t.map(Z):t;const e=window.Cyc?Cyc.kind():"col";let c=t;return Ft.forEach(([a,s])=>{c.indexOf(a)>=0&&(c=c.split(a).join(s))}),c.split("{{firstLv}}").join(e==="lyc"?"بالجذع المشترك":"بالسنة الأولى من التعليم الثانوي الإعدادي").split("{{cycLabel}}").join(window.Cyc?Cyc.label():"التعليم الثانوي")};function ht(t,e,c){const a=(s,n,o)=>({before:h.cap(s,"r"),table:{cls:"sb-t cmp",head:f(["ر.ت","الاسم الكامل","رقم التأجير",o].map(r=>({t:r,c:"d"}))),rows:j(n).map((r,i)=>u([i+1,{t:r[0],c:"r b"},r[1],{t:r[2],c:"sm"}]))}});return{title:`تركيبة مجالس المؤسسة الموسم الدراسي ${l(MK.syDash(c).replace("-","/"))}`,page:"a4",sign:h.sign(t,{right:"",left:"توقيع رئيس المؤسسة"}),blocks:[a("أعضاء مجلس التدبير",e.mgmt,"الصفة"),a("أعضاء المجلس التربوي",e.ped,"الصفة"),a("أعضاء المجالس التعليمية",e.subj,"المادة")]}}x({k:"sec_comp",cyc:"sec",t:"تركيبة المجالس (الثانوي)",grp:"m",d:"مجلس التدبير، المجلس التربوي، المجالس التعليمية للمواد، حسب النظام الأساسي النموذجي للمؤسسات التعليمية.",auto:"لائحة الموظفين والمواد",page:"a4",init:()=>dt(),defs:()=>[{note:"تُملأ تلقائيا من لائحة الموظفين (المادة المدرسة). أكمل ممثلي الأساتذة والآباء والجماعة والتلاميذ."}].concat([["mgmt","مجلس التدبير","الصفة"],["ped","المجلس التربوي","الصفة"],["subj","المجالس التعليمية (أساتذة كل مادة)","المادة"]].map(([t,e,c])=>({k:t,l:e,t:"grid",cols:["الاسم الكامل","رقم التأجير",c],widths:["1.6fr","1fr","1.4fr"],list:["k2Emps"],fill:a=>{const s=K.E.byName(a[0]);return s?[a[0],s.ppr||a[1],a[2]||s.subject||""]:null}}))),build:(t,e,c)=>ht(t,e,c)});const gt=t=>Array.from(new Set((window.Pupils?Pupils.current(t):[]).map(e=>e.cls).filter(Boolean))).sort((e,c)=>String(e).localeCompare(String(c),"fr",{numeric:!0})),Gt=["","مواصلة الدراسة","تشجيعات","لوحة الشرف","تنويه","تنبيه","إنذار","توبيخ","دعم","دراسة ملف الانتقال/التوجيه","التكرار"];x({k:"sec_class",cyc:"sec",t:"محضر مجلس القسم (الأسدوس)",grp:"m",d:"محضر مجلس قسم بالثانوي: التركيبة، النتائج العامة للقسم، وقرارات المجلس في حق كل تلميذ (تشجيع، إنذار، توبيخ، توجيه...).",auto:"لوائح التلاميذ والأساتذة",page:"a4",init:(t,e)=>{const c=gt(e);return{city:t.city||"",date:`${MK.syStart(e)+1}-01-20`,sem:"1",cls:c[0]||"",time:"15:00",mean:"",max:"",min:"",above:"",teachers:[["","",""]],parents:"",pupilsRep:"",pupilsList:[],remarks:"ناقش المجلس النتائج العامة للقسم والصعوبات المسجلة، واتخذ القرارات التالية في حق التلاميذ، وأوصى بتفعيل الدعم والمواكبة للتلاميذ المتعثرين وبتتبع حالات الغياب."}},defs:(t,e)=>[{k:"city",l:"حرر ب",half:!0},{k:"date",l:"تاريخ المجلس",t:"date",half:!0},{k:"sem",l:"الأسدوس",t:"select",opts:[["1","الأول"],["2","الثاني"]],half:!0},{k:"cls",l:"القسم",t:"select",opts:gt(e).map(c=>[c,c]),half:!0},{k:"time",l:"الساعة",half:!0},{sec:"التركيبة"},{k:"teachers",l:"أساتذة القسم",t:"grid",cols:["الاسم","المادة","ملاحظات"],widths:["1.6fr","1.2fr","1fr"],list:["k2Emps"],fill:c=>{const a=K.E.byName(c[0]);return a?[c[0],c[1]||a.subject||"",c[2]]:null}},{k:"parents",l:"ممثلا أولياء التلاميذ",half:!0},{k:"pupilsRep",l:"ممثلا التلاميذ",half:!0},{sec:"نتائج القسم"},{k:"mean",l:"معدل القسم",t:"num",half:!0},{k:"above",l:"عدد الحاصلين على 10 فما فوق",t:"num",half:!0},{k:"max",l:"أعلى معدل",t:"num",half:!0},{k:"min",l:"أدنى معدل",t:"num",half:!0},{sec:"قرارات المجلس في حق التلاميذ"},{t:"html",html:'<button type="button" class="btn sm pri" data-act="fill">ملء لائحة تلاميذ القسم</button>'},{k:"pupilsList",l:"التلاميذ",t:"grid",cols:["التلميذ(ة)","المعدل","القرار","ملاحظات"],widths:["1.6fr",".6fr","1.2fr","1.2fr"],types:["ro","num","text","text"],fixed:!0,list:[null,null,"sec_dec"]},{k:"remarks",l:"خلاصات وتوصيات المجلس",t:"area",rows:4},{t:"html",html:`<datalist id="sec_dec">${Gt.map(c=>`<option value="${c}">`).join("")}</datalist>`}],act:{fill:(t,e,c)=>{const a=t.pupilsList||[];t.pupilsList=(window.Pupils?Pupils.massarOrder(Pupils.current(e).filter(s=>s.cls===t.cls),e):[]).map(s=>{const n=`${s.last||""} ${s.first||""}`.trim(),o=a.find(r=>r[0]===n)||[];return[n,o[1]||"",o[2]||"",o[3]||""]}),c.save("pupilsList")}},build:(t,e,c)=>{const a=(e.teachers||[]).filter(r=>pt(r[0])),s=e.pupilsList||[],n=s.length,o={};return s.forEach(r=>{pt(r[2])&&(o[r[2]]=(o[r[2]]||0)+1)}),{title:`محضر مجلس القسم ${l(e.cls||"")} — الأسدوس ${e.sem==="2"?"الثاني":"الأول"}`,sub:`الموسم الدراسي ${l(MK.syDash(c).replace("-","/"))}`,page:"a4",sign:h.sign(t,{right:`${l(e.city||t.city||"")} في: ${l(K.ldate(e.date))}`,left:"رئيس مجلس القسم"}),blocks:[{html:`<p class="sb-p">انعقد مجلس القسم <b>${l(e.cls||"....")}</b> بتاريخ ${l(K.ldate(e.date))} على الساعة ${l(e.time||"....")} برئاسة مدير المؤسسة أو من ينوب عنه، بحضور أساتذة القسم وممثلي أولياء التلاميذ (<b>${l(e.parents||"..........")}</b>) وممثلي التلاميذ (<b>${l(e.pupilsRep||"..........")}</b>)، وبعد دراسة نتائج الأسدوس ${e.sem==="2"?"الثاني":"الأول"}:</p>`},h.cap("أساتذة القسم","r"),E(f(["ر.ت","الاسم والنسب","المادة","ملاحظات","التوقيع"].map(r=>({t:r,c:"d"}))),(a.length?a:[["","",""]]).map((r,i)=>u([i+1,{t:r[0],c:"r b"},r[1],{t:r[2],c:"sm"},""])),"cmp"),h.cap("نتائج القسم","r"),E(f(["عدد التلاميذ","معدل القسم","أعلى معدل","أدنى معدل","الحاصلون على 10 فما فوق","النسبة"].map(r=>({t:r,c:"d"}))),[u([n||"",e.mean||"",e.max||"",e.min||"",e.above||"",n&&e.above?(+e.above/n*100).toFixed(1)+"%":""])],"cmp"),h.cap("قرارات المجلس","r"),E(f(["ر.ت","التلميذ(ة)","المعدل","القرار","ملاحظات"].map(r=>({t:r,c:"d"}))),(s.length?s:[["","","",""]]).map((r,i)=>u([i+1,{t:r[0],c:"r b"},r[1],{t:r[2],c:"b"},{t:r[3],c:"sm"}])),"cmp"),Object.keys(o).length?{html:`<p class="sb-p"><b>حصيلة القرارات:</b> ${Object.keys(o).map(r=>l(r)+": "+o[r]).join(" — ")}</p>`}:"",{html:`<p class="sb-p"><b>الخلاصات والتوصيات:</b> ${l(e.remarks||"")}</p>`}]}}}),x({k:"inv",t:"دعوات حضور اجتماعات المجالس",grp:"m",d:"دعوة فردية لكل عضو(ة) في المجلس (من تركيبة المجالس) لحضور الدورة: التاريخ والساعة والمكان وجدول الأعمال من محضر الدورة.",auto:"تركيبة المجالس ومحضر الدورة",page:"a4",init:(t,e)=>({src:"ped_oct",city:t.city||"",date:Docs.todayIso(),mdate:"",time:"",where:"",agenda:"",perPage:"2",skipDir:!0,extra:""}),defs:()=>[{k:"src",l:"الاجتماع",t:"select",opts:Object.keys(C).filter(t=>C[t].cyc==="sec"===w()||!C[t].cyc).map(t=>[t,C[t].t.replace(/^محضر\s+/,"")])},{note:"التاريخ والساعة والمكان وجدول الأعمال تؤخذ من محضر الدورة (أو قيمها الافتراضية) إذا تُركت فارغة هنا."},{k:"mdate",l:"تاريخ الاجتماع",t:"date",half:!0},{k:"time",l:"الساعة",half:!0},{k:"where",l:"المكان",half:!0,ph:"بالمدرسة المركزية"},{k:"perPage",l:"عدد الدعوات في الصفحة",t:"select",half:!0,opts:[["1","دعوة واحدة"],["2","دعوتان"],["3","ثلاث دعوات"]]},{k:"agenda",l:"جدول الأعمال (نقطة في كل سطر)",t:"area",rows:4},{k:"extra",l:"مدعوون آخرون (اسم في كل سطر)",t:"area",rows:2},{k:"city",l:"حرر ب",half:!0},{k:"date",l:"تاريخ الدعوة",t:"date",half:!0}],build:(t,e,c)=>{const a=C[e.src]||C.ped_oct,s=P(c)[a.k]||{},n=a.council==="ar"&&(s.lang||a.lang)==="fr"?"fr":a.council,o=U[n]||"",r=e.mdate||s.date||B[a.period||"oct"](c),i=e.time||s.time||a.time||"التاسعة صباحا",m=String(e.where||s.place||Q()).replace(/^ب(?=ال|م)/,""),p=String(e.agenda||s.agenda||a.agenda||"").split(`
+`).map(k=>k.trim().replace(/[؛;.]$/,"")).filter(Boolean),d=b().director(),y=j(ot(N(c),n)).filter(k=>!(e.skipDir!==!1&&d&&kt(k[0],fullName(d)))),O=k=>{const F=K.E&&K.E.byName?K.E.byName(k):null;return tt(F)||!!(F&&!F.sex&&/(ة|ات)\b|أستاذة|مديرة|متصرفة/.test(String(F.cadre||"")+" "+String(F.grade||"")))},g=y.map(k=>`${O(k[0])?"السيدة":"السيد"}: <b>${l(k[0])}</b>${k[2]?` — ${l(k[2])}`:""}`).concat(String(e.extra||"").split(`
+`).map(k=>k.trim()).filter(Boolean).map(k=>`السيد(ة): <b>${l(k)}</b>`)),L=K.ldate(r),V=K.dayName(r);return{page:"a4",pages:Partners.invitePages({hdr:Partners.compactHdr(t),place:e.city||t.city,date:e.date,to:g.length?g:[""],subject:`دعوة لحضور اجتماع ${o} — الدورة ${a.session||""}`,body:[`وبعد، يشرفني أن أدعوكم لحضور اجتماع <b>${l(o)}</b> في دورته ${l(a.session||"")} برسم السنة الدراسية ${l(MK.syDash(c).replace("-","/"))}، الذي سينعقد يوم ${l(V)} <b>${l(L)}</b> على الساعة <b>${l(i)}</b> ب<b>${l(m)}</b>، وذلك لتدارس النقاط التالية:`],agenda:p,outro:"ونظرا لأهمية هذا الاجتماع، أرجو منكم الحرص على الحضور في الوقت المحدد.",sigTitle:"رئيس المجلس، مدير(ة) المؤسسة",sigName:d?fullName(d):"",perPage:e.perPage})}}});const bt=["comp","restr","inv","ped_oct","mgmt_oct","teach_oct","teach_oct_fr","ped_mar","mgmt_mar","teach_mar","teach_mar_fr","classes_rep","ped_jul","mgmt_jul","teach_jul","teach_jul_fr","project","rules","cover","sec_comp","sec_class"];T.sort((t,e)=>bt.indexOf(t.k)-bt.indexOf(e.k));const ft=K.center({id:"councils",title:"المجالس التقنية",icon:"🏛️",route:"councilDoc",hubRoute:"councils",groups:[["m","تركيبة المجالس ومحاضر الاجتماعات","تُملأ الحاضرون تلقائيا من تركيبة المجالس"]],intro:"ابدأ ب«تركيبة المجالس» (تُحسب من لائحة الموظفين والمستويات المسندة لكل أستاذ)، ثم اختر محضر الدورة: كل محضر يقترح نصا جاهزا قابلا للتعديل مع جداول النتائج المحسوبة من لوائح التلاميذ، ولوائح الحاضرين والمتغيبين والتوقيعات.",docs:()=>T.filter(t=>t.cyc==="sec"?w():!(w()&&/^(comp|classes_rep)$/.test(t.k)&&t.cyc!=="sec")),store:t=>P(t)});window.Council={migrate:G,comp:N,compositionDoc:wt,DOCS:()=>T.filter(t=>t.cyc==="sec"?w():!(w()&&/^(comp|classes_rep)$/.test(t.k))),summary:()=>({docs:T.length})},window.pageCouncils=(t,e)=>{G(DB),ft.hub(t,e)},window.pageCouncilDoc=(t,e)=>{G(DB),ft.doc(t,e)}})();

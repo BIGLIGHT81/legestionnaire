@@ -1,212 +1,28 @@
-'use strict';
-/* 1.9.4 — شؤون التلاميذ ← «طلبات التسجيل الجديدة» (التسجيل القبلي بمنظومة مسار: RentreeScolaire / PreInscription).
-   كل طلب: المؤسسة، حالة الطلب (مقبول / مرفوض / في طور الدراسة)، معلومات التلميذ(ة) بالعربية والفرنسية، الجنس، تاريخ ومكان الازدياد، الجنسية،
-   المستوى، وثائق التلميذ(ة) ووثائق التلقيح، ومعلومات الوالدين (الأب، الأم، الولي الشرعي: الاسم، ر.ب.و، المهنة، الهاتف، البريد، العنوان).
-   الإدخال يدويا أو بلصق صفحة «تفاصيل طلب التسجيل» كما هي من مسار (يمكن لصق عدة طلبات دفعة واحدة).
-   الوثائق: سجل طلبات التسجيل، بطاقة الطلب، إشعار ولي الأمر بقبول أو رفض الطلب، إحصائيات.
-   Data: DB.preins = { items: [{ id, sy, date, school, status, lastFr, lastAr, firstFr, firstAr, g, birth, nat, place, level, docs: [], parents: [{ role, lastFr, lastAr, firstFr, firstAr, cin, job, phone, email, addr, guardian }], notes, reason }] } */
-(function () {
-  const Dx = window.Docs, esc = Dx.esc;
-  const nm = t => String(t == null ? '' : t).replace(/[‎‏‪-‮]/g, '').trim();
-  const R = () => { const m = (DB.preins = DB.preins && typeof DB.preins === 'object' ? DB.preins : {}); m.items = Array.isArray(m.items) ? m.items : []; return m; };
-  const STATUS = { ok: ['مقبول', '#1e8449'], no: ['مرفوض', '#c0392b'], wait: ['في طور الدراسة', '#d68910'] };
-  const stOf = t => (/مرفوض|rejet|refus/i.test(t) ? 'no' : /مقبول|accept|valid/i.test(t) ? 'ok' : 'wait');
-  const LEVELS_P = ['التعليم الأولي', 'الأول ابتدائي عام', 'الثاني ابتدائي عام', 'الثالث ابتدائي عام', 'الرابع ابتدائي عام', 'الخامس ابتدائي عام', 'السادس ابتدائي عام', 'الأولى ثانوي إعدادي', 'الجذع المشترك'];
-  // 1.9.4: the levels follow the cycle of the institution (no pre-school for the collège / lycée)
-  const LVL = () => { const c = (typeof S === 'function' && S().cycle) || ''; return /إعدادي/.test(c) ? ['الأولى إعدادي', 'الثانية إعدادي', 'الثالثة إعدادي'] : /تأهيلي/.test(c) ? ['الجذع المشترك', 'الأولى باكالوريا', 'الثانية باكالوريا'] : LEVELS_P; };
-  const DOCS = ['صورة شخصية الطفل(ة)', 'عقد الازدياد الطفل(ة)', 'وثيقة معطيات عامة حول الطفل', 'وثيقة التلقيحات والتكملة الضرورية فيما يخص فيتامينات أ و د', 'شهادة المغادرة', 'شهادة الإقامة'];
-  const ROLES = ['الأب', 'الأم', 'الولي الشرعي'];
-  const fullAr = x => [x.lastAr, x.firstAr].filter(Boolean).join(' ');
-  const fullFr = x => [x.lastFr, x.firstFr].filter(Boolean).join(' ');
-  const ld = iso => (iso ? (window.K && K.ldate ? K.ldate(iso) : iso) : '');
-  const gAr = g => (g === 'F' ? 'أنثى' : g === 'M' ? 'ذكر' : '');
-  const guard = x => (x.parents || []).find(p => p.guardian) || (x.parents || [])[0] || {};
-  const st = { sy: '', status: '', level: '', q: '' };
-
-  /* ---------- parsing of the page «تفاصيل طلب التسجيل» copied from Massar ---------- */
-  const LBL = { 'المؤسسة': 'school', 'حالة الطلب': 'status', 'النسب بالفرنسية': 'lastFr', 'النسب بالعربية': 'lastAr', 'الإسم بالفرنسية': 'firstFr', 'الاسم بالفرنسية': 'firstFr', 'الإسم بالعربية': 'firstAr', 'الاسم بالعربية': 'firstAr',
-    'الجنس': 'g', 'تاريخ الإزدياد': 'birth', 'تاريخ الازدياد': 'birth', 'الجنسية': 'nat', 'مكان الميلاد': 'place', 'مكان الازدياد': 'place', 'المستوى': 'level', 'البطاقة الوطنية للتعريف (CIN)': 'cin', 'البطاقة الوطنية للتعريف': 'cin', 'مهنة': 'job', 'المهنة': 'job', 'هاتف': 'phone', 'الهاتف': 'phone', 'البريد الإلكتروني': 'email', 'البريد الالكتروني': 'email', 'العنوان': 'addr' };
-  const HEADS = /^(تفاصيل طلب التسجيل|معلومات التلميذ\(ة\)|وثائق التلميذ\(ة\)|المؤسسة والمستوى|وثائق التلقيح|وثائق التلقيح الإلزامية|معلومات الوالدين)$/;
-  const isoD = v => { const s = nm(v); let m; if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`; if ((m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(s))) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; return s; };
-  function parseOne(text) {
-    const L = text.split(/\r?\n/).map(l => nm(l.replace(/^[*•\-]\s*/, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1'))).filter(Boolean);
-    const x = { id: uid('pi'), sy: MK.curSy(), date: Dx.todayIso(), status: 'wait', docs: [], parents: [], notes: '' };
-    let sec = 'pupil', P = null, roles = [], docSec = false;
-    for (let i = 0; i < L.length; i++) {
-      const l = L[i];
-      if (/^معلومات الوالدين/.test(l)) { sec = 'parents'; docSec = false; continue; }
-      if (/^(وثائق التلميذ|وثائق التلقيح)/.test(l)) { docSec = true; continue; }
-      if (/^المؤسسة والمستوى/.test(l)) { docSec = false; continue; }
-      if (HEADS.test(l)) { docSec = false; continue; }
-      if (sec === 'parents' && /^(الأب|الأم|الولي)/.test(l) && !LBL[l]) { roles.push(/الأم/.test(l) ? 'الأم' : /الأب/.test(l) ? 'الأب' : 'الولي الشرعي'); continue; }
-      if (/^الولي الشرعي\s*-/.test(l) || /تم تعيين هذا الشخص كولي شرعي/.test(l)) { if (P) P.guardian = true; continue; }
-      const k = LBL[l];
-      if (k) {
-        docSec = false;
-        const nx = L[i + 1], val = nx && !LBL[nx] && !HEADS.test(nx) && !/^الولي الشرعي\s*-/.test(nx) ? nx : '';
-        if (val) i++;
-        if (sec === 'parents') {
-          if (!P || (k === 'lastFr' && P.lastFr != null) || (k === 'lastAr' && P.lastAr != null && P.lastFr == null)) { P = { role: roles[x.parents.length] || ROLES[x.parents.length] || 'الولي الشرعي', guardian: false }; x.parents.push(P); }
-          P[k] = val;
-        } else if (k === 'school') { if (!x.school) x.school = val; }
-        else if (k === 'status') x.status = stOf(val);
-        else if (k === 'g') x.g = /أنث|^f/i.test(val) ? 'F' : 'M';
-        else if (k === 'birth') x.birth = isoD(val);
-        else x[k] = val;
-        continue;
-      }
-      if (docSec && sec === 'pupil') x.docs.push(l);
-    }
-    if (x.parents.length && !x.parents.some(p => p.guardian)) x.parents[0].guardian = true;
-    return x.lastAr || x.firstAr || x.lastFr ? x : null;
-  }
-  const parseMany = text => String(text || '').split(/(?=تفاصيل طلب التسجيل)/).map(parseOne).filter(Boolean);
-  function merge(list) {
-    let n = 0, u = 0;
-    list.forEach(x => {
-      const k = (fullFr(x) + '|' + x.birth).toUpperCase(), e = R().items.find(y => (fullFr(y) + '|' + y.birth).toUpperCase() === k && (fullFr(y) || y.birth));
-      if (e) { const id = e.id; Object.assign(e, x, { id, date: e.date, notes: e.notes || x.notes }); u++; } else { R().items.push(x); n++; }
-    });
-    persist(); return { n, u };
-  }
-
-  /* ---------- the form ---------- */
-  function form(x0, done) {
-    const x = x0 ? JSON.parse(JSON.stringify(x0)) : { id: uid('pi'), sy: MK.curSy(), date: Dx.todayIso(), school: S().school || '', status: 'wait', g: 'M', nat: 'مغربية', level: (LVL()[1] || LVL()[0]), docs: [], parents: [{ role: 'الأب', guardian: true }, { role: 'الأم' }], notes: '' };
-    x.parents = Array.isArray(x.parents) ? x.parents : [];
-    const b = document.createElement('div');
-    const fld = (k, l, o) => `<div class="fld"><label>${l}</label><input class="inp" data-f="${k}" ${o || ''} value="${esc(x[k] || '')}"></div>`;
-    const draw = () => {
-      b.innerHTML = `<div class="fgrid">
-        <div class="fld"><label>حالة الطلب</label><select class="inp" data-f="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div>
-        ${fld('date', 'تاريخ الطلب', 'type="date"')}${fld('school', 'المؤسسة')}
-        <div class="fld"><label>المستوى</label><input class="inp" data-f="level" list="piLv" value="${esc(x.level || '')}"></div>
-        ${fld('lastAr', 'النسب بالعربية')}${fld('firstAr', 'الإسم بالعربية')}${fld('lastFr', 'النسب بالفرنسية', 'dir="ltr"')}${fld('firstFr', 'الإسم بالفرنسية', 'dir="ltr"')}
-        <div class="fld"><label>الجنس</label><select class="inp" data-f="g"><option value="M" ${x.g !== 'F' ? 'selected' : ''}>ذكر</option><option value="F" ${x.g === 'F' ? 'selected' : ''}>أنثى</option></select></div>
-        ${fld('birth', 'تاريخ الازدياد', 'type="date"')}${fld('place', 'مكان الميلاد')}${fld('nat', 'الجنسية')}</div>
-        ${x.status === 'no' ? `<div class="fld"><label>سبب الرفض</label><input class="inp" data-f="reason" value="${esc(x.reason || '')}" placeholder="مثال: عدم استيفاء السن القانوني، خارج المجال الجغرافي للمؤسسة..."></div>` : ''}
-        <div class="sec-t" style="margin-top:8px">الوثائق المدلى بها</div><div class="pi-docs">${DOCS.concat(x.docs.filter(d => !DOCS.includes(d))).map((d, i) => `<label class="chk"><input type="checkbox" data-d="${esc(d)}" ${x.docs.includes(d) ? 'checked' : ''}> ${esc(d)}</label>`).join('')}</div>
+"use strict";(function(){const y=window.Docs,i=y.esc,w=l=>String(l??"").replace(/[‎‏‪-‮]/g,"").trim(),f=()=>{const l=DB.preins=DB.preins&&typeof DB.preins=="object"?DB.preins:{};return l.items=Array.isArray(l.items)?l.items:[],l},p={ok:["مقبول","#1e8449"],no:["مرفوض","#c0392b"],wait:["في طور الدراسة","#d68910"]},_=l=>/مرفوض|rejet|refus/i.test(l)?"no":/مقبول|accept|valid/i.test(l)?"ok":"wait",q=["التعليم الأولي","الأول ابتدائي عام","الثاني ابتدائي عام","الثالث ابتدائي عام","الرابع ابتدائي عام","الخامس ابتدائي عام","السادس ابتدائي عام","الأولى ثانوي إعدادي","الجذع المشترك"],M=()=>{const l=typeof S=="function"&&S().cycle||"";return/إعدادي/.test(l)?["الأولى إعدادي","الثانية إعدادي","الثالثة إعدادي"]:/تأهيلي/.test(l)?["الجذع المشترك","الأولى باكالوريا","الثانية باكالوريا"]:q},F=["صورة شخصية الطفل(ة)","عقد الازدياد الطفل(ة)","وثيقة معطيات عامة حول الطفل","وثيقة التلقيحات والتكملة الضرورية فيما يخص فيتامينات أ و د","شهادة المغادرة","شهادة الإقامة"],C=["الأب","الأم","الولي الشرعي"],u=l=>[l.lastAr,l.firstAr].filter(Boolean).join(" "),m=l=>[l.lastFr,l.firstFr].filter(Boolean).join(" "),v=l=>l?window.K&&K.ldate?K.ldate(l):l:"",D=l=>l==="F"?"أنثى":l==="M"?"ذكر":"",j=l=>(l.parents||[]).find(a=>a.guardian)||(l.parents||[])[0]||{},b={sy:"",status:"",level:"",q:""},E={المؤسسة:"school","حالة الطلب":"status","النسب بالفرنسية":"lastFr","النسب بالعربية":"lastAr","الإسم بالفرنسية":"firstFr","الاسم بالفرنسية":"firstFr","الإسم بالعربية":"firstAr","الاسم بالعربية":"firstAr",الجنس:"g","تاريخ الإزدياد":"birth","تاريخ الازدياد":"birth",الجنسية:"nat","مكان الميلاد":"place","مكان الازدياد":"place",المستوى:"level","البطاقة الوطنية للتعريف (CIN)":"cin","البطاقة الوطنية للتعريف":"cin",مهنة:"job",المهنة:"job",هاتف:"phone",الهاتف:"phone","البريد الإلكتروني":"email","البريد الالكتروني":"email",العنوان:"addr"},P=/^(تفاصيل طلب التسجيل|معلومات التلميذ\(ة\)|وثائق التلميذ\(ة\)|المؤسسة والمستوى|وثائق التلقيح|وثائق التلقيح الإلزامية|معلومات الوالدين)$/,R=l=>{const a=w(l);let s;return(s=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(a))?`${s[1]}-${s[2].padStart(2,"0")}-${s[3].padStart(2,"0")}`:(s=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(a))?`${s[3]}-${s[2].padStart(2,"0")}-${s[1].padStart(2,"0")}`:a};function O(l){const a=l.split(/\r?\n/).map(d=>w(d.replace(/^[*•\-]\s*/,"").replace(/\[([^\]]+)\]\([^)]*\)/g,"$1"))).filter(Boolean),s={id:uid("pi"),sy:MK.curSy(),date:y.todayIso(),status:"wait",docs:[],parents:[],notes:""};let n="pupil",o=null,c=[],t=!1;for(let d=0;d<a.length;d++){const e=a[d];if(/^معلومات الوالدين/.test(e)){n="parents",t=!1;continue}if(/^(وثائق التلميذ|وثائق التلقيح)/.test(e)){t=!0;continue}if(/^المؤسسة والمستوى/.test(e)){t=!1;continue}if(P.test(e)){t=!1;continue}if(n==="parents"&&/^(الأب|الأم|الولي)/.test(e)&&!E[e]){c.push(/الأم/.test(e)?"الأم":/الأب/.test(e)?"الأب":"الولي الشرعي");continue}if(/^الولي الشرعي\s*-/.test(e)||/تم تعيين هذا الشخص كولي شرعي/.test(e)){o&&(o.guardian=!0);continue}const r=E[e];if(r){t=!1;const h=a[d+1],g=h&&!E[h]&&!P.test(h)&&!/^الولي الشرعي\s*-/.test(h)?h:"";g&&d++,n==="parents"?((!o||r==="lastFr"&&o.lastFr!=null||r==="lastAr"&&o.lastAr!=null&&o.lastFr==null)&&(o={role:c[s.parents.length]||C[s.parents.length]||"الولي الشرعي",guardian:!1},s.parents.push(o)),o[r]=g):r==="school"?s.school||(s.school=g):r==="status"?s.status=_(g):r==="g"?s.g=/أنث|^f/i.test(g)?"F":"M":r==="birth"?s.birth=R(g):s[r]=g;continue}t&&n==="pupil"&&s.docs.push(e)}return s.parents.length&&!s.parents.some(d=>d.guardian)&&(s.parents[0].guardian=!0),s.lastAr||s.firstAr||s.lastFr?s:null}const B=l=>String(l||"").split(/(?=تفاصيل طلب التسجيل)/).map(O).filter(Boolean);function T(l){let a=0,s=0;return l.forEach(n=>{const o=(m(n)+"|"+n.birth).toUpperCase(),c=f().items.find(t=>(m(t)+"|"+t.birth).toUpperCase()===o&&(m(t)||t.birth));if(c){const t=c.id;Object.assign(c,n,{id:t,date:c.date,notes:c.notes||n.notes}),s++}else f().items.push(n),a++}),persist(),{n:a,u:s}}function I(l,a){const s=l?JSON.parse(JSON.stringify(l)):{id:uid("pi"),sy:MK.curSy(),date:y.todayIso(),school:S().school||"",status:"wait",g:"M",nat:"مغربية",level:M()[1]||M()[0],docs:[],parents:[{role:"الأب",guardian:!0},{role:"الأم"}],notes:""};s.parents=Array.isArray(s.parents)?s.parents:[];const n=document.createElement("div"),o=(t,d,e)=>`<div class="fld"><label>${d}</label><input class="inp" data-f="${t}" ${e||""} value="${i(s[t]||"")}"></div>`,c=()=>{n.innerHTML=`<div class="fgrid">
+        <div class="fld"><label>حالة الطلب</label><select class="inp" data-f="status">${Object.entries(p).map(([t,d])=>`<option value="${t}" ${s.status===t?"selected":""}>${d[0]}</option>`).join("")}</select></div>
+        ${o("date","تاريخ الطلب",'type="date"')}${o("school","المؤسسة")}
+        <div class="fld"><label>المستوى</label><input class="inp" data-f="level" list="piLv" value="${i(s.level||"")}"></div>
+        ${o("lastAr","النسب بالعربية")}${o("firstAr","الإسم بالعربية")}${o("lastFr","النسب بالفرنسية",'dir="ltr"')}${o("firstFr","الإسم بالفرنسية",'dir="ltr"')}
+        <div class="fld"><label>الجنس</label><select class="inp" data-f="g"><option value="M" ${s.g!=="F"?"selected":""}>ذكر</option><option value="F" ${s.g==="F"?"selected":""}>أنثى</option></select></div>
+        ${o("birth","تاريخ الازدياد",'type="date"')}${o("place","مكان الميلاد")}${o("nat","الجنسية")}</div>
+        ${s.status==="no"?`<div class="fld"><label>سبب الرفض</label><input class="inp" data-f="reason" value="${i(s.reason||"")}" placeholder="مثال: عدم استيفاء السن القانوني، خارج المجال الجغرافي للمؤسسة..."></div>`:""}
+        <div class="sec-t" style="margin-top:8px">الوثائق المدلى بها</div><div class="pi-docs">${F.concat(s.docs.filter(t=>!F.includes(t))).map((t,d)=>`<label class="chk"><input type="checkbox" data-d="${i(t)}" ${s.docs.includes(t)?"checked":""}> ${i(t)}</label>`).join("")}</div>
         <div class="sec-t" style="margin-top:8px">معلومات الوالدين</div>
-        ${x.parents.map((p, i) => `<div class="pi-par"><div class="fgrid"><div class="fld"><label>الصفة</label><input class="inp" list="piRo" data-p="${i}" data-k="role" value="${esc(p.role || '')}"></div>
-          <label class="chk" style="align-self:end"><input type="radio" name="piG" data-g="${i}" ${p.guardian ? 'checked' : ''}> الولي الشرعي</label>
-          ${[['lastAr', 'النسب بالعربية'], ['firstAr', 'الإسم بالعربية'], ['lastFr', 'النسب بالفرنسية', 1], ['firstFr', 'الإسم بالفرنسية', 1], ['cin', 'ر.ب.و (CIN)', 1], ['job', 'المهنة'], ['phone', 'الهاتف', 1], ['email', 'البريد الإلكتروني', 1]].map(([k, l, ltr]) => `<div class="fld"><label>${l}</label><input class="inp" ${ltr ? 'dir="ltr"' : ''} data-p="${i}" data-k="${k}" value="${esc(p[k] || '')}"></div>`).join('')}</div>
-          <div class="fld"><label>العنوان</label><input class="inp" data-p="${i}" data-k="addr" value="${esc(p.addr || '')}"></div><button class="btn sm danger" data-pd="${i}">${ic('trash')} حذف</button></div>`).join('')}
-        <button class="btn sm" id="piPA">${ic('plus')} إضافة أحد الوالدين / الولي</button>
-        <div class="fld" style="margin-top:8px"><label>ملاحظات</label><textarea class="inp" rows="2" data-f="notes">${esc(x.notes || '')}</textarea></div>${K.dl('piLv', LVL())}${K.dl('piRo', ROLES)}`;
-      $$('[data-f]', b).forEach(el => el.oninput = el.onchange = () => { x[el.dataset.f] = el.value; if (el.dataset.f === 'status') draw(); });
-      $$('[data-d]', b).forEach(el => el.onchange = () => { const d = el.dataset.d; x.docs = x.docs.filter(y => y !== d); if (el.checked) x.docs.push(d); });
-      $$('[data-p]', b).forEach(el => el.oninput = () => { x.parents[+el.dataset.p][el.dataset.k] = el.value; });
-      $$('[data-g]', b).forEach(el => el.onchange = () => { x.parents.forEach((p, i) => { p.guardian = i === +el.dataset.g; }); });
-      $$('[data-pd]', b).forEach(el => el.onclick = () => { x.parents.splice(+el.dataset.pd, 1); draw(); });
-      $('#piPA', b).onclick = () => { x.parents.push({ role: ROLES[Math.min(x.parents.length, 2)] }); draw(); };
-    };
-    draw();
-    modal({ title: x0 ? 'تعديل طلب التسجيل' : 'تسجيل طلب جديد', size: 'xl', body: b, actions: [{ label: ic('save') + ' حفظ', cls: 'pri', onClick: () => {
-      if (!nm(x.lastAr) && !nm(x.firstAr) && !nm(x.lastFr)) { toast('اكتب اسم التلميذ(ة)', true); return false; }
-      const L = R().items, i = L.findIndex(y => y.id === x.id); if (i >= 0) L[i] = x; else L.push(x); persist(); done();
-    } }, { label: 'إلغاء' }] });
-  }
-  function pasteDlg(done) {
-    const b = document.createElement('div');
-    b.innerHTML = `<p style="margin-top:0;line-height:1.85">افتح في مسار «التسجيل القبلي ← تفاصيل طلب التسجيل»، حدد كل محتوى الصفحة (Ctrl+A) وانسخه (Ctrl+C)، ثم الصقه هنا (Ctrl+V). يمكن لصق عدة طلبات متتالية. يتعرف البرنامج على: حالة الطلب، معلومات التلميذ(ة)، الوثائق، المستوى، ومعلومات الوالدين والولي الشرعي.</p><textarea class="inp" id="piT" rows="14" placeholder="تفاصيل طلب التسجيل&#10;المؤسسة&#10;..."></textarea><div id="piPv" class="muted" style="margin-top:6px"></div>`;
-    const ta = $('#piT', b); ta.oninput = () => { const L = parseMany(ta.value); $('#piPv', b).textContent = L.length ? `تم التعرف على ${L.length} طلب: ` + L.map(x => `${fullAr(x)} (${STATUS[x.status][0]})`).join('، ') : ''; };
-    modal({ title: 'لصق طلبات التسجيل من مسار', size: 'lg', body: b, actions: [{ label: ic('save') + ' إضافة', cls: 'pri', onClick: () => { const L = parseMany(ta.value); if (!L.length) { toast('لم يتم التعرف على أي طلب (تأكد من نسخ الصفحة كاملة)', true); return false; } const r = merge(L); toast(`أضيف ${r.n} طلب${r.u ? ` وحُيّن ${r.u}` : ''}`); done(); } }, { label: 'إلغاء' }] });
-  }
-
-  /* ---------- page ---------- */
-  const list = sy => R().items.filter(x => (x.sy || MK.curSy()) === sy);
-  const filtered = sy => list(sy).filter(x => (!st.status || x.status === st.status) && (!st.level || x.level === st.level) && (!st.q || [fullAr(x), fullFr(x), x.place, guard(x).cin, guard(x).phone].join(' ').toLowerCase().includes(st.q.toLowerCase())))
-    .sort((a, b) => String(a.level).localeCompare(String(b.level), 'ar') || fullAr(a).localeCompare(fullAr(b), 'ar'));
-  function page(v) {
-    st.sy = MK.curSy();
-    const sy = st.sy, A = list(sy), L = filtered(sy), levels = Array.from(new Set(A.map(x => x.level).filter(Boolean)));
-    const c = k => A.filter(x => x.status === k).length;
-    v.innerHTML = `<div class="page-h"><h1>طلبات التسجيل الجديدة</h1><span class="sub">الموسم الدراسي ${esc(MK.syDash(sy))}</span><span class="sp"></span>
-        <button class="btn" id="piPaste">${ic('up')} لصق من مسار</button><button class="btn" id="piDoc">${ic('print')} الوثائق</button><button class="btn pri" id="piNew">${ic('plus')} طلب جديد</button></div>
-      <div class="att-kpis big" style="margin-bottom:10px"><span>الطلبات: <b>${A.length}</b></span>${Object.entries(STATUS).map(([k, s]) => `<span style="color:${s[1]}">${s[0]}: <b>${c(k)}</b></span>`).join('')}<span>إناث: <b>${A.filter(x => x.g === 'F').length}</b></span>${levels.slice(0, 4).map(l => `<span>${esc(l)}: <b>${A.filter(x => x.level === l).length}</b></span>`).join('')}</div>
-      <div class="toolbar" style="margin-bottom:8px"><select class="inp" id="piS" style="width:auto"><option value="">كل الحالات</option>${Object.entries(STATUS).map(([k, s]) => `<option value="${k}" ${st.status === k ? 'selected' : ''}>${s[0]}</option>`).join('')}</select>
-        <select class="inp" id="piL" style="width:auto"><option value="">كل المستويات</option>${levels.map(l => `<option ${st.level === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
-        <div class="search">${ic('search')}<input class="inp" id="piQ" placeholder="بحث بالاسم، ر.ب.و أو هاتف الولي..." value="${esc(st.q)}"></div></div>
-      ${L.length ? `<div class="card"><div class="card-b" style="overflow:auto"><table class="tbl compact"><thead><tr><th>الاسم الكامل</th><th>Nom</th><th>الجنس</th><th>تاريخ ومكان الازدياد</th><th>المستوى</th><th>الحالة</th><th>الوثائق</th><th>الولي الشرعي</th><th>الهاتف</th><th></th></tr></thead><tbody>
-        ${L.map(x => { const g = guard(x), s = STATUS[x.status] || STATUS.wait; return `<tr><td class="b">${esc(fullAr(x))}</td><td dir="ltr">${esc(fullFr(x))}</td><td>${gAr(x.g)}</td><td>${esc(ld(x.birth))}${x.place ? ' — ' + esc(x.place) : ''}</td><td>${esc(x.level || '')}</td><td><b style="color:${s[1]}">${s[0]}</b></td><td class="num">${(x.docs || []).length}</td><td>${esc(fullAr(g))}${g.role ? ` <small class="muted">(${esc(g.role)})</small>` : ''}</td><td dir="ltr">${esc(g.phone || '')}</td>
-          <td style="white-space:nowrap"><button class="btn sm" data-ed="${x.id}">${ic('edit')}</button><button class="btn sm" data-cd="${x.id}" title="بطاقة الطلب">${ic('print')}</button><button class="btn sm" data-nt="${x.id}" title="إشعار ولي الأمر">✉</button><button class="btn sm danger" data-del="${x.id}">${ic('trash')}</button></td></tr>`; }).join('')}</tbody></table></div></div>`
-        : '<div class="empty-state">لا توجد طلبات تسجيل بعد. اضغط «طلب جديد» أو «لصق من مسار».</div>'}`;
-    const again = () => page(v);
-    $('#piNew', v).onclick = () => form(null, again);
-    $('#piPaste', v).onclick = () => pasteDlg(again);
-    $('#piDoc', v).onclick = () => go('preinsDoc', { kind: 'list' });
-    $('#piS', v).onchange = e => { st.status = e.target.value; again(); };
-    $('#piL', v).onchange = e => { st.level = e.target.value; again(); };
-    $('#piQ', v).oninput = e => { st.q = e.target.value; clearTimeout(page.t); page.t = setTimeout(() => { again(); const q = $('#piQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
-    const by = id => R().items.find(x => x.id === id);
-    $$('[data-ed]', v).forEach(b => b.onclick = () => form(by(b.dataset.ed), again));
-    $$('[data-cd]', v).forEach(b => b.onclick = () => go('preinsDoc', { kind: 'card', id: b.dataset.cd }));
-    $$('[data-nt]', v).forEach(b => b.onclick = () => go('preinsDoc', { kind: 'notice', id: b.dataset.nt }));
-    $$('[data-del]', v).forEach(b => b.onclick = async () => { if (!(await confirmBox('حذف هذا الطلب؟', 'حذف'))) return; R().items = R().items.filter(x => x.id !== b.dataset.del); persist(); again(); });
-  }
-
-  /* ---------- documents ---------- */
-  const thr = cells => K.thr(cells.map(c => (typeof c === 'object' ? c : { t: c, c: 'd' })));
-  const kvr = (a, b, c, d) => `<tr><td class="k">${a}</td><td class="r">${b || ''}</td>${c != null ? `<td class="k">${c}</td><td class="r">${d || ''}</td>` : ''}</tr>`;
-  function card(s, x) {
-    const P = x.parents || [];
-    return K.SB.pages(s, { title: 'بطاقة طلب التسجيل', sub: `الموسم الدراسي ${esc(MK.syDash(x.sy || MK.curSy()).replace('-', '/'))}`, page: 'a4', blocks: [
-      { html: `<table class="tbl sb-t sb-kv pi-kv"><tbody>${kvr('المؤسسة', esc(x.school || s.school || ''), 'حالة الطلب', `<b style="color:${(STATUS[x.status] || STATUS.wait)[1]}">${(STATUS[x.status] || STATUS.wait)[0]}</b>`)}${kvr('تاريخ الطلب', esc(ld(x.date)), 'المستوى', esc(x.level || ''))}</tbody></table>` },
-      { html: '<div class="sb-cap r">معلومات التلميذ(ة)</div>' },
-      { html: `<table class="tbl sb-t sb-kv pi-kv"><tbody>${kvr('النسب بالعربية', `<b>${esc(x.lastAr || '')}</b>`, 'النسب بالفرنسية', `<b dir="ltr">${esc(x.lastFr || '')}</b>`)}${kvr('الإسم بالعربية', `<b>${esc(x.firstAr || '')}</b>`, 'الإسم بالفرنسية', `<b dir="ltr">${esc(x.firstFr || '')}</b>`)}${kvr('الجنس', gAr(x.g), 'الجنسية', esc(x.nat || ''))}${kvr('تاريخ الازدياد', esc(ld(x.birth)), 'مكان الميلاد', esc(x.place || ''))}</tbody></table>` },
-      { html: `<div class="sb-cap r">الوثائق</div><div class="pi-dl">${DOCS.concat((x.docs || []).filter(d => !DOCS.includes(d))).map(d => `<span><span class="sb-chk">${(x.docs || []).includes(d) ? '✔' : ''}</span> ${esc(d)}</span>`).join('')}</div>` },
-      { html: '<div class="sb-cap r">معلومات الوالدين</div>' },
-      { table: { cls: 'sb-t cmp', head: thr(['الصفة', 'الاسم الكامل', 'Nom complet', 'ر.ب.و', 'المهنة', 'الهاتف', 'العنوان']), rows: (P.length ? P : [{}, {}]).map(p => `<tr><td class="b">${esc(p.role || '')}${p.guardian ? '<br><small>(الولي الشرعي)</small>' : ''}</td><td class="r b">${esc(fullAr(p))}</td><td dir="ltr">${esc(fullFr(p))}</td><td dir="ltr">${esc(p.cin || '')}</td><td>${esc(p.job || '')}</td><td dir="ltr">${esc(p.phone || '')}</td><td class="r sm">${esc(p.addr || '')}</td></tr>`) } },
-      x.status === 'no' && x.reason ? { html: `<p class="sb-p"><b>سبب الرفض:</b> ${esc(x.reason)}</p>` } : null,
-      x.notes ? { html: `<p class="sb-p"><b>ملاحظات:</b> ${esc(x.notes)}</p>` } : null].filter(Boolean),
-      sign: K.SB.sign(s, {}) });
-  }
-  function notice(s, x) {
-    const g = guard(x), ok = x.status === 'ok', no = x.status === 'no', f = x.g === 'F';
-    const body = ok ? `يشرفني أن أخبركم بأنه تم <b>قبول</b> طلب تسجيل ${f ? 'ابنتكم' : 'ابنكم'}: <b>${esc(fullAr(x))}</b> ${f ? 'المزدادة' : 'المزداد'} بتاريخ ${esc(ld(x.birth))} ب${esc(x.place || '..........')} بمستوى <b>${esc(x.level || '')}</b> برسم الموسم الدراسي ${esc(MK.syDash(x.sy || MK.curSy()).replace('-', '/'))}. ونطلب منكم الحضور إلى إدارة المؤسسة لاستكمال ملف التسجيل مصحوبين بالوثائق المطلوبة.`
-      : no ? `يؤسفني أن أخبركم بأن طلب تسجيل ${f ? 'ابنتكم' : 'ابنكم'}: <b>${esc(fullAr(x))}</b> ${f ? 'المزدادة' : 'المزداد'} بتاريخ ${esc(ld(x.birth))} بمستوى <b>${esc(x.level || '')}</b> قد <b>رُفض</b>${x.reason ? `، وذلك ل${esc(x.reason.replace(/^ل/, ''))}` : ''}. ولمزيد من المعلومات يمكنكم الاتصال بإدارة المؤسسة.`
-        : `نخبركم بأن طلب تسجيل ${f ? 'ابنتكم' : 'ابنكم'}: <b>${esc(fullAr(x))}</b> بمستوى <b>${esc(x.level || '')}</b> في طور الدراسة، وسيتم إخباركم بالنتيجة في أقرب الآجال.`;
-    const one = `<div class="pi-nt"><div class="pi-nh">إشعار لولي الأمر بنتيجة طلب التسجيل</div><p>إلى السيد(ة): <b>${esc(fullAr(g) || '....................')}</b> ${g.role ? `(${esc(g.role)})` : ''} — الهاتف: <span dir="ltr">${esc(g.phone || '..........')}</span></p>
-      <p>${body}</p><div class="pi-ns"><span>حرر ب: ${esc(s.city || '')} في: ${esc(ld(Dx.todayIso()))}</span><span data-stm>توقيع وخاتم مدير(ة) المؤسسة</span></div></div>`;
-    return MK.flowPages({ page: 'a4', cls: 'sb', head: `<div class="mk-hdr">${Dx.header(s)}</div>`, blocks: [{ html: one }, { html: '<div class="pi-cut"></div>' }, { html: one }] });
-  }
-  function docList(s, sy, f) {
-    const L = list(sy).filter(x => !f.status || x.status === f.status).sort((a, b) => String(a.level).localeCompare(String(b.level), 'ar') || fullAr(a).localeCompare(fullAr(b), 'ar'));
-    const rows = L.map((x, i) => { const g = guard(x); return `<tr><td>${i + 1}</td><td class="r b">${esc(fullAr(x))}</td><td dir="ltr" class="sm">${esc(fullFr(x))}</td><td>${gAr(x.g)}</td><td class="nw">${esc(ld(x.birth))}</td><td class="sm">${esc(x.place || '')}</td><td class="sm">${esc(x.level || '')}</td><td style="color:${(STATUS[x.status] || STATUS.wait)[1]}" class="b">${(STATUS[x.status] || STATUS.wait)[0]}</td><td class="r sm">${esc(fullAr(g))}</td><td dir="ltr" class="sm">${esc(g.cin || '')}</td><td dir="ltr" class="sm">${esc(g.phone || '')}</td><td>${(x.docs || []).length}</td></tr>`; });
-    const c = k => L.filter(x => x.status === k).length;
-    return K.SB.pages(s, { title: 'سجل طلبات التسجيل الجديدة', sub: `الموسم الدراسي ${esc(MK.syDash(sy).replace('-', '/'))}${f.status ? ' — ' + STATUS[f.status][0] : ''}`, page: 'a4l', blocks: [
-      { table: { cls: 'sb-t cmp', head: thr(['ر.ت', 'الاسم الكامل', 'Nom complet', 'الجنس', 'تاريخ الازدياد', 'مكان الميلاد', 'المستوى', 'الحالة', 'الولي الشرعي', 'ر.ب.و', 'الهاتف', 'الوثائق']), rows }, minRows: 8 },
-      { html: `<p class="sb-note">المجموع: ${L.length} — مقبول: ${c('ok')} — مرفوض: ${c('no')} — في طور الدراسة: ${c('wait')} — إناث: ${L.filter(x => x.g === 'F').length}</p>` }] });
-  }
-  Dx.modCss += `.pi-kv td.k{width:20%}.pi-dl{display:grid;grid-template-columns:1fr 1fr;gap:1.4mm 4mm;font-size:10pt;margin-bottom:2mm}
+        ${s.parents.map((t,d)=>`<div class="pi-par"><div class="fgrid"><div class="fld"><label>الصفة</label><input class="inp" list="piRo" data-p="${d}" data-k="role" value="${i(t.role||"")}"></div>
+          <label class="chk" style="align-self:end"><input type="radio" name="piG" data-g="${d}" ${t.guardian?"checked":""}> الولي الشرعي</label>
+          ${[["lastAr","النسب بالعربية"],["firstAr","الإسم بالعربية"],["lastFr","النسب بالفرنسية",1],["firstFr","الإسم بالفرنسية",1],["cin","ر.ب.و (CIN)",1],["job","المهنة"],["phone","الهاتف",1],["email","البريد الإلكتروني",1]].map(([e,r,h])=>`<div class="fld"><label>${r}</label><input class="inp" ${h?'dir="ltr"':""} data-p="${d}" data-k="${e}" value="${i(t[e]||"")}"></div>`).join("")}</div>
+          <div class="fld"><label>العنوان</label><input class="inp" data-p="${d}" data-k="addr" value="${i(t.addr||"")}"></div><button class="btn sm danger" data-pd="${d}">${ic("trash")} حذف</button></div>`).join("")}
+        <button class="btn sm" id="piPA">${ic("plus")} إضافة أحد الوالدين / الولي</button>
+        <div class="fld" style="margin-top:8px"><label>ملاحظات</label><textarea class="inp" rows="2" data-f="notes">${i(s.notes||"")}</textarea></div>${K.dl("piLv",M())}${K.dl("piRo",C)}`,$$("[data-f]",n).forEach(t=>t.oninput=t.onchange=()=>{s[t.dataset.f]=t.value,t.dataset.f==="status"&&c()}),$$("[data-d]",n).forEach(t=>t.onchange=()=>{const d=t.dataset.d;s.docs=s.docs.filter(e=>e!==d),t.checked&&s.docs.push(d)}),$$("[data-p]",n).forEach(t=>t.oninput=()=>{s.parents[+t.dataset.p][t.dataset.k]=t.value}),$$("[data-g]",n).forEach(t=>t.onchange=()=>{s.parents.forEach((d,e)=>{d.guardian=e===+t.dataset.g})}),$$("[data-pd]",n).forEach(t=>t.onclick=()=>{s.parents.splice(+t.dataset.pd,1),c()}),$("#piPA",n).onclick=()=>{s.parents.push({role:C[Math.min(s.parents.length,2)]}),c()}};c(),modal({title:l?"تعديل طلب التسجيل":"تسجيل طلب جديد",size:"xl",body:n,actions:[{label:ic("save")+" حفظ",cls:"pri",onClick:()=>{if(!w(s.lastAr)&&!w(s.firstAr)&&!w(s.lastFr))return toast("اكتب اسم التلميذ(ة)",!0),!1;const t=f().items,d=t.findIndex(e=>e.id===s.id);d>=0?t[d]=s:t.push(s),persist(),a()}},{label:"إلغاء"}]})}function z(l){const a=document.createElement("div");a.innerHTML='<p style="margin-top:0;line-height:1.85">افتح في مسار «التسجيل القبلي ← تفاصيل طلب التسجيل»، حدد كل محتوى الصفحة (Ctrl+A) وانسخه (Ctrl+C)، ثم الصقه هنا (Ctrl+V). يمكن لصق عدة طلبات متتالية. يتعرف البرنامج على: حالة الطلب، معلومات التلميذ(ة)، الوثائق، المستوى، ومعلومات الوالدين والولي الشرعي.</p><textarea class="inp" id="piT" rows="14" placeholder="تفاصيل طلب التسجيل&#10;المؤسسة&#10;..."></textarea><div id="piPv" class="muted" style="margin-top:6px"></div>';const s=$("#piT",a);s.oninput=()=>{const n=B(s.value);$("#piPv",a).textContent=n.length?`تم التعرف على ${n.length} طلب: `+n.map(o=>`${u(o)} (${p[o.status][0]})`).join("، "):""},modal({title:"لصق طلبات التسجيل من مسار",size:"lg",body:a,actions:[{label:ic("save")+" إضافة",cls:"pri",onClick:()=>{const n=B(s.value);if(!n.length)return toast("لم يتم التعرف على أي طلب (تأكد من نسخ الصفحة كاملة)",!0),!1;const o=T(n);toast(`أضيف ${o.n} طلب${o.u?` وحُيّن ${o.u}`:""}`),l()}},{label:"إلغاء"}]})}const A=l=>f().items.filter(a=>(a.sy||MK.curSy())===l),H=l=>A(l).filter(a=>(!b.status||a.status===b.status)&&(!b.level||a.level===b.level)&&(!b.q||[u(a),m(a),a.place,j(a).cin,j(a).phone].join(" ").toLowerCase().includes(b.q.toLowerCase()))).sort((a,s)=>String(a.level).localeCompare(String(s.level),"ar")||u(a).localeCompare(u(s),"ar"));function L(l){b.sy=MK.curSy();const a=b.sy,s=A(a),n=H(a),o=Array.from(new Set(s.map(e=>e.level).filter(Boolean))),c=e=>s.filter(r=>r.status===e).length;l.innerHTML=`<div class="page-h"><h1>طلبات التسجيل الجديدة</h1><span class="sub">الموسم الدراسي ${i(MK.syDash(a))}</span><span class="sp"></span>
+        <button class="btn" id="piPaste">${ic("up")} لصق من مسار</button><button class="btn" id="piDoc">${ic("print")} الوثائق</button><button class="btn pri" id="piNew">${ic("plus")} طلب جديد</button></div>
+      <div class="att-kpis big" style="margin-bottom:10px"><span>الطلبات: <b>${s.length}</b></span>${Object.entries(p).map(([e,r])=>`<span style="color:${r[1]}">${r[0]}: <b>${c(e)}</b></span>`).join("")}<span>إناث: <b>${s.filter(e=>e.g==="F").length}</b></span>${o.slice(0,4).map(e=>`<span>${i(e)}: <b>${s.filter(r=>r.level===e).length}</b></span>`).join("")}</div>
+      <div class="toolbar" style="margin-bottom:8px"><select class="inp" id="piS" style="width:auto"><option value="">كل الحالات</option>${Object.entries(p).map(([e,r])=>`<option value="${e}" ${b.status===e?"selected":""}>${r[0]}</option>`).join("")}</select>
+        <select class="inp" id="piL" style="width:auto"><option value="">كل المستويات</option>${o.map(e=>`<option ${b.level===e?"selected":""}>${i(e)}</option>`).join("")}</select>
+        <div class="search">${ic("search")}<input class="inp" id="piQ" placeholder="بحث بالاسم، ر.ب.و أو هاتف الولي..." value="${i(b.q)}"></div></div>
+      ${n.length?`<div class="card"><div class="card-b" style="overflow:auto"><table class="tbl compact"><thead><tr><th>الاسم الكامل</th><th>Nom</th><th>الجنس</th><th>تاريخ ومكان الازدياد</th><th>المستوى</th><th>الحالة</th><th>الوثائق</th><th>الولي الشرعي</th><th>الهاتف</th><th></th></tr></thead><tbody>
+        ${n.map(e=>{const r=j(e),h=p[e.status]||p.wait;return`<tr><td class="b">${i(u(e))}</td><td dir="ltr">${i(m(e))}</td><td>${D(e.g)}</td><td>${i(v(e.birth))}${e.place?" — "+i(e.place):""}</td><td>${i(e.level||"")}</td><td><b style="color:${h[1]}">${h[0]}</b></td><td class="num">${(e.docs||[]).length}</td><td>${i(u(r))}${r.role?` <small class="muted">(${i(r.role)})</small>`:""}</td><td dir="ltr">${i(r.phone||"")}</td>
+          <td style="white-space:nowrap"><button class="btn sm" data-ed="${e.id}">${ic("edit")}</button><button class="btn sm" data-cd="${e.id}" title="بطاقة الطلب">${ic("print")}</button><button class="btn sm" data-nt="${e.id}" title="إشعار ولي الأمر">✉</button><button class="btn sm danger" data-del="${e.id}">${ic("trash")}</button></td></tr>`}).join("")}</tbody></table></div></div>`:'<div class="empty-state">لا توجد طلبات تسجيل بعد. اضغط «طلب جديد» أو «لصق من مسار».</div>'}`;const t=()=>L(l);$("#piNew",l).onclick=()=>I(null,t),$("#piPaste",l).onclick=()=>z(t),$("#piDoc",l).onclick=()=>go("preinsDoc",{kind:"list"}),$("#piS",l).onchange=e=>{b.status=e.target.value,t()},$("#piL",l).onchange=e=>{b.level=e.target.value,t()},$("#piQ",l).oninput=e=>{b.q=e.target.value,clearTimeout(L.t),L.t=setTimeout(()=>{t();const r=$("#piQ");r.focus(),r.setSelectionRange(r.value.length,r.value.length)},300)};const d=e=>f().items.find(r=>r.id===e);$$("[data-ed]",l).forEach(e=>e.onclick=()=>I(d(e.dataset.ed),t)),$$("[data-cd]",l).forEach(e=>e.onclick=()=>go("preinsDoc",{kind:"card",id:e.dataset.cd})),$$("[data-nt]",l).forEach(e=>e.onclick=()=>go("preinsDoc",{kind:"notice",id:e.dataset.nt})),$$("[data-del]",l).forEach(e=>e.onclick=async()=>{await confirmBox("حذف هذا الطلب؟","حذف")&&(f().items=f().items.filter(r=>r.id!==e.dataset.del),persist(),t())})}const N=l=>K.thr(l.map(a=>typeof a=="object"?a:{t:a,c:"d"})),k=(l,a,s,n)=>`<tr><td class="k">${l}</td><td class="r">${a||""}</td>${s!=null?`<td class="k">${s}</td><td class="r">${n||""}</td>`:""}</tr>`;function Q(l,a){const s=a.parents||[];return K.SB.pages(l,{title:"بطاقة طلب التسجيل",sub:`الموسم الدراسي ${i(MK.syDash(a.sy||MK.curSy()).replace("-","/"))}`,page:"a4",blocks:[{html:`<table class="tbl sb-t sb-kv pi-kv"><tbody>${k("المؤسسة",i(a.school||l.school||""),"حالة الطلب",`<b style="color:${(p[a.status]||p.wait)[1]}">${(p[a.status]||p.wait)[0]}</b>`)}${k("تاريخ الطلب",i(v(a.date)),"المستوى",i(a.level||""))}</tbody></table>`},{html:'<div class="sb-cap r">معلومات التلميذ(ة)</div>'},{html:`<table class="tbl sb-t sb-kv pi-kv"><tbody>${k("النسب بالعربية",`<b>${i(a.lastAr||"")}</b>`,"النسب بالفرنسية",`<b dir="ltr">${i(a.lastFr||"")}</b>`)}${k("الإسم بالعربية",`<b>${i(a.firstAr||"")}</b>`,"الإسم بالفرنسية",`<b dir="ltr">${i(a.firstFr||"")}</b>`)}${k("الجنس",D(a.g),"الجنسية",i(a.nat||""))}${k("تاريخ الازدياد",i(v(a.birth)),"مكان الميلاد",i(a.place||""))}</tbody></table>`},{html:`<div class="sb-cap r">الوثائق</div><div class="pi-dl">${F.concat((a.docs||[]).filter(n=>!F.includes(n))).map(n=>`<span><span class="sb-chk">${(a.docs||[]).includes(n)?"✔":""}</span> ${i(n)}</span>`).join("")}</div>`},{html:'<div class="sb-cap r">معلومات الوالدين</div>'},{table:{cls:"sb-t cmp",head:N(["الصفة","الاسم الكامل","Nom complet","ر.ب.و","المهنة","الهاتف","العنوان"]),rows:(s.length?s:[{},{}]).map(n=>`<tr><td class="b">${i(n.role||"")}${n.guardian?"<br><small>(الولي الشرعي)</small>":""}</td><td class="r b">${i(u(n))}</td><td dir="ltr">${i(m(n))}</td><td dir="ltr">${i(n.cin||"")}</td><td>${i(n.job||"")}</td><td dir="ltr">${i(n.phone||"")}</td><td class="r sm">${i(n.addr||"")}</td></tr>`)}},a.status==="no"&&a.reason?{html:`<p class="sb-p"><b>سبب الرفض:</b> ${i(a.reason)}</p>`}:null,a.notes?{html:`<p class="sb-p"><b>ملاحظات:</b> ${i(a.notes)}</p>`}:null].filter(Boolean),sign:K.SB.sign(l,{})})}function U(l,a){const s=j(a),n=a.status==="ok",o=a.status==="no",c=a.g==="F",t=n?`يشرفني أن أخبركم بأنه تم <b>قبول</b> طلب تسجيل ${c?"ابنتكم":"ابنكم"}: <b>${i(u(a))}</b> ${c?"المزدادة":"المزداد"} بتاريخ ${i(v(a.birth))} ب${i(a.place||"..........")} بمستوى <b>${i(a.level||"")}</b> برسم الموسم الدراسي ${i(MK.syDash(a.sy||MK.curSy()).replace("-","/"))}. ونطلب منكم الحضور إلى إدارة المؤسسة لاستكمال ملف التسجيل مصحوبين بالوثائق المطلوبة.`:o?`يؤسفني أن أخبركم بأن طلب تسجيل ${c?"ابنتكم":"ابنكم"}: <b>${i(u(a))}</b> ${c?"المزدادة":"المزداد"} بتاريخ ${i(v(a.birth))} بمستوى <b>${i(a.level||"")}</b> قد <b>رُفض</b>${a.reason?`، وذلك ل${i(a.reason.replace(/^ل/,""))}`:""}. ولمزيد من المعلومات يمكنكم الاتصال بإدارة المؤسسة.`:`نخبركم بأن طلب تسجيل ${c?"ابنتكم":"ابنكم"}: <b>${i(u(a))}</b> بمستوى <b>${i(a.level||"")}</b> في طور الدراسة، وسيتم إخباركم بالنتيجة في أقرب الآجال.`,d=`<div class="pi-nt"><div class="pi-nh">إشعار لولي الأمر بنتيجة طلب التسجيل</div><p>إلى السيد(ة): <b>${i(u(s)||"....................")}</b> ${s.role?`(${i(s.role)})`:""} — الهاتف: <span dir="ltr">${i(s.phone||"..........")}</span></p>
+      <p>${t}</p><div class="pi-ns"><span>حرر ب: ${i(l.city||"")} في: ${i(v(y.todayIso()))}</span><span data-stm>توقيع وخاتم مدير(ة) المؤسسة</span></div></div>`;return MK.flowPages({page:"a4",cls:"sb",head:`<div class="mk-hdr">${y.header(l)}</div>`,blocks:[{html:d},{html:'<div class="pi-cut"></div>'},{html:d}]})}function V(l,a,s){const n=A(a).filter(t=>!s.status||t.status===s.status).sort((t,d)=>String(t.level).localeCompare(String(d.level),"ar")||u(t).localeCompare(u(d),"ar")),o=n.map((t,d)=>{const e=j(t);return`<tr><td>${d+1}</td><td class="r b">${i(u(t))}</td><td dir="ltr" class="sm">${i(m(t))}</td><td>${D(t.g)}</td><td class="nw">${i(v(t.birth))}</td><td class="sm">${i(t.place||"")}</td><td class="sm">${i(t.level||"")}</td><td style="color:${(p[t.status]||p.wait)[1]}" class="b">${(p[t.status]||p.wait)[0]}</td><td class="r sm">${i(u(e))}</td><td dir="ltr" class="sm">${i(e.cin||"")}</td><td dir="ltr" class="sm">${i(e.phone||"")}</td><td>${(t.docs||[]).length}</td></tr>`}),c=t=>n.filter(d=>d.status===t).length;return K.SB.pages(l,{title:"سجل طلبات التسجيل الجديدة",sub:`الموسم الدراسي ${i(MK.syDash(a).replace("-","/"))}${s.status?" — "+p[s.status][0]:""}`,page:"a4l",blocks:[{table:{cls:"sb-t cmp",head:N(["ر.ت","الاسم الكامل","Nom complet","الجنس","تاريخ الازدياد","مكان الميلاد","المستوى","الحالة","الولي الشرعي","ر.ب.و","الهاتف","الوثائق"]),rows:o},minRows:8},{html:`<p class="sb-note">المجموع: ${n.length} — مقبول: ${c("ok")} — مرفوض: ${c("no")} — في طور الدراسة: ${c("wait")} — إناث: ${n.filter(t=>t.g==="F").length}</p>`}]})}y.modCss+=`.pi-kv td.k{width:20%}.pi-dl{display:grid;grid-template-columns:1fr 1fr;gap:1.4mm 4mm;font-size:10pt;margin-bottom:2mm}
   .pi-nt{border:1.3px solid #1f3864;border-radius:3mm;padding:4mm 6mm;font-size:11.5pt;line-height:1.9}.pi-nh{text-align:center;font-weight:700;font-size:13pt;color:#1f3864;margin-bottom:2mm}.pi-nt p{margin:0 0 1.5mm;text-align:justify}
-  .pi-ns{display:flex;justify-content:space-between;margin-top:3mm;font-weight:700;min-height:22mm}.pi-cut{border-top:1px dashed #888;margin:5mm 0}`;
-  { const c = document.createElement('style'); c.textContent = '.pi-docs{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}.pi-par{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px}'; document.head.appendChild(c); }
-
-  window.pagePreins = v => page(v);
-  window.pagePreinsDoc = function (v, arg) {
-    arg = arg || {};
-    const sy = MK.curSy();
-    MK.docPage(v, {
-      title: 'وثائق طلبات التسجيل', icon: '📝', modes: false, flow: true, state: { kind: arg.kind || 'list', id: arg.id || '', status: '' },
-      back: () => go('preins'),
-      form: function F(box, s2, refresh) {
-        const L = list(sy);
-        box.innerHTML = `<div class="fld"><label>الوثيقة</label><select class="inp" id="pdK"><option value="list" ${s2.kind === 'list' ? 'selected' : ''}>سجل طلبات التسجيل</option><option value="card" ${s2.kind === 'card' ? 'selected' : ''}>بطاقة الطلب</option><option value="notice" ${s2.kind === 'notice' ? 'selected' : ''}>إشعار ولي الأمر بالنتيجة</option></select></div>
-          ${s2.kind === 'list' ? `<div class="fld"><label>الحالة</label><select class="inp" id="pdS"><option value="">الكل</option>${Object.entries(STATUS).map(([k, s]) => `<option value="${k}" ${s2.status === k ? 'selected' : ''}>${s[0]}</option>`).join('')}</select></div>`
-            : `<div class="fld"><label>التلميذ(ة)</label><select class="inp" id="pdI"><option value="">كل الطلبات</option>${L.map(x => `<option value="${x.id}" ${x.id === s2.id ? 'selected' : ''}>${esc(fullAr(x))}</option>`).join('')}</select></div>`}`;
-        $('#pdK', box).onchange = e => { s2.kind = e.target.value; F(box, s2, refresh); refresh(); };
-        if ($('#pdS', box)) $('#pdS', box).onchange = e => { s2.status = e.target.value; refresh(); };
-        if ($('#pdI', box)) $('#pdI', box).onchange = e => { s2.id = e.target.value; refresh(); };
-      },
-      build: s2 => {
-        const s = S(), X = list(sy).filter(x => !s2.id || x.id === s2.id);
-        if (s2.kind === 'list') return { page: 'a4l', pages: docList(s, sy, s2) };
-        const pages = []; X.forEach(x => pages.push(...(s2.kind === 'card' ? card(s, x) : notice(s, x))));
-        return { page: 'a4', pages };
-      },
-      fname: s2 => ({ list: 'سجل_طلبات_التسجيل', card: 'بطاقة_طلب_التسجيل', notice: 'إشعار_نتيجة_طلب_التسجيل' })[s2.kind]
-    });
-  };
-  window.Preins = { parseMany, parseOne, merge, R };
-})();
+  .pi-ns{display:flex;justify-content:space-between;margin-top:3mm;font-weight:700;min-height:22mm}.pi-cut{border-top:1px dashed #888;margin:5mm 0}`;{const l=document.createElement("style");l.textContent=".pi-docs{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}.pi-par{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px}",document.head.appendChild(l)}window.pagePreins=l=>L(l),window.pagePreinsDoc=function(l,a){a=a||{};const s=MK.curSy();MK.docPage(l,{title:"وثائق طلبات التسجيل",icon:"📝",modes:!1,flow:!0,state:{kind:a.kind||"list",id:a.id||"",status:""},back:()=>go("preins"),form:function n(o,c,t){const d=A(s);o.innerHTML=`<div class="fld"><label>الوثيقة</label><select class="inp" id="pdK"><option value="list" ${c.kind==="list"?"selected":""}>سجل طلبات التسجيل</option><option value="card" ${c.kind==="card"?"selected":""}>بطاقة الطلب</option><option value="notice" ${c.kind==="notice"?"selected":""}>إشعار ولي الأمر بالنتيجة</option></select></div>
+          ${c.kind==="list"?`<div class="fld"><label>الحالة</label><select class="inp" id="pdS"><option value="">الكل</option>${Object.entries(p).map(([e,r])=>`<option value="${e}" ${c.status===e?"selected":""}>${r[0]}</option>`).join("")}</select></div>`:`<div class="fld"><label>التلميذ(ة)</label><select class="inp" id="pdI"><option value="">كل الطلبات</option>${d.map(e=>`<option value="${e.id}" ${e.id===c.id?"selected":""}>${i(u(e))}</option>`).join("")}</select></div>`}`,$("#pdK",o).onchange=e=>{c.kind=e.target.value,n(o,c,t),t()},$("#pdS",o)&&($("#pdS",o).onchange=e=>{c.status=e.target.value,t()}),$("#pdI",o)&&($("#pdI",o).onchange=e=>{c.id=e.target.value,t()})},build:n=>{const o=S(),c=A(s).filter(d=>!n.id||d.id===n.id);if(n.kind==="list")return{page:"a4l",pages:V(o,s,n)};const t=[];return c.forEach(d=>t.push(...n.kind==="card"?Q(o,d):U(o,d))),{page:"a4",pages:t}},fname:n=>({list:"سجل_طلبات_التسجيل",card:"بطاقة_طلب_التسجيل",notice:"إشعار_نتيجة_طلب_التسجيل"})[n.kind]})},window.Preins={parseMany:B,parseOne:O,merge:T,R:f}})();
