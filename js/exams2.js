@@ -114,13 +114,16 @@
     const ss = subjects(sy), pool = staffRows(sy).filter(isGuard);
     if (!ss.length || !rooms(sy).length) return c.toast('أدخل جدولة الامتحان والقاعات أولا', true);
     if (pool.length < 2) return c.toast('أضف المراقبين في «طاقم مركز الامتحان» (المهمة: مراقب(ة) الإجراء)', true);
-    const per = Math.max(1, parseInt(f.per, 10) || 2), reserve = Math.max(0, parseInt(f.reserve, 10) || 0);
-    const rule = { own: f.own !== '0', mix: f.mix !== '0', rot: f.rot !== '0', gender: f.gmix === '1' };
+    const per = Math.max(1, parseInt(f.per, 10) || 2), reserve0 = Math.max(0, parseInt(f.reserve, 10) || 0);
+    const rule = { own: f.own !== '0', mix: f.mix !== '0', rot: f.rot !== '0', gender: f.gmix === '1', half: f.half === '1' };
+    // 1.9.4 (Gestion Exam V26.11): the reserves of each subject — a number per subject, or a percentage of the rooms of the session (نسبة الاحتياط)
+    const resOf = (sj, si) => { const o = (f.resBy || []).find(r => nm(r[0]) && nm(r[0]) === nm(sj[0])); const v = o ? parseInt(o[1], 10) : NaN; if (isFinite(v) && v >= 0) return v;
+      if (f.resMode === 'pct') return Math.ceil(roomsOfSubj(sy, si).length * Math.max(0, num(f.resPct) || 0) / 100); return reserve0; };
     const pri = info(sy).level === 'P6';
     // primary (polyvalent teachers): the teacher of a 6th-level class does not guard the candidates of his own school
     const roomOrig = new Map(); cands(sy).forEach(c => { const k = nm(c[C.room]); if (!roomOrig.has(k)) roomOrig.set(k, new Set()); roomOrig.get(k).add(nm(c[C.origin]) || nm(S().school)); });
     const teachesP6 = r => { const e = K.E && K.E.byName ? K.E.byName(r[0]) : null; return /6|السادس/.test([e && e.levels, r[2]].filter(Boolean).join(' ')); };
-    const P = pool.map(r => ({ p6: pri && teachesP6(r), n: nm(r[0]), keys: pri ? new Set() : keysOf(subjOfStaff(r)), off: unavail(r[5]), wp: nm(r[4]), g: (() => { const e = K.E && K.E.byName ? K.E.byName(r[0]) : null; return e ? e.sex : ''; })(), load: 0, halves: new Set(), rooms: new Map(), mates: new Map(), resv: 0 }));
+    const P = pool.map(r => ({ p6: pri && teachesP6(r), n: nm(r[0]), keys: pri ? new Set() : keysOf(subjOfStaff(r)), off: unavail(r[5]), wp: nm(r[4]), g: (() => { const e = K.E && K.E.byName ? K.E.byName(r[0]) : null; return (e && e.sex) || (/أنثى|انثى|^F$/i.test(nm(r[6])) ? 'F' : /ذكر|^M$/i.test(nm(r[6])) ? 'M' : ''); })(), load: 0, halves: new Set(), rooms: new Map(), mates: new Map(), resv: 0 }));
     const rand = rnd(hash(sy + P.map(p => p.n).join('|')));
     P.forEach(p => { p.tie = rand(); });
     // look-ahead: the sessions still open to each person (a teacher who cannot guard the last subjects is called earlier)
@@ -128,7 +131,7 @@
     const rows = [], warn = [];
     ss.forEach((sj, si) => {
       const busy = new Set(), hk = halfOf(sj), sk = keysOf(sj[0]);
-      const ok = (p, strict, room) => !busy.has(p.n) && !p.off.has(si + 1) && (!strict || !rule.own || (pri ? !(p.p6 && room && (roomOrig.get(room) || new Set()).has(p.wp || nm(S().school))) : !share(p.keys, sk)));
+      const ok = (p, strict, room) => !busy.has(p.n) && !p.off.has(si + 1) && (!strict || !rule.half || !p.halves.has(hk)) && (!strict || !rule.own || (pri ? !(p.p6 && room && (roomOrig.get(room) || new Set()).has(p.wp || nm(S().school))) : !share(p.keys, sk)));
       const score = (p, room, mate) => p.load * 20 + (p.halves.has(hk) ? 0 : 3) + p.halves.size + p.rem[si] * 0.8 + (rule.rot ? (p.rooms.get(room) || 0) * 3 : 0)
         + (mate ? (p.mates.get(mate.n) || 0) * 6 + (rule.mix && p.wp && p.wp === mate.wp ? 3 : 0) + (rule.gender && p.g && mate.g && p.g === mate.g ? 2 : 0) : 0) + p.tie;
       const pick = (room, mate) => {
@@ -146,7 +149,7 @@
         const why = pri ? 'تلاميذ مؤسسته' : 'مادته', note = [a && a.forced ? `⚠ ${a.p.n}: ${why}` : '', b && b.forced ? `⚠ ${b.p.n}: ${why}` : ''].filter(Boolean).join(' — ');
         rows.push([String(si + 1), room, a ? a.p.n : '', b ? b.p.n : '', note || (a && b ? '' : '⚠ نقص في المراقبين')]);
       });
-      for (let k = 0; k < reserve; k++) { const a = pick('احتياط', null); if (a) { a.p.resv++; rows.push([String(si + 1), 'احتياط', a.p.n, '', '']); } }
+      for (let k = 0, reserve = resOf(sj, si); k < reserve; k++) { const a = pick('احتياط', null); if (a) { a.p.resv++; rows.push([String(si + 1), 'احتياط', a.p.n, '', '']); } }
     });
     f.rows = rows; c.save && c.save('rows');
     const loads = P.map(p => p.load), mn = Math.min(...loads), mx = Math.max(...loads);
@@ -155,15 +158,21 @@
   const guardsDoc = docOf('guards');
   if (guardsDoc) {
     guardsDoc.d = 'التوزيع الذكي للمراقبين: لا يحرس الأستاذ(ة) في مادة تخصصه، احترام عدم التوفر، العدالة في الحصص وأنصاف الأيام، التناوب على القاعات وتفادي تكرار نفس الثنائي.';
-    guardsDoc.init = () => ({ reserve: '1', per: '2', own: '1', mix: '1', rot: '1', gmix: '', rows: [] });
+    guardsDoc.init = (s, sy) => ({ reserve: '1', per: '2', own: '1', mix: '1', rot: '1', gmix: '', half: '', resMode: '', resPct: '10', resBy: subjects(sy).map(r => [r[0], '']), rows: [] });
     const yes = [['1', 'نعم'], ['0', 'لا']];
-    guardsDoc.defs = (f, sy) => [{ k: 'per', l: 'عدد المراقبين بكل قاعة', t: 'select', opts: [['2', 'اثنان'], ['1', 'واحد'], ['3', 'ثلاثة']], half: true }, { k: 'reserve', l: 'عدد الاحتياطيين في كل حصة', t: 'num', half: true },
+    const syncRes = (f, sy) => { if (!f) return; const old = f.resBy || []; f.resBy = subjects(sy).map(r => [r[0], ((old.find(o => nm(o[0]) === nm(r[0])) || [])[1]) || '']); };
+    guardsDoc.defs = (f, sy) => (syncRes(f, sy), [{ k: 'per', l: 'عدد المراقبين بكل قاعة', t: 'select', opts: [['2', 'اثنان'], ['1', 'واحد'], ['3', 'ثلاثة']], half: true }, { k: 'reserve', l: 'عدد الاحتياطيين في كل حصة', t: 'num', half: true },
       { k: 'own', l: info(sy).level === 'P6' ? 'لا يحرس أستاذ(ة) السادس تلاميذ مؤسسته' : 'لا يحرس الأستاذ(ة) في مادة تخصصه', t: 'select', opts: yes, half: true }, { k: 'rot', l: 'التناوب على القاعات', t: 'select', opts: yes, half: true },
       { k: 'mix', l: 'المزج بين مقرات العمل في نفس القاعة', t: 'select', opts: yes, half: true }, { k: 'gmix', l: 'المزج بين الجنسين في نفس القاعة', t: 'select', opts: [['', 'لا يهم'], ['1', 'نعم']], half: true },
+      { k: 'half', l: 'حصة واحدة على الأكثر لكل مراقب في نصف اليوم', t: 'select', opts: [['', 'لا'], ['1', 'نعم']], half: true },
+      { k: 'resMode', l: 'الاحتياطيون في كل حصة', t: 'select', opts: [['', 'عدد ثابت (الخانة أعلاه)'], ['pct', 'نسبة من عدد القاعات (نسبة الاحتياط)']], half: true },
+      ...(f && f.resMode === 'pct' ? [{ k: 'resPct', l: 'نسبة الاحتياط % من عدد قاعات الحصة', t: 'num', half: true }] : []),
+      { k: 'resBy', l: 'عدد الاحتياطيين بكل مادة (فارغ = حسب الاختيار أعلاه)', t: 'grid', cols: ['المادة', 'عدد الاحتياطيين'], widths: ['1.6fr', '.6fr'], types: ['text', 'num'], fixed: true },
       { t: 'html', html: '<button type="button" class="btn sm pri" data-act="gen">التوزيع الذكي للمراقبين</button>' },
       { note: `الحصص: ${subjects(sy).map((r, i) => `${i + 1}) ${esc(r[0])}${tracksOf(r).length ? ' [' + esc(tracksOf(r).join('، ')) + ']' : ''}`).join(' — ') || 'أدخل جدولة الامتحان أولا'}. «غير متوفر» يكتب في طاقم المركز بأرقام الحصص (مثال: 2,5).` },
-      { k: 'rows', l: 'التوزيع (رقم الحصة، القاعة، المراقبون)', t: 'grid', cols: ['الحصة', 'القاعة', 'المراقب(ة) 1', 'المراقب(ة) 2', 'ملاحظة'], widths: ['.45fr', '.6fr', '1.3fr', '1.3fr', '.9fr'], list: [null, null, 'k2Emps', 'k2Emps', null] }];
+      { k: 'rows', l: 'التوزيع (رقم الحصة، القاعة، المراقبون)', t: 'grid', cols: ['الحصة', 'القاعة', 'المراقب(ة) 1', 'المراقب(ة) 2', 'ملاحظة'], widths: ['.45fr', '.6fr', '1.3fr', '1.3fr', '.9fr'], list: [null, null, 'k2Emps', 'k2Emps', null] }]);
     guardsDoc.act = { gen: (f, sy, c) => smartGuards(sy, f, c) };
+    guardsDoc.onSave = k => (k === 'resMode' ? 'redraw' : undefined);
   }
 
   /* ================= 3. the smart assistant (readiness and conflicts) ================= */

@@ -388,7 +388,18 @@
     }
   });
 
-  window.Attoff = { migrate, DOCS: () => DOCS, evs };
+  // 1.9.4: the attendance rate of the staff in a month (for the dashboard): 1 - working days of absence / (working days × employees)
+  const staffRate = (sy, mm) => {
+    try {
+      const H = holSet(sy), [m1, m2] = monthSpan(sy, mm), td = Dx.todayIso();
+      if (m1 > td) return null;
+      const mEnd = m2 > td ? td : m2, W = workDays(m1, mEnd, sy, H), L = emps();
+      if (!W || !L.length) return null;
+      const wd = L.reduce((t, e) => t + evsOf(fullName(e), mm, sy).reduce((a, x) => a + workDays(x.from > m1 ? x.from : m1, x.to && x.to < mEnd ? x.to : mEnd, sy, H), 0), 0);
+      return { rate: Math.max(0, Math.min(100, 100 - wd * 100 / (W * L.length))), W, n: L.length, wd };
+    } catch (e) { return null; }
+  };
+  window.Attoff = { migrate, DOCS: () => DOCS, evs, staffRate };
   window.pageAttoff = (v, a) => { migrate(DB); CP.hub(v, a); };
   window.pageAttoffDoc = (v, a) => { migrate(DB); (DOCS.some(d => d.k === (a || {}).kind && d.grp !== 'pu') ? C : CP).doc(v, a); };
   window.pageAttoffSt = (v, a) => { migrate(DB); C.hub(v, a); };

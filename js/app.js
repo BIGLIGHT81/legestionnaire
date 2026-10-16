@@ -266,7 +266,7 @@ const tab = (r, l, a, o) => Object.assign({ r, l, a: a || null, k: r + (a && a.c
 const NAV = [
   { id: 'home', c: '#0f6e5a', label: 'لوحة القيادة', icon: 'home', grps: [['لوحة القيادة والمؤشرات', ['home', 'dash']], ['الطبع الشامل', ['printAll']]],
     tabs: () => [tab('home', 'لوحة القيادة'), tab('dash', 'المؤشرات والمبيانات'), tab('printAll', 'الطبع الشامل لوثائق الخانات')] },
-  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees']], ['مربيات ومربو التعليم الأولي', ['presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['المتابعة اليومية للموظفين', ['track', 'guard']], ['الغياب والرخص', ['absences', 'attoffSt', 'documents:leave']], ['الوضعية الإدارية', ['documents:work', 'documents:cert', 'svcAcc']]],
+  { id: 'staff', c: '#5b3fb0', label: 'شؤون الموارد البشرية', icon: 'users', grps: [['شؤون الموظفين', ['employees', 'absences', 'attoffSt', 'documents:leave', 'documents:work', 'documents:cert', 'svcAcc']], ['مربيات ومربو التعليم الأولي', ['presch']], ['أعوان الحراسة والنظافة', ['sagents', 'sagents:log', 'sagents:sum']], ['المتابعة اليومية للموظفين', ['track', 'guard']]],
     tabs: () => [tab('employees', 'لائحة الموظفين'), tab('presch', 'بطاقات المربيات والمربين ووثائقهم', null, { w: isPriCycle }),
       tab('sagents', 'بطاقات الأعوان والشركات المشغلة', { v: 'list' }, { k: 'sagents' }), tab('sagents', 'تتبع القيام بالأعمال', { v: 'log' }, { k: 'sagents:log' }), tab('sagents', 'الحصيلة الشهرية وتقييم الخدمة', { v: 'sum' }, { k: 'sagents:sum' }), tab('track', 'شبكة تتبع العمل التربوي'), tab('guard', 'جداول الحراسة'), tab('absences', 'سجل الغياب والرخص'), tab('attoffSt', 'النماذج الرسمية للغياب'),
       tab('documents', 'طلبات الرخص', { cat: 'leave' }), tab('documents', 'الاستئناف والانقطاع والاستفسار', { cat: 'work' }), tab('documents', 'الشهادات الإدارية وبطاقات التقديم', { cat: 'cert' }), tab('svcAcc', 'حوادث الشغل (المصلحة)')] },
@@ -457,6 +457,8 @@ function pageHome(v) {
   const certsYear = (C.issued || []).filter(r => +r.year === y).length;
   const curPupils = (C.students || []).filter(x => x.status === 'current').length;
   const A = window.Attend && Attend.summary ? Attend.summary() : null;
+  const AP = window.Attend && Attend.hasPre && isPriCycle() && Attend.hasPre() ? Attend.summary('pre') : null;   // 1.9.4: pre-school attendance apart
+  const SR = window.Attoff && Attoff.staffRate ? Attoff.staffRate(MK.curSy(), String(m).padStart(2, '0')) : null;
   const P = window.Partners && Partners.summary ? Partners.summary() : null;
   const K = window.Stock && Stock.summary ? Stock.summary() : null;
   const R = window.Roaiz && Roaiz.summary ? Roaiz.summary() : null;
@@ -495,6 +497,9 @@ function pageHome(v) {
       ${stat('user', today.length, 'غائبون اليوم', '#fbe9e7', '#b3261e')}
       ${stat('cal', daysMonth, `أيام غياب الموظفين في ${MONTHS[m - 1]}`, '#e6f0fa', '#1f5f9e')}
       ${stat('file', docsMonth, 'وثائق هذا الشهر', '#f7efdc', '#8a6418')}
+      ${SR ? stat('check', SR.rate.toFixed(2) + '%', `حضور الموظفين — ${MONTHS[m - 1]}`, '#e3f5e9', '#0e7a4b') : ''}
+      ${A && A.last ? stat('chart', (100 - A.last.rate).toFixed(2) + '%', `حضور ${AP ? 'تلاميذ الابتدائي' : 'التلاميذ'} — ${esc(A.last.label)}`, '#e3f0f5', '#0b6a8a') : ''}
+      ${AP && AP.last ? stat('pupil', (100 - AP.last.rate).toFixed(2) + '%', `حضور أطفال الأولي — ${esc(AP.last.label)}`, '#fdf0e3', '#a35a00') : ''}
     </div>
     ${miniCharts()}
     ${dsec('staff')}<div class="mods">
@@ -512,9 +517,14 @@ function pageHome(v) {
       ${mod('certs', 'cap', 'الشواهد المدرسية (ملفات الأرشيف)', kv('التلاميذ في السجل', (C.students || []).length) + kv('منهم متمدرسون حاليا', curPupils) + kv(`شواهد مسلمة سنة ${y}`, certsYear) + kv('مجموع الشواهد المسلمة', (C.issued || []).length))}
     </div>
     ${dsec('eval')}<div class="mods">
-      ${A ? mod('attend', 'chart', 'مواظبة التلاميذ', kv(A.last ? `نسبة الغياب (${esc(A.last.label)})` : 'نسبة الغياب', A.last ? fr(A.last.rate) + '%' : '-', hot(A.last && A.last.rate) ? 'red' : '')
+      ${A ? mod('attend', 'chart', AP ? 'مواظبة تلاميذ التعليم الابتدائي' : 'مواظبة التلاميذ', kv(A.last ? `نسبة الغياب (${esc(A.last.label)})` : 'نسبة الغياب', A.last ? fr(A.last.rate) + '%' : '-', hot(A.last && A.last.rate) ? 'red' : '')
+        + kv(A.last ? `نسبة الحضور (${esc(A.last.label)})` : 'نسبة الحضور', A.last ? (100 - A.last.rate).toFixed(2) + '%' : '-', 'green')
         + kv('نسبة الغياب السنوية', A.rate == null ? '-' : fr(A.rate) + '%', hot(A.rate) ? 'red' : '') + kv('نسبة الحضور السنوية', A.rate == null ? '-' : (100 - A.rate).toFixed(2) + '%', 'green') + kv('الأشهر المملوءة', `${A.n} من 10`),
         A.n ? MK.svgBars(A.monthly, { alert: A.alert, w: 420, h: 120, fs: 8.5 }) : '<span class="muted">أدخل معطيات المواظبة الشهرية لتظهر هنا النسب والمبيان.</span>') : ''}
+      ${AP ? mod('attend:pre', 'pupil', 'مواظبة أطفال التعليم الأولي', kv(AP.last ? `نسبة الغياب (${esc(AP.last.label)})` : 'نسبة الغياب', AP.last ? fr(AP.last.rate) + '%' : '-', AP.last && AP.last.rate > AP.alert ? 'red' : '')
+        + kv(AP.last ? `نسبة الحضور (${esc(AP.last.label)})` : 'نسبة الحضور', AP.last ? (100 - AP.last.rate).toFixed(2) + '%' : '-', 'green')
+        + kv('نسبة الغياب السنوية', AP.rate == null ? '-' : fr(AP.rate) + '%', AP.rate != null && AP.rate > AP.alert ? 'red' : '') + kv('نسبة الحضور السنوية', AP.rate == null ? '-' : (100 - AP.rate).toFixed(2) + '%', 'green') + kv('الأشهر المملوءة', `${AP.n} من 10`),
+        AP.n ? MK.svgBars(AP.monthly, { alert: AP.alert, w: 420, h: 120, fs: 8.5 }) : '<span class="muted">اختر «التعليم الأولي» في مواظبة التلاميذ وأدخل معطياته الشهرية لتظهر هنا نسبه الخاصة.</span>') : ''}
       ${R && R.groups && !isSecCycle() ? mod('roaiz', 'target', 'استثمار الروائز', kv('الفئات المستوردة', R.phases + ' من 8') + kv('مجموعات الدعم', R.groups) + (isSingleOrg() ? '' : kv('الوحدات المدرسية', R.units)) + kv('التلاميذ المعنيون', R.pupils)) : ''}
     </div>
     ${dsec('life')}<div class="mods">
@@ -553,7 +563,7 @@ function pageHome(v) {
       </div>
     </div>`;
   $$('[data-doc]', v).forEach(b => b.onclick = () => go('editor', { type: b.dataset.doc }));
-  $$('[data-go2]', v).forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.go2); });
+  $$('[data-go2]', v).forEach(b => b.onclick = e => { e.stopPropagation(); const g2 = b.dataset.go2; if (g2 === 'attend:pre') go('attend', { sc: 'pre' }); else if (g2 === 'attend') go('attend', { sc: 'pri' }); else go(g2); });
   const search = t => { try { if (!window.Tools || !Tools.openSearch) throw new Error('Tools'); Tools.openSearch(t); } catch (e) { toast('تعذر فتح البحث: ' + (e && e.message || e), true); } };
   if ($('#hSearch')) $('#hSearch').onclick = () => search($('#hSearchQ') ? $('#hSearchQ').value : '');
   // 1.9.4: typing in the search box of the dashboard opens the search with the typed words
@@ -2445,4 +2455,28 @@ function recoveryBox(code) {
   if (opened && opened.recovery) { toast('تم الفتح برمز الاسترجاع: اختر الآن كلمة سر جديدة'); protDialog('change', opened.secret); }
   document.addEventListener('keydown', e => { if (e.ctrlKey && e.key.toLowerCase() === 'p' && current === 'editor') { e.preventDefault(); $('#print').click(); } });
   window.__app = { go, get DB() { return DB; }, monthRows, absenceEntries, overlap, persist: () => persist(true) };
+})();
+
+/* 1.9.4: lists with free typing (input + datalist): a filled field showed only the option matching its value (e.g. «رخصة مرضية»),
+   so the other choices (رخصة استثنائية...) could not be picked. A click on such a field now opens the whole list; the value comes
+   back as it was if nothing is chosen. */
+(function () {
+  const opts = el => (el.list ? Array.from(el.list.options).map(o => o.value) : []);
+  document.addEventListener('mousedown', e => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || !el.list || el.readOnly || el.disabled || !el.value || el.dataset.cbPrev != null) return;
+    const L = opts(el);
+    if (L.length < 2 || !L.includes(el.value)) return;
+    el.dataset.cbPrev = el.value; el.dataset.cbPh = el.placeholder || '';
+    el.placeholder = el.value; el.value = '';
+  }, true);
+  const back = el => {
+    if (!(el instanceof HTMLInputElement) || el.dataset.cbPrev == null) return;
+    if (el.value === '') el.value = el.dataset.cbPrev;
+    el.placeholder = el.dataset.cbPh || '';
+    delete el.dataset.cbPrev; delete el.dataset.cbPh;
+  };
+  document.addEventListener('focusout', e => back(e.target), true);
+  // a choice or a typed text: the field keeps it (the list is no longer filtered by the old value)
+  document.addEventListener('input', e => { const el = e.target; if (el instanceof HTMLInputElement && el.dataset.cbPrev != null && el.value !== '') { el.placeholder = el.dataset.cbPh || ''; delete el.dataset.cbPrev; delete el.dataset.cbPh; } }, true);
 })();

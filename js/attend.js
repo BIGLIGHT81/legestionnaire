@@ -24,14 +24,52 @@
     a.years = a.years && typeof a.years === 'object' ? a.years : {};
     if (!(+a.days > 0)) a.days = 20;
     if (a.alert == null || !isFinite(+a.alert)) a.alert = 5;
+    // 1.9.4: the pre-school has its own attendance statistics (own levels, months and rates), apart from the primary school
+    const pr = a.pre = a.pre && typeof a.pre === 'object' ? a.pre : {};
+    pr.units = Array.isArray(pr.units) ? pr.units : [];
+    pr.levels = Array.isArray(pr.levels) ? pr.levels : [];
+    pr.years = pr.years && typeof pr.years === 'object' ? pr.years : {};
+    if (!(+pr.days > 0)) pr.days = a.days;
+    if (pr.alert == null || !isFinite(+pr.alert)) pr.alert = a.alert;
+    splitPre(a);
   }
-  const AD = () => DB.attend;
+  // pre-school rows that were entered (or imported) with the primary levels are moved, with their data, to the pre-school statistics
+  const PRE_CODE = k => /^(DEPE|PS\d)/.test(String(k || ''));
+  const PRE_NAME = n => /(^|[\s(])(ال)?أولي($|[\s)])|روض|تمهيدي|التعليم الأولي/.test(String(n || ''));
+  const isPreLevel = l => PRE_CODE(l.k) || PRE_NAME(l.name);
+  function splitPre(a) {
+    const mv = a.levels.filter(isPreLevel);
+    if (!mv.length) return;
+    const pr = a.pre;
+    mv.forEach(l => {
+      let t = pr.levels.find(x => MK.hkey(x.name) === MK.hkey(l.name));
+      if (!t) { t = { id: l.id, name: l.name }; if (l.k) t.k = l.k; pr.levels.push(t); }
+      Object.entries(a.years).forEach(([y, ms]) => Object.entries(ms).forEach(([k, m]) => {
+        Object.entries(m.v || {}).forEach(([u, o]) => {
+          if (!o || !o[l.id]) return;
+          if (!pr.units.some(x => x.id === u)) { const su = a.units.find(x => x.id === u); if (su) pr.units.push({ id: su.id, name: su.name }); }
+          const py = pr.years[y] = pr.years[y] || {}, pm = py[k] = py[k] || { days: m.days, v: {} };
+          const pu = pm.v[u] = pm.v[u] || {};
+          pu[t.id] = Object.assign({}, o[l.id]);
+          delete o[l.id];
+        });
+      }));
+    });
+    a.levels = a.levels.filter(l => !isPreLevel(l));
+  }
+  let SC = 'pri';                                  // the statistics shown: 'pri' (primary school) or 'pre' (pre-school)
+  const AD = () => (SC === 'pre' && !(window.Cyc && Cyc.single()) ? DB.attend.pre : DB.attend);
+  const inScope = (sc, fn) => { const o = SC; SC = sc || 'pri'; try { return fn(); } finally { SC = o; } };
+  const PRE = () => SC === 'pre' && !(window.Cyc && Cyc.single());
+  const scopeName = () => (PRE() ? 'التعليم الأولي' : 'التعليم الابتدائي');
+  // the pre-school statistics are offered in a primary school (not in a collège / lycée)
+  const hasPre = () => !(window.Cyc && Cyc.single()) && !(window.isSecCycle && isSecCycle());
   // collège / lycée: the school is one independent institution — a single "unit" carrying the school's name (no school-group units)
   const SEC = () => !!(window.Cyc && Cyc.single());
   const schoolName = () => { const s0 = typeof S === 'function' ? S() : {}; return String((s0 && s0.school) || '').trim() || 'المؤسسة'; };
   function normSec() {
     try {
-      if (!SEC()) return;
+      if (!SEC() || PRE()) return;
       const a = AD(), n = schoolName();
       if (!a.units.length) return;
       if (a.units.length > 1) {                       // units left over from a primary-school setup: add them up into the school
@@ -59,9 +97,12 @@
     if (!a.units.length) {
       const fromPupils = window.Pupils && Pupils.unitNames ? Pupils.unitNames() : [];
       const fromCerts = DB.certs && Array.isArray(DB.certs.students) ? Array.from(new Set(DB.certs.students.map(x => x.unit).filter(Boolean))) : [];
-      (SEC() ? [schoolName()] : fromPupils.length ? fromPupils : fromCerts.length ? fromCerts : ['المركزية']).forEach(n => a.units.push({ id: uid('au'), name: n }));
+      const priUnits = PRE() ? DB.attend.units.map(u => u.name) : [];
+      const preUnits = PRE() && window.Pupils && Pupils.X ? Array.from(new Set(Pupils.X.current(MK.curSy()).filter(p => PRE_CODE(p.lvl)).map(p => p.unit).filter(Boolean))) : [];
+      (SEC() ? [schoolName()] : PRE() && preUnits.length ? preUnits : PRE() && priUnits.length ? priUnits : fromPupils.length ? fromPupils : fromCerts.length ? fromCerts : ['المركزية']).forEach(n => a.units.push({ id: uid('au'), name: n }));
     }
     normSec();
+    if (PRE()) { if (!a.levels.length) ['PS1', 'PS2'].forEach(k => a.levels.push({ id: uid('al'), name: lvName(k), k })); return; }
     const want = levelsFor(S().cycle);
     if (a.levels.length && !hasData()) {
       const cur = a.levels.map(l => l.name);
@@ -113,18 +154,20 @@
     return MK.syList(Object.keys(AD().years));
   };
   // dashboard figures: the last month with a known rate, the yearly rate, the monthly rates
-  window.Attend.summary = () => {
+  window.Attend.summary = sc => inScope(sc, () => {
     migrate(DB);
     const sy0 = MK.curSy();
     if (!AD().units.length || !AD().levels.length) return { sy: sy0, n: 0, rate: null, last: null, monthly: [] };
     const monthly = MONTHS.map(([k]) => ({ label: MNAME[k], k, v: agg(monthOf(sy0, k), U(), L()).rate }));
     const lastM = monthly.filter(m => m.v != null).pop();
     const y = aggYear(sy0, U(), L());
-    return { sy: sy0, n: y.n, rate: y.rate, last: lastM ? { label: monthLabel(sy0, lastM.k), rate: lastM.v } : null, monthly, alert: +AD().alert, units: AD().units.length };
-  };
+    return { sy: sy0, n: y.n, rate: y.rate, att: y.rate == null ? null : 100 - y.rate, last: lastM ? { label: monthLabel(sy0, lastM.k), rate: lastM.v, att: 100 - lastM.v } : null, monthly, alert: +AD().alert, units: AD().units.length, sc: PRE() ? 'pre' : 'pri' };
+  });
+  window.Attend.hasPre = () => { migrate(DB); return hasPre() && (DB.attend.pre.levels.length > 0 || preCount() > 0); };
   window.Attend.fmt = r => fmtR(r);
   window.Attend.MONTHS = MONTHS;
   // attendance rate (100 - absence rate) of a month for one unit (by name) or for the whole school
+  const preCount = () => { try { return window.Pupils && Pupils.X ? Pupils.X.current(MK.curSy()).filter(p => PRE_CODE(p.lvl)).length : 0; } catch (e) { return 0; } };
   window.Attend.unitRate = (sy, mm, unitName) => {
     migrate(DB); const m = monthOf(sy, mm); if (!m) return null;
     const u = AD().units.find(x => x.name === unitName); if (!u) return null;
@@ -136,12 +179,15 @@
   /* ================================================================= */
   let tab = 'month', sy = null, mm = null;
   window.pageAttend = function (v, arg) {
-    migrate(DB); ensureLists();
+    migrate(DB);
+    if (arg && arg.sc) SC = arg.sc;
+    if (!hasPre()) SC = 'pri';
+    ensureLists();
     if (arg && arg.tab) tab = arg.tab;
     sy = MK.curSy();
     if (!mm) mm = defaultMonth();
     const T = [['month', 'المواظبة الشهرية'], ['summary', 'ملخص الغياب'], ['settings', SEC() ? 'المستويات والأقسام' : 'الوحدات والمستويات']];
-    v.innerHTML = `<div class="page-h"><h1>إحصاء مواظبة التلاميذ</h1>
+    v.innerHTML = `<div class="page-h"><h1>إحصاء مواظبة ${PRE() ? 'أطفال التعليم الأولي' : 'التلاميذ'}</h1>
         <select class="inp" id="aSy" style="width:auto">${yearsList().map(y => `<option value="${y}" ${y === sy ? 'selected' : ''}>الموسم الدراسي ${syDash(y)}</option>`).join('')}</select>
         <span class="sp"></span>
         <button class="btn" id="aOff">${ic('file')} وثائق المواظبة والغياب</button>
@@ -149,15 +195,18 @@
         <button class="btn" id="aExp">${ic('down')} تصدير Excel</button>
         <button class="btn" id="aPrS">${ic('print')} ملخص الغياب</button>
         <button class="btn pri" id="aPrM">${ic('print')} المواظبة الشهرية</button></div>
+      ${hasPre() ? `<div class="mk-tabs att-sc"><div class="seg" id="aSc">${[['pri', '🏫 التعليم الابتدائي'], ['pre', '🧸 التعليم الأولي']].map(([k, l]) => `<button data-sc="${k}" class="${SC === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <span class="muted" style="font-size:12px">لكل سلك إحصائياته الخاصة: المستويات، الأشهر، نسب الغياب والحضور، الوثائق.</span></div>` : ''}
       <div class="mk-tabs"><div class="seg" id="aTabs">${T.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       <div id="aBody"></div>`;
     $$('#aTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; go('attend'); });
+    $$('#aSc button').forEach(b => b.onclick = () => { SC = b.dataset.sc; go('attend', { sc: SC }); });
     $('#aSy').onchange = e => { sy = e.target.value; MK.setSy(sy); go('attend'); };
     $('#aOff').onclick = () => go('attoff');
     $('#aImp').onclick = importBook;
     $('#aExp').onclick = exportBook;
-    $('#aPrM').onclick = () => go('attendDoc', { kind: 'month', sy, mm });
-    $('#aPrS').onclick = () => go('attendDoc', { kind: 'year', sy });
+    $('#aPrM').onclick = () => go('attendDoc', { kind: 'month', sy, mm, sc: SC });
+    $('#aPrS').onclick = () => go('attendDoc', { kind: 'year', sy, sc: SC });
     ({ month: tabMonth, summary: tabSummary, settings: tabSettings })[tab]($('#aBody'));
   };
 
@@ -282,7 +331,7 @@
     });
   }
   function planFromPupils(sy0, mm0, asOf) {
-    const arr = pupilsAt(sy0, mm0, asOf);
+    const arr = pupilsAt(sy0, mm0, asOf).filter(p => (PRE() ? PRE_CODE(p.lvl) : !PRE_CODE(p.lvl)));
     const units = AD().units, levels = AD().levels;
     const pu = Array.from(new Set(arr.map(p => p.unit || '')));
     const unitMap = {};                       // pupil-card unit -> attendance unit id
@@ -519,10 +568,12 @@
       }));
     });
     sy = target; MK.setSy(target); normSec();
+    const nPre = !PRE() && hasPre() ? DB.attend.levels.filter(isPreLevel).length : 0;
+    if (nPre) splitPre(DB.attend);
     const withAbs = fm.filter(m => m.units.some(u => levels.some(l => { const c = m.vals[u + '\u0001' + l]; return c && (c.a != null || c.d != null); })));
     mm = withAbs.length ? withAbs[withAbs.length - 1].k : defaultMonth();
     persist(); go('attend', { tab: 'month' });
-    toast(`تم استيراد ${fm.length} شهر(أشهر) من ملف المواظبة`);
+    toast(`تم استيراد ${fm.length} شهر(أشهر) من ملف المواظبة${nPre ? ` — نُقل ${nPre} مستوى من التعليم الأولي إلى إحصائياته الخاصة` : ''}`);
   }
   // export: the same layout as the school's workbook (summary + one sheet per month), importable again
   async function exportBook() {
@@ -584,14 +635,14 @@
       const hd = `<tr><th>المستويات</th><th>عدد التلاميذ</th><th>عدد التلاميذ المتغيبين</th><th>عدد أيام الغياب</th><th>نسبة الغياب %</th><th>نسبة الحضور %</th></tr>`;
       const tot = `<tr class="tot"><td>المجموع</td><td>${cnt(all, 'p')}</td><td>${cnt(all, 'a')}</td><td>${cnt(all, 'd')}</td>${tdR(all.rate)}<td>${fmtP(all.rate)}</td></tr>`;
       const lchart = MK.svgBars(levels.map(l => ({ label: l.name, v: agg(m, U(), [l.id]).rate })), { alert: +AD().alert, w: 520, h: 185, fs: levels.length > 6 ? 8.5 : 10 });
-      return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">المواظبة الشهرية — ${esc(monthLabel(sy0, mm0))}</div>
+      return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">المواظبة الشهرية${hasPre() ? ' — ' + scopeName() : ''} — ${esc(monthLabel(sy0, mm0))}</div>
           <div class="mk-info">الموسم الدراسي: <b>${esc(syDash(sy0))}</b> &nbsp;—&nbsp; عدد أيام الدراسة خلال الشهر: <b>${m && m.days ? esc(m.days) : '-'}</b></div>`,
         blocks: [{ table: { cls: 'att-tbl', head: hd, rows: levels.map(lr).concat([tot]) } },
           `<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:5mm;align-items:center;margin-top:2mm"><div class="att-kpi"><span>النسبة العامة للغياب: <b class="${hot(all.rate) ? 'hot' : ''}">${fmtR(all.rate)}%</b></span><span>النسبة العامة للحضور: <b>${fmtP(all.rate)}%</b></span></div>
             <div><div class="c b" style="font-size:9pt">نسبة الغياب % حسب المستوى</div>${lchart}</div></div>`,
           sign(s)] });
     }
-    return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">المواظبة الشهرية — ${esc(monthLabel(sy0, mm0))}</div>
+    return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">المواظبة الشهرية${hasPre() ? ' — ' + scopeName() : ''} — ${esc(monthLabel(sy0, mm0))}</div>
         <div class="mk-info">الموسم الدراسي: <b>${esc(syDash(sy0))}</b> &nbsp;—&nbsp; عدد أيام الدراسة خلال الشهر: <b>${m && m.days ? esc(m.days) : '-'}</b></div>`,
       blocks: [{ table: { cls: 'att-tbl', head, rows } },
         `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5mm;align-items:start;margin-top:2mm"><div>${uTbl}<div class="att-kpi"><span>النسبة العامة للغياب: <b class="${hot(all.rate) ? 'hot' : ''}">${fmtR(all.rate)}%</b></span><span>النسبة العامة للحضور: <b>${fmtP(all.rate)}%</b></span></div></div>
@@ -609,7 +660,7 @@
       head: `<tr><th></th>${MONTHS.map(([k]) => `<th>${MNAME[k]}</th>`).join('')}<th>السنة</th></tr>`,
       rows: items.map(it => { const ids = f(it); return `<tr><td class="b">${esc(it.name)}</td>${MONTHS.map(([k]) => tdR(agg(monthOf(sy0, k), ids.u, ids.l).rate)).join('')}${tdR(aggYear(sy0, ids.u, ids.l).rate)}</tr>`; })
         .concat([`<tr class="tot"><td>النسبة العامة</td>${MONTHS.map(([k]) => tdR(agg(monthOf(sy0, k), U(), L()).rate)).join('')}${tdR(ya.rate)}</tr>`]) } });
-    return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">ملخص غياب التلاميذ — الموسم الدراسي ${esc(syDash(sy0))}</div>`,
+    return MK.flowPages({ page: 'a4l', head: `<div class="mk-hdr">${Dx.header(s)}</div><div class="mk-title">ملخص غياب ${PRE() ? 'أطفال التعليم الأولي' : 'التلاميذ'}${hasPre() && !PRE() ? ' — التعليم الابتدائي' : ''} — الموسم الدراسي ${esc(syDash(sy0))}</div>`,
       blocks: [`<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:5mm;align-items:start"><div><div class="tcap" style="font-size:9.5pt">الحصيلة الشهرية والسنوية</div>${mTbl}</div><div><div class="tcap" style="font-size:9.5pt">نسبة الغياب % حسب الشهر</div>${chart}</div></div>`,
         `<div class="att-kpi"><span>نسبة الغياب السنوية: <b class="${hot(ya.rate) ? 'hot' : ''}">${fmtR(ya.rate)}%</b></span><span>نسبة الحضور السنوية: <b>${fmtP(ya.rate)}%</b></span><span>الأشهر المحتسبة: <b>${ya.n}</b></span></div>`,
         ...(SEC() ? [] : [mx('نسبة الغياب % حسب الوحدة المدرسية لكل شهر', units, u => ({ u: [u.id], l: L() }))]),
@@ -619,23 +670,28 @@
   }
 
   window.pageAttendDoc = function (v, arg) {
-    migrate(DB); ensureLists();
+    migrate(DB);
     arg = arg || {};
+    if (arg.sc) SC = arg.sc;
+    if (!hasPre()) SC = 'pri';
+    ensureLists();
+    const sc0 = SC;
     MK.docPage(v, {
       title: arg.kind === 'year' ? 'ملخص غياب التلاميذ' : 'المواظبة الشهرية للتلاميذ', icon: '📊', modes: false, flow: true,
-      state: { kind: arg.kind || 'month', sy: arg.sy || sy || MK.curSy(), mm: arg.mm || mm || defaultMonth() },
-      back: () => go('attend'),
+      state: { kind: arg.kind || 'month', sy: arg.sy || sy || MK.curSy(), mm: arg.mm || mm || defaultMonth(), sc: sc0 },
+      back: () => go('attend', { sc: sc0 }),
       form: (box, st, refresh) => {
-        box.innerHTML = `<div class="sec-t">الوثيقة</div><div class="fld"><select class="inp" id="dK"><option value="month" ${st.kind === 'month' ? 'selected' : ''}>المواظبة الشهرية</option><option value="year" ${st.kind === 'year' ? 'selected' : ''}>ملخص الغياب (الموسم الدراسي)</option></select></div>
+        box.innerHTML = `<div class="sec-t">الوثيقة</div>${hasPre() ? `<div class="fld"><label>السلك</label><select class="inp" id="dSc"><option value="pri" ${st.sc === 'pri' ? 'selected' : ''}>التعليم الابتدائي</option><option value="pre" ${st.sc === 'pre' ? 'selected' : ''}>التعليم الأولي</option></select></div>` : ''}<div class="fld"><select class="inp" id="dK"><option value="month" ${st.kind === 'month' ? 'selected' : ''}>المواظبة الشهرية</option><option value="year" ${st.kind === 'year' ? 'selected' : ''}>ملخص الغياب (الموسم الدراسي)</option></select></div>
           <div class="fld"><label>الموسم الدراسي</label><select class="inp" id="dY">${yearsList().map(y => `<option value="${y}" ${y === st.sy ? 'selected' : ''}>${syDash(y)}</option>`).join('')}</select></div>
           <div class="fld" id="dMf" style="${st.kind === 'month' ? '' : 'display:none'}"><label>الشهر</label><select class="inp" id="dM">${MONTHS.map(([k, n]) => `<option value="${k}" ${k === st.mm ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
           <p class="muted" style="font-size:12px;line-height:1.7">تحسب النسب تلقائيا من المعطيات المدخلة في «إحصاء مواظبة التلاميذ». النسب التي تتجاوز ${esc(AD().alert)}% تظهر بالأحمر.</p>`;
         $('#dK', box).onchange = e => { st.kind = e.target.value; $('#dMf', box).style.display = st.kind === 'month' ? '' : 'none'; refresh(); };
         $('#dY', box).onchange = e => { st.sy = e.target.value; refresh(); };
+        if ($('#dSc', box)) $('#dSc', box).onchange = e => { st.sc = e.target.value; refresh(); };
         $('#dM', box).onchange = e => { st.mm = e.target.value; refresh(); };
       },
-      build: st => ({ page: 'a4l', pages: st.kind === 'year' ? yearDoc(S(), st.sy) : monthDoc(S(), st.sy, st.mm) }),
-      fname: st => st.kind === 'year' ? `ملخص_الغياب_${syDash(st.sy)}` : `المواظبة_${MNAME[st.mm]}_${monthYear(st.sy, st.mm)}`
+      build: st => inScope(st.sc, () => { ensureLists(); return { page: 'a4l', pages: st.kind === 'year' ? yearDoc(S(), st.sy) : monthDoc(S(), st.sy, st.mm) }; }),
+      fname: st => (st.kind === 'year' ? `ملخص_الغياب_${syDash(st.sy)}` : `المواظبة_${MNAME[st.mm]}_${monthYear(st.sy, st.mm)}`) + (st.sc === 'pre' && hasPre() ? '_التعليم_الأولي' : '')
     });
   };
 })();

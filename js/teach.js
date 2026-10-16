@@ -297,7 +297,7 @@
     docs: () => DOCS.filter(d => (!d.unitsOnly || (grp() && !isCol())) && (!d.unitsPri || isCol() || grp())), store: sy => Y(sy), years: () => Object.keys((DB.teach || {}).years || {}),
     intro: () => isCol() ? 'املأ جدول الإسناد مرة واحدة (زر «ملء الجدول من لائحة الأساتذة» يقترح مادة التخصص والأقسام من بطاقات الموظفين)، فتُستخرج وثائق التوزيع والتنظيم التربوي، وتُستعمل أيضا في «السبورة المرجعية». يُسند لكل أستاذ(ة) مادة تخصصه والأقسام وعدد الساعات.' : 'املأ جدول الإسناد مرة واحدة (زر «ملء الجدول من لائحة الأساتذة» يقترح الوحدة والمستويات والمادة من بطاقات الموظفين)، فتُستخرج وثائق التوزيع والتنظيم التربوي، وتُستعمل أيضا في «السبورة المرجعية».'
   }));
-  window.Teach = { migrate, DOCS: () => DOCS, rows, modeOf, distribution, unitOfEmp };
+  window.Teach = { migrate, DEC, DOCS: () => DOCS, rows, modeOf, distribution, unitOfEmp };
   window.pageTeach = (v, a) => { migrate(DB); center().hub(v, a); };
   window.pageTeachDoc = (v, a) => { migrate(DB); center().doc(v, a); };
 })();

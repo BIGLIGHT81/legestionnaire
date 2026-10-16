@@ -64,7 +64,54 @@
       id: nid(), h: sz(s.h),
       rows: s.rows.map(r => ({ id: nid(), st: sz(r[0]), ops: (pri ? r[1] : r[1].filter(o => !PRI_ONLY.test(o))).map(sz).join('\n'), per: sz(r[2]), ref: r[3] || '' })).filter(r => r.ops || pri)
     }));
-    return { title: 'برنامج العمل السنوي للمؤسسة', outline: OUTLINE, secs, council: null, signOn: true, signT: SIGN_T, refs: refsFor(sy), auto: true, src: '' };
+    const f = { title: 'برنامج العمل السنوي للمؤسسة', outline: OUTLINE, secs, council: null, signOn: true, signT: SIGN_T, refs: refsFor(sy), auto: true, src: '' };
+    applyDecree(f, sy);
+    return f;
+  }
+  /* ---------- 1.9.4: «تحيين انطلاقا من المقرر الوزاري» (the decree organising the school year, from «قراءة في المقرر الوزاري») ---------- */
+  const decOf = sy => { try { return (window.Teach && Teach.DEC && Teach.DEC[sy]) || null; } catch (e) { return null; } };
+  const decRef = d => { const m = /رقم\s+([\d.\-]+)\s+الصادر\s+بتاريخ\s+(.+?)\s+بشأن/.exec(d.ref || ''); return m ? `المقرر الوزاري رقم ${m[1]} بتاريخ ${m[2]}` : 'المقرر الوزاري المنظم للسنة الدراسية'; };
+  const actOf = (d, rx) => (d.acts.find(a => rx.test(a[1])) || [])[0] || '';
+  const holOf = (d, rx) => (d.hol.find(a => rx.test(a[1])) || [])[0] || '';
+  const dayNo = t => (/(\d{1,2})\s+(?:شتنبر|أكتوبر)/.exec(t) || [])[1];
+  const dot = t => String(t || '').trim().replace(/[.؛]$/, '');
+  function applyDecree(f, sy) {
+    const d = decOf(sy); if (!d) return false;
+    const pri = !window.Cyc || Cyc.kind() === 'pri', y1 = MK.syStart(sy), next = `${y1 + 1}/${y1 + 2}`, ref = decRef(d);
+    const start = actOf(d, /بداية السنة الدراسية/), eff = actOf(d, /انطلاق الدراسة بشكل فعلي/), reg = actOf(d, /التحسيس بإلزامية/), dig = actOf(d, /التسجيل الرقمي/),
+      rereg = actOf(d, /إعادة تسجيل/), exit = actOf(d, /محاضر الخروج/);
+    const num = (/رقم\s+([\d.\-]+)/.exec(d.ref || '') || [])[1] || '';
+    const effD = eff.replace(/(\d{1,2})\s/, (m, n) => `${n.padStart(2, '0')} `);
+    (f.secs || []).forEach(s => {
+      if (/مسار/.test(s.h)) {
+        s.rows = d.cc.filter(c => pri || !(PRI_ONLY.test(c[1]) || /الامتحان الموحد (المحلي|الإقليمي)/.test(c[1]))).map(c => ({ id: nid(), st: /يناير/.test(c[0]) ? 'الأسدوس الأول' : 'الأسدوس الثاني', ops: dot(c[1]), per: c[0], ref: 'الملحق 2 – المقرر الوزاري' }));
+        return;
+      }
+      (s.rows || []).forEach(r => {
+        const all = `${r.st}\n${r.ops}`;
+        if (/استكمال إجراءات الدخول المدرسي/.test(r.st) && start) r.per = `الفترة من ${dayNo(start) || 1} إلى 30 شتنبر ${y1}`;
+        else if (/انطلاقة الدراسة بشكل فعلي/.test(r.st) && eff) { r.per = `يوم ${effD}`; r.ops = String(r.ops || '').replace(/يوم\s+(?:الأحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة|السبت)\s+\d{1,2}\s+\S+\s+\d{4}/, `يوم ${effD}`); }
+        else if (/التحسيس بإلزامية/.test(all) && reg) r.per = dig ? `${reg} (التسجيل الرقمي ${dig})` : reg;
+        else if (/إعادة تسجيل/.test(all) && rereg) r.per = rereg;
+        else if (/محاضر الخروج/.test(all) && exit) r.per = `يوم ${exit}`;
+        else if (/المسيرة الخضراء/.test(r.st)) { const h = holOf(d, /المسيرة الخضراء/); if (h) r.per = `قبيل عطلة ${h}`; }
+        else if (/عيد الاستقلال/.test(r.st)) { const h = holOf(d, /عيد الاستقلال/); if (h) r.per = `قبيل عطلة ${h}`; }
+        else if (/وثيقة الاستقلال/.test(r.st)) { const h = holOf(d, /وثيقة الاستقلال/); if (h) r.per = `قبيل عطلة ${h}`; }
+        if (/إجراءات آخر السنة والتهييئ للدخول المدرسي/.test(r.st)) r.st = r.st.replace(/\d{4}\s*\/\s*\d{4}/, next);
+        if (num && /المقرر الوزاري/.test(r.ref || '') && !/رقم/.test(r.ref)) r.ref = String(r.ref).replace(/المقرر الوزاري/g, `المقرر الوزاري رقم ${num}`);
+        delete r.rv;
+      });
+      // the holidays of the national days that the model did not have
+      if (/الأيام الوطنية/.test(s.h)) {
+        [['عيد الوحدة', 'الاحتفال بعيد الوحدة', 'ترسيخ قيم الوحدة الوطنية والتشبث بالثوابت'], ['السنة الأمازيغية', 'الاحتفال برأس السنة الأمازيغية', 'التعريف بالموروث الثقافي الأمازيغي وتثمين التعدد الثقافي']].forEach(([k, st, op]) => {
+          const h = holOf(d, new RegExp(k));
+          if (h && !(s.rows || []).some(r => new RegExp(k).test(r.st))) s.rows.push({ id: nid(), st, ops: op, per: `قبيل عطلة ${h}`, ref: 'المذكرات الوزارية والجهوية والإقليمية الصادرة في الموضوع' });
+        });
+      }
+    });
+    const rl = String(f.refs || '').split('\n').filter(l => !/المقرر الوزاري/.test(l));
+    f.refs = [ref, ...rl].join('\n'); f.rvRefs = false; f.dec = sy;
+    return true;
   }
   // the programme of a previous year moved to sy: every date follows the new year, the dated stations are marked «à revoir»
   function updateFrom(f0, srcSy, sy) {
@@ -86,9 +133,14 @@
   function Y(sy) {
     migrate(DB);
     const ys = DB.plan.years;
+    // 1.9.4: a ready model made before the decree of its year was known is rebuilt from it
+    if (ys[sy] && ys[sy].auto && !ys[sy].dec && decOf(sy)) ys[sy] = seedYear(sy);
     if (ys[sy]) return ys[sy];
     const prev = Object.keys(ys).filter(k => k < sy && ys[k] && !ys[k].auto).sort().pop();
-    return (ys[sy] = prev ? updateFrom(ys[prev], prev, sy) : seedYear(sy));
+    if (!prev) return (ys[sy] = seedYear(sy));
+    const f = updateFrom(ys[prev], prev, sy);
+    applyDecree(f, sy);
+    return (ys[sy] = f);
   }
   // the members of the management council (from «المجالس التقنية» → تركيبة المجالس)
   function autoCouncil(sy) {
@@ -176,9 +228,10 @@
       const nrv = (f.secs || []).reduce((a, s) => a + (s.rows || []).filter(r => r.rv).length, 0);
       box.innerHTML = `<div class="sec-t">برنامج عمل المؤسسة</div>
         <div class="fld"><label>الموسم الدراسي</label><select class="inp" id="plSy">${MK.syList(Object.keys(DB.plan.years)).map(y => `<option value="${y}" ${y === st.sy ? 'selected' : ''}>${MK.syDash(y)}${DB.plan.years[y] && !DB.plan.years[y].auto ? ' ●' : ''}</option>`).join('')}</select></div>
-        <p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 8px">${f.src ? `حُيِّن هذا البرنامج من برنامج الموسم ${esc(syLabel(f.src))}: التواريخ والسنوات والأيام تتبع الموسم الحالي. ${nrv ? `راجع <b>${nrv}</b> محطة معلَّمة 📅 ` : ''}${f.rvRefs ? 'وسطر المقرر الوزاري في «المراجع».' : ''}` : f.auto ? 'نموذج جاهز (برنامج 2025/2026 محيَّن إلى هذا الموسم): عدّل ما يلزم وسيُحفظ تلقائيا. التواريخ تقريبية، فراجعها حسب المقرر الوزاري لتنظيم السنة الدراسية.' : 'برنامج معدَّل ومحفوظ. يمكنك تحيينه في الموسم الموالي بضغطة واحدة.'}</p>
+        <p class="muted" style="font-size:12px;line-height:1.8;margin:2px 0 8px">${f.src ? `حُيِّن هذا البرنامج من برنامج الموسم ${esc(syLabel(f.src))}: التواريخ والسنوات والأيام تتبع الموسم الحالي. ${nrv ? `راجع <b>${nrv}</b> محطة معلَّمة 📅 ` : ''}${f.rvRefs ? 'وسطر المقرر الوزاري في «المراجع».' : ''}` : f.auto ? (f.dec ? `نموذج جاهز محيَّن انطلاقا من المقرر الوزاري لتنظيم السنة الدراسية ${esc(syLabel(st.sy))}: انطلاق الدراسة، محطات منظومة مسار والأسدوسين، التسجيل وإعادة التسجيل، محاضر الخروج والأيام الوطنية. عدّل ما يلزم وسيُحفظ تلقائيا.` : 'نموذج جاهز (برنامج 2025/2026 محيَّن إلى هذا الموسم): عدّل ما يلزم وسيُحفظ تلقائيا. التواريخ تقريبية، فراجعها حسب المقرر الوزاري لتنظيم السنة الدراسية.') : 'برنامج معدَّل ومحفوظ. يمكنك تحيينه في الموسم الموالي بضغطة واحدة.'}</p>
         <div class="pl-upd"><label>تحيين من</label><select class="inp" id="plSrc"><option value="seed">النموذج الجاهز</option>${others.map(k => `<option value="${k}" ${k === others[0] ? 'selected' : ''}>برنامج ${MK.syDash(k)}</option>`).join('')}</select>
-          <button type="button" class="btn sm pri" data-a="upd">${ic('hist')} تحيين إلى ${MK.syDash(st.sy)}</button></div>
+          <button type="button" class="btn sm pri" data-a="upd">${ic('hist')} تحيين إلى ${MK.syDash(st.sy)}</button>
+          ${decOf(st.sy) ? `<button type="button" class="btn sm" data-a="updDec" title="تواريخ البرنامج الحالي حسب «قراءة في المقرر الوزاري»">📜 تحيين انطلاقا من المقرر الوزاري${f.dec === st.sy ? ' ✔' : ''}</button>` : ''}</div>
         <div class="fld"><label>عنوان الوثيقة</label><input class="inp" data-k="title" value="${esc(f.title || '')}"></div>
         <div class="fld"><label>محاور البرنامج (صفحة الغلاف)</label><textarea class="inp" data-k="outline" rows="9">${esc(f.outline || '')}</textarea>
           <span class="hint">سطر «# ...» = عنوان مجال، «- ...» = محور مرقّم، «-- ...» = فقرة فرعية</span></div>
@@ -242,6 +295,10 @@
         if (!(await confirmBox(`استبدال برنامج الموسم ${syLabel(st.sy)} الحالي ببرنامج ${src === 'seed' ? 'النموذج الجاهز' : 'الموسم ' + syLabel(src)} محيَّنا؟ ستُفقد التعديلات الحالية.`, 'تحيين'))) return;
         DB.plan.years[st.sy] = src === 'seed' ? Object.assign(seedYear(st.sy), { auto: false }) : updateFrom(DB.plan.years[src], src, st.sy);
         st.open = {}; draw(); now(); toast('تم تحيين البرنامج');
+      }
+      else if (a === 'updDec') {
+        if (!(await confirmBox(`تحيين تواريخ برنامج الموسم ${syLabel(st.sy)} انطلاقا من المقرر الوزاري (انطلاق الدراسة، الأسدوسان ومنظومة مسار، التسجيل، محاضر الخروج، الأيام الوطنية، المراجع)؟ تبقى باقي تعديلاتك كما هي، ويُعاد بناء جدول «مسار» من المقرر.`, 'تحيين', false))) return;
+        applyDecree(f, st.sy); st.open = {}; draw(); now(); toast('تم تحيين البرنامج انطلاقا من المقرر الوزاري');
       }
       else if (a === 'reset') {
         if (!(await confirmBox('العودة إلى النموذج الجاهز؟ ستُفقد جميع تعديلاتك على برنامج هذا الموسم.', 'العودة'))) return;

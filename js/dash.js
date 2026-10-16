@@ -132,6 +132,8 @@
         { v: safe(() => absentToday().length, 0), l: 'غائبون اليوم', c: safe(() => absentToday().length, 0) ? 'red' : '' },
         { v: A.length, l: 'حالات الغياب خلال الموسم' }, { v: days, l: 'أيام الغياب خلال الموسم' },
         { v: at && at.rate != null ? f1(+num(at.rate).toFixed(2)) + '%' : '—', l: 'نسبة غياب التلاميذ (السنوية)', c: at && at.rate != null && at.alert && at.rate > at.alert ? 'red' : '' },
+        { v: at && at.rate != null ? f1(+(100 - at.rate).toFixed(2)) + '%' : '—', l: 'نسبة حضور التلاميذ (السنوية)', c: 'green' },
+        ...(() => { const sr = window.Attoff && Attoff.staffRate ? safe(() => Attoff.staffRate(c.sy, Dx.todayIso().slice(5, 7)), null) : null; return sr ? [{ v: f1(+sr.rate.toFixed(2)) + '%', l: 'نسبة حضور الموظفين (الشهر الحالي)', c: 'green' }] : []; })(),
         { v: docs, l: 'وثائق إدارية خلال الموسم' }, { v: safe(() => ((DB.certs || {}).issued || []).length, 0), l: 'شواهد مدرسية مسلمة' },
         { v: safe(() => window.Holidays ? Holidays.summary().count : '—', '—'), l: 'عطل الموسم المدرسي' }
       ], 5))];
@@ -231,17 +233,23 @@
           lv.length ? { t: 'المستويات المسندة', h: hbar(top(lv, 6), { labW: 100, cut: 18 }) } : null]))];
     } });
 
-  sec({ k: 'att', t: 'مواظبة التلاميذ', has: c => !!(window.Attend && Attend.summary && safe(() => Attend.summary().n, 0) > 0),
-    build: c => {
-      const A = Attend.summary(), ms = (A.monthly || []).filter(m => m.v != null), hi = ms.reduce((b, m) => (!b || m.v > b.v ? m : b), null), lo = ms.reduce((b, m) => (!b || m.v < b.v ? m : b), null);
+  // 1.9.4: the pre-school attendance has its own section (primary school)
+  const attSec = (k, t, sc, has) => sec({ k, get t() { return t(); }, has, build: c => attBuild(c, sc, t()) });
+  attSec('att', () => (attPreOn() ? 'مواظبة تلاميذ التعليم الابتدائي' : 'مواظبة التلاميذ'), 'pri', c => !!(window.Attend && Attend.summary && safe(() => Attend.summary().n, 0) > 0));
+  attSec('attPre', () => 'مواظبة أطفال التعليم الأولي', 'pre', c => attPreOn() && safe(() => Attend.summary('pre').n, 0) > 0);
+  function attPreOn() { return !!(window.Attend && Attend.hasPre && (typeof isPriCycle !== 'function' || isPriCycle()) && safe(() => Attend.hasPre(), false)); }
+  function attBuild(c, sc, ttl) {
+    {
+      const A = Attend.summary(sc), ms = (A.monthly || []).filter(m => m.v != null), hi = ms.reduce((b, m) => (!b || m.v > b.v ? m : b), null), lo = ms.reduce((b, m) => (!b || m.v < b.v ? m : b), null);
       const hot = ms.filter(m => A.alert && m.v > A.alert).length;
-      return [head('مواظبة التلاميذ'),
+      return [head(ttl),
         blk(kpis([{ v: A.rate == null ? '—' : f1(+num(A.rate).toFixed(2)) + '%', l: 'نسبة الغياب السنوية', c: A.alert && A.rate > A.alert ? 'red' : '' }, { v: A.rate == null ? '—' : f1(+(100 - A.rate).toFixed(2)) + '%', l: 'نسبة الحضور السنوية', c: 'green' },
-          { v: A.last ? f1(+num(A.last.rate).toFixed(2)) + '%' : '—', l: A.last ? `نسبة الغياب (${A.last.label})` : 'آخر شهر' }, { v: `${A.n} من 10`, l: 'الأشهر المملوءة' },
+          { v: A.last ? f1(+num(A.last.rate).toFixed(2)) + '%' : '—', l: A.last ? `نسبة الغياب (${A.last.label})` : 'آخر شهر' }, { v: A.last ? f1(+(100 - A.last.rate).toFixed(2)) + '%' : '—', l: A.last ? `نسبة الحضور (${A.last.label})` : 'نسبة الحضور', c: 'green' }, { v: `${A.n} من 10`, l: 'الأشهر المملوءة' },
           { v: A.alert ? f1(+A.alert) + '%' : '—', l: 'عتبة الإنذار' }, { v: hi ? hi.label : '—', l: hi ? `أعلى شهر غيابا (${f1(+hi.v.toFixed(2))}%)` : 'أعلى شهر غيابا', c: 'red' },
           { v: lo ? lo.label : '—', l: lo ? `أدنى شهر غيابا (${f1(+lo.v.toFixed(2))}%)` : 'أدنى شهر غيابا', c: 'green' }, { v: hot, l: 'أشهر فوق العتبة', c: hot ? 'red' : '' }], 4)),
-        blk(charts([{ t: 'نسبة غياب التلاميذ شهريا (%)', h: MK.svgBars(A.monthly, { alert: A.alert, w: 420, h: 150, fs: 8.5 }) }, { t: 'نسبة الحضور السنوية', h: gauge(A.rate == null ? null : 100 - A.rate, 'الحضور', { low: true }) }]))];
-    } });
+        blk(charts([{ t: sc === 'pre' ? 'نسبة غياب أطفال التعليم الأولي شهريا (%)' : 'نسبة غياب التلاميذ شهريا (%)', h: MK.svgBars(A.monthly, { alert: A.alert, w: 420, h: 150, fs: 8.5 }) }, { t: 'نسبة الحضور السنوية', h: gauge(A.rate == null ? null : 100 - A.rate, 'الحضور', { low: true }) }]))];
+    }
+  }
 
   sec({ k: 'doc', t: 'الوثائق الإدارية', has: c => (DB.records || []).some(r => r.type !== 'absence'),
     build: c => {
@@ -345,7 +353,7 @@
         const f = Dd(); picked();
         const defs = () => [{ sec: 'الأقسام المراد إدراجها' },
           { note: 'تُحسب كل المؤشرات والمبيانات تلقائيا من معطيات البرنامج (الموظفون، الغياب، التلاميذ، الأساتذة، المواظبة، الوثائق، الشواهد، الأندية والشركاء، الميزانية والعتاد...). القسم الذي لا معطيات له لا يظهر في الوثيقة. اختر الأقسام ثم اضغط «طباعة» أو «PDF» أو «Word».' },
-          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => (x.k === 'presch' && SECX() ? null : cycT(x.t) + (has[i] ? '' : ' (لا معطيات بعد)'))) },
+          { k: 'secs', l: '', t: 'checks', opts: SECS.map((x, i) => ((x.k === 'presch' || x.k === 'attPre') && SECX() ? null : cycT(x.t) + (has[i] ? '' : ' (لا معطيات بعد)'))) },
           { k: 'note', l: 'ملاحظة أسفل الوثيقة', t: 'area', rows: 2 }];
         let t = null;
         K.form(box, defs, f, () => { clearTimeout(t); t = setTimeout(() => persist(), 300); refresh(); });
