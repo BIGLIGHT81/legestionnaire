@@ -51,7 +51,7 @@
     if (key === '__school') return { name: s.school || '', code: normCode(s.gresa) };
     const u = list().find(x => x.name === key); if (!u) return null;
     const short = String(u.name).replace(/^(مركزية|وحدة|فرعية)\s*/, '');
-    const full = /^(مركزية|وحدة|فرعية)/.test(u.name) ? u.name : 'وحدة ' + short;
+    const full = /^(ال)?(مركزية|وحدة|فرعية|مدرسة)/.test(u.name) ? u.name : 'وحدة ' + short;
     return { name: `${s.school || ''} — ${full}`.replace(/^ — /, ''), code: u.gresa || '' };
   };
 

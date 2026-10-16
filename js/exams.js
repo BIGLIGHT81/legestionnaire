@@ -12,8 +12,25 @@
   const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : null; };
 
   function migrate(db) { const e = db.exams = db.exams || {}; e.years = e.years && typeof e.years === 'object' ? e.years : {}; }
+  // 1.9.4: a school group can make each school unit the exam centre of its own pupils only: then every step of the exam
+  // (candidates, timetable, rooms, staff, invigilation, marks, documents) has its own data for the chosen unit
+  const grpSchool = () => { try { return !!(window.Cyc && Cyc.group && Cyc.group()) && !(window.Cyc && Cyc.isSec && Cyc.isSec()); } catch (e) { return false; } };
+  const unitNames = () => { try { return (window.Units ? Units.list() : []).map(u => u.name).filter(Boolean); } catch (e) { return []; } };
+  const root = sy => { migrate(DB); return DB.exams.years[sy] || (DB.exams.years[sy] = {}); };
+  const perUnit = sy => { const r = root(sy); return !!r.perUnit && grpSchool() && unitNames().length > 0; };
+  const curUnit = sy => { const r = root(sy), U = unitNames(); if (!U.includes(r.unit)) r.unit = U[0] || ''; return r.unit; };
   const Y = sy => {
-    migrate(DB); const y = DB.exams.years[sy] || (DB.exams.years[sy] = {});
+    const r = root(sy); let y = r;
+    if (perUnit(sy)) {
+      const u = curUnit(sy); r.units = r.units && typeof r.units === 'object' ? r.units : {};
+      if (!r.units[u]) {
+        // a new unit centre starts with the exam, the timetable and the calculation of the other centres (or of the common data)
+        const src = Object.values(r.units)[0] || r, I0 = Object.assign({}, src.info || {});
+        const c = window.Units && Units.centerOf ? Units.centerOf(u) : null;
+        r.units[u] = { info: Object.assign(I0, { center: c ? c.name : u, code: c ? c.code : '', centerUnit: u }), subjects: JSON.parse(JSON.stringify(src.subjects || {})) };
+      }
+      y = r.units[u];
+    }
     ['info', 'cands', 'subjects', 'rooms', 'staff', 'guards', 'marks'].forEach(k => { if (!y[k] || typeof y[k] !== 'object') y[k] = {}; });
     return y;
   };
@@ -60,7 +77,7 @@
     const three = hasLoc(I0);   // 3AC: MG = (3·MC + 3·ML + 4·MR) / 10 (30% + 30% + 40%); 2BAC: 25% continuous + 25% regional (1BAC) + 50% national
     const bac = /^B/.test(level), colg = isCol(level) || bac;
     return Object.assign({ type, level, session: `يونيو ${MK.syStart(sy) + 1}`, center: s.school || '', code: s.gresa || '', head: s.director || '', first: '1',
-      wcc: type === 'nat' ? '25' : three ? '30' : level === 'B1' ? '0' : '50', wloc: type === 'nat' ? '25' : '30', wex: type === 'nat' ? '50' : level === 'B1' ? '100' : three ? '40' : '50', pass: colg ? '10' : '5', max: colg ? '20' : '10' }, i, I0);
+      wcc: type === 'nat' ? '25' : three ? '30' : level === 'B1' ? '0' : '50', wloc: type === 'nat' ? '25' : '30', wex: type === 'nat' ? '50' : level === 'B1' ? '100' : three ? '40' : '50', pass: colg ? '10' : '5', max: colg ? '20' : '10' }, i, I0, { perUnit: root(sy).perUnit ? '1' : '', curUnit: perUnit(sy) ? curUnit(sy) : '' });
   };
   const typeName = t => (ALL_TYPES.find(x => x[0] === t) || ALL_TYPES[0])[1];
   const levelName = l => (ALL_LEVELS.find(x => x[0] === l) || ALL_LEVELS[0])[1];
@@ -112,9 +129,10 @@
   }
   function fromPupils(f, sy, c) {
     const lv = info(sy).level;
-    const L = (window.Pupils ? Pupils.current(sy) : []).filter(p => p.lvl === lv).sort((a, b) => String(a.cls).localeCompare(String(b.cls), 'ar', { numeric: true }) || `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar'));
-    if (!L.length) return c.toast(`لا يوجد تلاميذ ${levelName(lv)} في بطاقة التلاميذ لهذا الموسم`, true);
-    f.rows = L.map(p => ['', `${p.last || ''} ${p.first || ''}`.trim(), p.code || '', p.g === 'F' ? 'أنثى' : p.g === 'M' ? 'ذكر' : '', MK.showDate(p.birth || ''), p.cls || '', '', S().school || '']);
+    const U = perUnit(sy) ? curUnit(sy) : '';
+    const L = (window.Pupils ? Pupils.current(sy) : []).filter(p => p.lvl === lv && (!U || (window.K && K.U && K.U.same ? K.U.same(p.unit, U) : p.unit === U))).sort((a, b) => String(a.cls).localeCompare(String(b.cls), 'ar', { numeric: true }) || `${a.last} ${a.first}`.localeCompare(`${b.last} ${b.first}`, 'ar'));
+    if (!L.length) return c.toast(`لا يوجد تلاميذ ${levelName(lv)}${U ? ' بالوحدة «' + U + '»' : ''} في بطاقة التلاميذ لهذا الموسم`, true);
+    f.rows = L.map(p => ['', `${p.last || ''} ${p.first || ''}`.trim(), p.code || '', p.g === 'F' ? 'أنثى' : p.g === 'M' ? 'ذكر' : '', MK.showDate(p.birth || ''), p.cls || '', '', U || S().school || '']);
     c.save('rows'); c.toast(`أضيف ${L.length} مترشحا من بطاقة التلاميذ`);
   }
   // exam numbers and rooms: candidates in the order of the list, rooms filled one after the other
@@ -185,9 +203,13 @@
     init: (s, sy) => info(sy),
     onSave: (k, f, sy, st) => {
       if (k === 'allc') { DB.exams.allCycles = !!f.allc; if (f.allc) { Y(sy).info.keepLevel = true; } return 'redraw'; }
+      if (k === 'perUnit' || k === 'curUnit') { const r = root(sy); if (k === 'perUnit') r.perUnit = f.perUnit === '1'; else r.unit = f.curUnit; if (st) delete st[k]; persist(); setTimeout(() => go('examsDoc', { kind: 'info' }), 0); return; }
       if (k === 'centerUnit') { const c = f.centerUnit ? Units.centerOf(f.centerUnit) : null; if (c) { f.center = c.name; f.code = c.code; st.center = c.name; st.code = c.code; } return 'redraw'; }
     },
-    defs: () => [{ sec: 'الامتحان' }, { k: 'allc', l: 'الأسلاك', t: 'select', opts: [['', 'حسب سلك المؤسسة في الإعدادات'], ['1', secI() ? 'السلكان الإعدادي والتأهيلي' : 'كل الأسلاك (الابتدائي، الإعدادي، التأهيلي)']], half: true }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
+    defs: (f, sy) => [...(grpSchool() && unitNames().length > 1 ? [{ sec: 'تنظيم مراكز الامتحان (المجموعة المدرسية)' },
+      { k: 'perUnit', l: 'مراكز الامتحان', t: 'select', opts: [['', 'مركز امتحان واحد لكل تلاميذ المجموعة المدرسية'], ['1', 'كل وحدة مدرسية مركز امتحان خاص بتلاميذها']], half: true },
+      ...(perUnit(sy) ? [{ k: 'curUnit', l: 'الوحدة / المركز الحالي (كل الخطوات والوثائق تخصه)', t: 'select', opts: unitNames().map(u => [u, u]), half: true }] : [])] : []),
+      { sec: 'الامتحان' }, { k: 'allc', l: 'الأسلاك', t: 'select', opts: [['', 'حسب سلك المؤسسة في الإعدادات'], ['1', secI() ? 'السلكان الإعدادي والتأهيلي' : 'كل الأسلاك (الابتدائي، الإعدادي، التأهيلي)']], half: true }, { k: 'type', l: 'نوع الامتحان', t: 'select', opts: () => typesFor() }, { k: 'level', l: 'المستوى الإشهادي', t: 'select', opts: () => levelsFor(), half: true }, { k: 'session', l: 'الدورة', half: true },
       { sec: 'مركز الامتحان' }, { k: 'centerUnit', l: (window.Cyc ? Cyc.group() : kindNow() === 'pri') ? 'اختيار المركز من الوحدات المدرسية (تُملأ الخانتان التاليتان تلقائيا)' : 'اعتماد المؤسسة مركزا للامتحان (تُملأ الخانتان التاليتان تلقائيا)', t: 'select', opts: () => Units.centerOptions() }, { k: 'center', l: 'مركز الامتحان', half: true }, { k: 'code', l: 'رمز المركز (GRESA)', half: true, dir: 'ltr' }, { k: 'head', l: 'رئيس(ة) مركز الامتحان', half: true, list: 'k2Emps' }, { k: 'first', l: 'أول رقم امتحان', t: 'num', half: true },
       { sec: 'احتساب النتائج' }, { k: 'max', l: 'النقطة القصوى', t: 'num', half: true }, { k: 'pass', l: 'معدل النجاح', t: 'num', half: true },
       { k: 'wcc', l: 'نسبة المراقبة المستمرة %', t: 'num', half: true }, { k: 'wex', l: 'نسبة الامتحان الموحد (أو الجهوي) %', t: 'num', half: true }, { k: 'wloc', l: 'نسبة الامتحان المحلي % (الجهوي فقط)', t: 'num', half: true },
@@ -640,9 +662,10 @@
     groups: () => GROUPS, groupTabs: true,
     docs: () => { const I = info(MK.curSy()), k = kindNow(); return DOCS.filter(d => !d.when || d.when(I, k)); }, store, years: () => Object.keys((DB.exams || {}).years || {}),
     intro: () => introTxt(),
-    hubButtons: () => { const sy = MK.curSy(), L = cands(sy); return `<span class="tag2">${esc(typeName(info(sy).type))} — ${esc(levelName(info(sy).level))} — المترشحون: ${L.length}</span>`; }
+    hubButtons: () => { const sy = MK.curSy(), L = cands(sy); return `${perUnit(sy) ? `<label class="tag2">مركز الامتحان: <select class="inp" style="width:auto;display:inline-block;padding:2px 6px" onchange="Exams.setUnit(this.value)">${unitNames().map(u => `<option ${u === curUnit(sy) ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>` : ''}<span class="tag2">${esc(typeName(info(sy).type))} — ${esc(levelName(info(sy).level))} — المترشحون: ${L.length}</span>`; }
   }));
   window.Exams = { migrate, DOCS: () => DOCS, results, cands, info,
+    perUnit, curUnit: sy => (perUnit(sy) ? curUnit(sy) : ''), setUnit: u => { const r = root(MK.curSy()); r.unit = u; persist(); go('exams'); },
     // 1.9.4: the internals used by the smart layer (exams2.js)
     X: { Y, info, cands, subjects, rooms, staff, guardRows, byRoom, sub, signHead, C, CAND_COLS, isF, examTitle, levelName, typeName, add, kv, roomPages, sessLabel, sessOf, sortRooms,
       results, f2, rng, kindNow, defSubj, subjOpts, subjIdx, sjDate, gCount, pb, dots, ROLES, GROUPS, DOCS, hasLoc, mention, num, nm, SUBJ, ALL_LEVELS, ALL_TYPES, center: () => center() } };
