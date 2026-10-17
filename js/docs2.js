@@ -1,9 +1,9 @@
-"use strict";(function(){const{T:v,TYPES:N,V:a,D:n,L:tt,CB:x,LTR:A,header:c,esc:e,fmtDate:P,fullName:m,MONTHS:z}=window.Docs,S=s=>{const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||"");return i?`${i[3]} ${z[+i[2]-1]} ${i[1]}`:""},b=(s,i)=>a(S(s),i),G=s=>{const i=String(s.directorate||"").replace(/^المديرية الإقليمية\s*/,"").trim();return i?i.startsWith("ب")?i:"ب"+i:""},u=s=>(s=String(s||"").trim(),s?s.startsWith("ال")?"لل"+s.slice(2):"ل"+s:""),R=s=>(s=String(s||"").trim(),s?"ب"+s:""),J=(s,i)=>i.assigned||s.school||"",j=(s,i="")=>Array.from({length:s},()=>`<div class="dl ${i}"></div>`).join(""),B=(s,i)=>{const t=String(s||"").split(`
+"use strict";(function(){const{T:v,TYPES:N,V:a,D:n,L:tt,CB:x,LTR:A,header:c,esc:e,fmtDate:P,fullName:b,MONTHS:z}=window.Docs,S=s=>{const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||"");return i?`${i[3]} ${z[+i[2]-1]} ${i[1]}`:""},m=(s,i)=>a(S(s),i),G=s=>{const i=String(s.directorate||"").replace(/^المديرية الإقليمية\s*/,"").trim();return i?i.startsWith("ب")?i:"ب"+i:""},u=s=>(s=String(s||"").trim(),s?s.startsWith("ال")?"لل"+s.slice(2):"ل"+s:""),R=s=>(s=String(s||"").trim(),s?"ب"+s:""),J=(s,i)=>i.assigned||s.school||"",j=(s,i="")=>Array.from({length:s},()=>`<div class="dl ${i}"></div>`).join(""),B=(s,i)=>{const t=String(s||"").split(`
 `).map(p=>p.trim()).filter(Boolean);let r=t.map(p=>`<div class="dl filled">${e(p)}</div>`).join("");for(let p=t.length;p<i;p++)r+='<div class="dl"></div>';return r},V=(s,i,t)=>{const r=String(s||"").split(`
 `).map(p=>p.trim()).filter(Boolean).map(p=>p.split(/\s*[|;]\s*/));for(;r.length<t;)r.push([]);return r.map(p=>`<tr>${Array.from({length:i},(o,l)=>`<td>${e(p[l]||"")}</td>`).join("")}</tr>`).join("")},U=s=>s.childGender==="ذكر"?{my:"ابني المولود",of:"الابن",att:"المولود"}:{my:"ابنتي المولودة",of:"الابنة",att:"المولودة"};function L({s,e:i,f:t},r,p,o){return`
-    <div class="l b mt">${e(t.city||s.city)} في: ${b(t.date,"b")}</div>
+    <div class="l b mt">${e(t.city||s.city)} في: ${m(t.date,"b")}</div>
     <ul class="info b">
-      <li>الاسم الكامل: ${a(m(i))}</li>
+      <li>الاسم الكامل: ${a(b(i))}</li>
       <li>الإطار: ${a(i.cadre)}</li>
       <li>رقم التأجير: ${a(i.ppr,"b")}</li>
       <li>المؤسسة الأصلية: ${a(i.origin)}</li>
@@ -24,11 +24,11 @@
     <p class="c b mt2">وفي انتظار قبول طلبي، تقبلوا مني فائق التقدير والاحترام</p>
     <div class="l b mt2 sig">توقيع: ............................</div>
     <div class="spacer"></div>
-    <div class="b small2">المرفقات: ${e(o)}</div>`}v.marriage=s=>L(s,"طلب الاستفادة من رخصة استثنائية للزواج",`وبعد، بمناسبة زواجي، يشرفني أن أتقدم لسيادتكم بهذا الطلب قصد الاستفادة من رخصة استثنائية للزواج، وذلك ابتداءً من تاريخ ${b(s.f.from)}، وتجدون رفقته نسخة من عقد الزواج.`,"عقد الزواج"),v.assignReq=({s,e:i,f:t})=>{const r=t.variant==="swap",p=String(t.items||"").split(`
+    <div class="b small2">المرفقات: ${e(o)}</div>`}v.marriage=s=>L(s,"طلب الاستفادة من رخصة استثنائية للزواج",`وبعد، بمناسبة زواجي، يشرفني أن أتقدم لسيادتكم بهذا الطلب قصد الاستفادة من رخصة استثنائية للزواج، وذلك ابتداءً من تاريخ ${m(s.f.from)}، وتجدون رفقته نسخة من عقد الزواج.`,"عقد الزواج"),v.assignReq=({s,e:i,f:t})=>{const r=t.variant==="swap",p=String(t.items||"").split(`
 `).map(d=>d.trim()).filter(Boolean).map(d=>d.split(/\s*\|\s*/));for(;p.length<Math.max(3,+t.minRows||7);)p.push([]);const o=`<table class="grid ar-t"><thead><tr><th style="width:8%">ر.ت</th><th>المؤسسة</th><th style="width:22%">نوعها</th><th style="width:26%">الجماعة</th></tr></thead><tbody>${p.map((d,f)=>`<tr><td class="c">${f+1}</td><td>${e(d[0]||"")}</td><td class="c">${e(d[1]||"")}</td><td class="c">${e(d[2]||"")}</td></tr>`).join("")}</tbody></table>`,l=r?(()=>{const d=/ة$/.test(String(t.pTitle||"").trim());return`وبعد، علاقة بالموضوع المشار اليه أعلاه، يشرفني أن أطلب منكم تكليفي بالتبادل خلال الموسم الدراسي <b><bdi>${e(t.sy||"")}</bdi></b> مع ${e(t.pTitle||"الأستاذ")} <b>${e(t.pName||"..........................")}</b> ${d?"الحاملة":"الحامل"} للبطاقة الوطنية رقم <b><bdi dir="ltr">${e(t.pCin||"..........")}</bdi></b> ورقم التأجير <b><bdi dir="ltr">${e(t.pPpr||"..........")}</bdi></b> ${d?"والتي تعمل":"والذي يعمل"} ب${e(t.pSchool||"..........................")}.`})():`وبعد، علاقة بالموضوع المشار اليه أعلاه، يشرفني أن أطلب منكم تكليفي بمهمة مؤقتة بإحدى المؤسسات المشار اليها في الجدول أسفله${t.sy?" خلال الموسم الدراسي <b>"+e(t.sy)+"</b>":""}:`;return`
-    <div class="l b mt">${e(t.city||s.city)} في: ${b(t.date,"b")}</div>
+    <div class="l b mt">${e(t.city||s.city)} في: ${m(t.date,"b")}</div>
     <ul class="info b">
-      <li>الاسم الكامل: ${a(m(i))}</li>
+      <li>الاسم الكامل: ${a(b(i))}</li>
       <li>الإطار: ${a(i.cadre)}</li>
       <li>رقم التأجير: ${a(i.ppr,"b")}</li>
       <li>المؤسسة الأصلية: ${a(i.origin||s.school)}</li>
@@ -47,13 +47,13 @@
     ${t.reason?`<p class="j b body">${e(t.reason)}</p>`:""}
     ${r?"":o}
     <p class="c b mt2">${r?"وفي انتظار قبول طلبي":"وفي انتظار جوابكم"}، تقبلوا مني فائق التقدير والاحترام</p>
-    <div class="l b mt2 sig">توقيع: ${e(m(i))}</div>
+    <div class="l b mt2 sig">توقيع: ${e(b(i))}</div>
     <div class="spacer"></div>
     ${t.att?`<div class="b small2">المرفقات: ${e(t.att)}</div>`:""}`},v.paternity=s=>L(s,"طلب الاستفادة من رخصة الأبوة","وبعد، علاقة بالموضوع المشار اليه أعلاه، يشرفني أن أتقدم لسيادتكم بهذا الطلب قصد الاستفادة من رخصة الأبوة وتجدون رفقته شهادة الوضع.","شهادة الوضع"),v.breastfeeding=({s,e:i,f:t})=>{if(t.variant==="short")return`
       ${c(s)}
       <div class="row2 mt">
         <div>
-          <p>الإسم الكامل: ${a(m(i))}</p>
+          <p>الإسم الكامل: ${a(b(i))}</p>
           <p>رقم التأجير: ${a(i.ppr)}</p>
           <p>الإطار: ${a(i.cadre)}</p>
           <p>مقر العمل: ${a(i.origin||s.school)}</p>
@@ -75,7 +75,7 @@
       <p class="c">والسلام.</p>
       <p class="c mt2">التوقيع:</p>`;const r=U(t);return`
     <div class="c b">الحمد لله وحده</div>
-    <div class="l b">${e(t.city||s.city)} بتاريخ: ${b(t.date)}</div>
+    <div class="l b">${e(t.city||s.city)} بتاريخ: ${m(t.date)}</div>
     <div class="info2 b mt">
       <p>الاسم الشخصي: ${a(i.firstAr)}</p>
       <p>الاسم العائلي: ${a(i.lastAr)}</p>
@@ -93,7 +93,7 @@
     </div>
     <p class="b subj">الموضوع: طلب الاستفادة من رخصة الرضاعة</p>
     <p class="c b">سلام تام بوجود مولانا الإمام،</p>
-    <p class="j body">وبعد، علاقة بالموضوع المشار إليه أعلاه، يشرفني أن أتقدم إلى سيادتكم بطلبي هذا قصد تمكيني من الاستفادة من رخصة الرضاعة، وذلك ابتداء من تاريخ استئنافي للعمل بعد رخصة الولادة بتاريخ ${b(t.resumeDate,"b")}، لفائدة ${r.my} بتاريخ ${n(t.childBirth,"b")}.</p>
+    <p class="j body">وبعد، علاقة بالموضوع المشار إليه أعلاه، يشرفني أن أتقدم إلى سيادتكم بطلبي هذا قصد تمكيني من الاستفادة من رخصة الرضاعة، وذلك ابتداء من تاريخ استئنافي للعمل بعد رخصة الولادة بتاريخ ${m(t.resumeDate,"b")}، لفائدة ${r.my} بتاريخ ${n(t.childBirth,"b")}.</p>
     <p class="j body">وحرصاً على انتظام سير الدراسة وصون مصلحة المتعلمين، أقترح اعتماد الصيغة التالية في توزيع ساعة الرضاعة: ${a(t.slot,"b")}، بما ينسجم مع جدول الحصص المعتمد في المؤسسة.</p>
     <p class="j body">تجدون رفقة هذا الطلب نسختين من عقد ازدياد ${r.of}.</p>
     <p class="c">وفي انتظار موافقتكم، تقبلوا فائق عبارات التقدير والاحترام</p>
@@ -130,7 +130,7 @@
     <div class="wa-title">شهادة العمل</div>
     <p class="wa-intro">${e(t.signer||"")} ${l("بأن السيد","بأن السيدة","بأن السيد(ة)")} :</p>
     <table class="kv wa-kv">
-      ${d("الإسم والنسب",a(m(i),"b"))}
+      ${d("الإسم والنسب",a(b(i),"b"))}
       ${d("ر.ب.و",a(i.cin,"ltr"))}
       ${d("رقم التأجير",a(i.ppr))}
       ${d("الإطار",a(f))}
@@ -178,7 +178,7 @@
     <p class="b mt subj">الموضــوع: طلب إجراء فحص طبي مضاد</p>
     <p class="c">ســلام تام بوجــود مولانا الإمـام المــؤيد بالله</p>
     <p class="j">وبعد، فعلاقة بالموضوع المشار إليه أعلاه، يشرفني أن أطلب منكم إجراء فحص طبي مضاد من قبل اللجنة الطبية الإقليمية
-      للسيد(ة): ${a(m(i),"b")} رقم التأجير: ${a(i.ppr,"b")} الإطار: ${a(i.cadre,"b")}
+      للسيد(ة): ${a(b(i),"b")} رقم التأجير: ${a(i.ppr,"b")} الإطار: ${a(i.cadre,"b")}
       العامل(ة) بمؤسسة: ${a(i.assigned||s.school)} نتيجة إدلائه(ا) بشهادة طبية مدتها: ${a(t.duration,"b")}
       بمفعول: ${n(t.from,"b")} مسلمة من طرف الطبيب(ة): ${a(t.doctor,"b")} مع موافاتي بنتيجة الفحص في أقرب الآجال.</p>
     <p class="c">وتقبلوا أزكى التحيات، والسلام.</p>
@@ -247,7 +247,7 @@
     <div class="vsec mt">
       <div class="vlab"><span>المؤسسة الأصلية</span></div>
       <div class="vbody">
-        <p>الاسم الشخصي والعائلي: ${a(m(i),"b")}</p>
+        <p>الاسم الشخصي والعائلي: ${a(b(i),"b")}</p>
         <p class="row3x"><span>رقم التأجير: ${a(i.ppr)}</span><span>الإطار: ${a(i.cadre)}</span><span>الدرجة: ${a(i.grade)}</span></p>
         <p>المهمة: ${a(i.task)}</p>
         <p class="row2x"><span>المؤسسة: ${a(i.origin)}</span><span>رمزها (GRESA): ${a(t.origGresa,"ltr")}</span></p>
@@ -279,7 +279,7 @@
       <p class="row2x"><span>الإطار: ${a(i.cadre)}</span><span>الدرجة: ${a(i.grade)}</span></p>
       <p class="row2x"><span>رقم التأجير: ${a(i.ppr)}</span><span>بطاقة التعريف الوطنية: ${a(i.cin,"ltr")}</span></p>
       <p class="row2x"><span>مقر العمل: ${a(i.origin||s.school)}</span><span>بالمديرية الإقليمية: ${a(String(s.directorate||"").replace(/^المديرية الإقليمية\s*ب?/,""))}</span></p>
-      <p>قد استأنف (ت) عمله(ها) بتاريخ: ${n(t.resumeDate,"b")}</p>
+      <p>قد استأنف (ت) عمله(ها) بتاريخ: ${n(t.resumeDate,"b")}</p>${t.sundayNote?`<p><b>${e(t.sundayNote)}</b></p>`:""}
       <p class="row3x"><span>بعد(1): ${a(t.afterType)}</span><span>من: ${n(t.from)}</span><span>الى: ${n(t.to)}</span></p>
       <p>العنوان الشخصي: ${a(i.address)}</p>
       <p class="row2x mt"><span>حرر في : ${a(t.city)}</span><span>بتاريخ: ${n(t.date)}</span></p>
@@ -302,7 +302,7 @@
       <p class="row2x"><span>الاسم العائلي : ${a(i.lastAr,"b")}</span>${A(`Nom : <b>${e(i.lastFr||"")}</b>`)}</p>
       <p class="row3x"><span>الإطار : ${a(i.cadre)}</span><span>الدرجة : ${a(i.grade)}</span><span>رقم التأجير : ${a(i.ppr)}</span></p>
       <p class="row2x"><span>رقم بطاقة التعريف الوطنية : ${a(i.cin,"ltr")}</span><span>تاريخ ومكان الازدياد : ${a([P(i.birth),i.birthPlace].filter(Boolean).join(" ب"))}</span></p>
-      <p>قد استأنف (ت) عمله(ا) بتاريخ : ${n(t.resumeDate,"b")}</p>
+      <p>قد استأنف (ت) عمله(ا) بتاريخ : ${n(t.resumeDate,"b")}</p>${t.sundayNote?`<p><b>${e(t.sundayNote)}</b></p>`:""}
       <p class="row3x"><span>بعد (1) : ${a(t.afterType)}</span><span>من : ${n(t.from)}</span><span>الى : ${n(t.to)}</span></p>
       <p>حرر في : ${a(t.city)} &nbsp; بتاريخ : ${n(t.date)}</p>
     </div>
@@ -344,7 +344,7 @@
       <p>من طرف السيد(2): ${a(t.deliveredBy)}</p>
       <p>شهادة طبية مسلمة من الطبيب السيد(ة): ${a(t.doctor)}</p>
       <p>مدتها: ${a(t.duration,"b")} &nbsp; من : ${n(t.from,"b")} &nbsp; الى : ${n(t.to,"b")}</p>
-      <p class="row2x"><span>تتعلق بالسيد(ة): ${a(m(i),"b")}</span><span>الرقم المالي : ${a(i.ppr)}</span></p>
+      <p class="row2x"><span>تتعلق بالسيد(ة): ${a(b(i),"b")}</span><span>الرقم المالي : ${a(i.ppr)}</span></p>
       <p class="row2x"><span>الاطار: ${a(i.cadre)}</span><span>مادة التدريس: ${a(i.subject)}</span></p>
       <p>العنوان الشخصي: ${a(t.sickAddress)}</p>
       <p>ملاحظات: ${a(t.notes)}</p>
@@ -368,7 +368,7 @@
     <p class="b big u">الموضوع: إعلان بانقطاع عن العمل</p>
     <p>أتشرف بأن أنهي إلى علمكم أن:</p>
     <div class="tight">
-      <p class="row3x"><span>السيد(ة): ${a(m(i),"b")}</span><span>رقم التأجير: ${a(i.ppr)}</span><span>رقم البطاقة الوطنية: ${a(i.cin,"ltr")}</span></p>
+      <p class="row3x"><span>السيد(ة): ${a(b(i),"b")}</span><span>رقم التأجير: ${a(i.ppr)}</span><span>رقم البطاقة الوطنية: ${a(i.cin,"ltr")}</span></p>
       <p class="row3x"><span>الإطار: ${a(i.cadre)}</span><span>الدرجة: ${a(i.grade)}</span><span>الرتبة: ${a(i.echelon)}</span></p>
       <p>تاريخ التوظيف: ${n(i.hire)}</p>
       <p class="row3x"><span>تاريخ الالتحاق بالمؤسسة: ${n(t.joinDate)}</span><span>المهمة: ${a(i.task)}</span><span>المادة: ${a(i.subject)}</span></p>
@@ -389,7 +389,7 @@
     <div class="c b big2">طلـب رخصـة</div>
     <div class="frame row2x b"><span>${x(t.kind==="ولادة")} ولادة</span><span>${x(t.kind==="استثنائية")} رخصة استثنائية(1) : ${a(t.kind==="استثنائية"?t.kindDetail:"")}</span></div>
     <div class="frame tight2">
-      <p class="row2x"><span>الاسم و النسب: ${a(m(i),"b")}</span><span>رقم البطاقة الوطنية: ${a(i.cin,"ltr")}</span></p>
+      <p class="row2x"><span>الاسم و النسب: ${a(b(i),"b")}</span><span>رقم البطاقة الوطنية: ${a(i.cin,"ltr")}</span></p>
       <p class="row2x"><span>الاطار: ${a(i.cadre)}</span><span>رقم التأجير: ${a(i.ppr)}</span></p>
       <p>عنوان الاقامة اثناء رخصة ( اجباري): ${a(t.address)}</p>
       <p>مدة الرخصة: ${a(t.days)} ( يوما) من: ${n(t.from,"b")} الى: ${n(t.to,"b")}</p>
@@ -405,39 +405,39 @@
       - (1) يتم تحديد نوع الرخصة الاستثنائية.<br>- يعبأ المطبوع قبل الاستفادة من الرخصة الاستثنائية.<br>
       - ضرورة ادلاء المعني(ة) بالأمر بمبرر لرخصته (ا) الاستثنائية فور تعبئته(ا) لمحضر استئناف العمل.</div>`},v.returnWarn=({s,e:i,f:t})=>{const r=(t.sex||i.sex)==="F"||/ة$|أستاذة|مديرة|ملحقة|متصرفة/.test(i.cadre||""),p=r?{you:"ك",cut:"لانقطاعك",ask:"منك",resume:"استئناف عملك",reach:"توصلك",join:"التحاقك",post:"مقر عملك",inf:"المعنية"}:{you:"ك",cut:"لانقطاعك",ask:"منك",resume:"استئناف عملك",reach:"توصلك",join:"التحاقك",post:"مقر عملك",inf:"المعني"},o=String(t.refs||"").split(/\r?\n/).map(d=>d.trim()).filter(Boolean),l=String(t.copies||"").split(/\r?\n/).map(d=>d.trim()).filter(Boolean);return`
     ${c(s)}
-    <div class="row2"><div>الرقم : ${a(t.ref)}</div><div class="l">${e(t.city||s.city)} في : ${b(t.date)}</div></div>
+    <div class="row2"><div>الرقم : ${a(t.ref)}</div><div class="l">${e(t.city||s.city)} في : ${m(t.date)}</div></div>
     <div class="addr-l c2 b">
       <div class="big">مدير${r&&/مديرة/.test(t.signer||"")?"ة":""} المؤسسة</div>
       <div>إلى</div>
-      <div>${r?"السيدة":"السيد"} : ${a(m(i))} ( رقم التأجير : ${a(i.ppr)} )</div>
+      <div>${r?"السيدة":"السيد"} : ${a(b(i))} ( رقم التأجير : ${a(i.ppr)} )</div>
       <div>الإطار : ${a(i.cadre)}</div>
       <div>العنوان : ${a(t.address||i.address)}</div>
     </div>
     <p class="b mt"><u>الموضوع</u> : إنذار بوجوب العودة إلى مقر العمل.</p>
     ${o.length?`<div class="mt"><b><u>المرجع</u> :</b><ul style="margin:1mm 0 0;padding-inline-start:7mm">${o.map(d=>`<li>${e(d)}</li>`).join("")}</ul></div>`:""}
     <p class="c b mt">سلام تام بوجود مولانا الإمام</p>
-    <p class="j">وبعد، فنظرا ${p.cut} عن العمل بتاريخ ${b(t.stopDate)}، الشيء الذي يتنافى والقوانين الجاري بها العمل ويعد إخلالا بالتزاماتك المهنية، أوجه إليك رسالة الإنذار هذه طالبا ${p.ask} ${p.resume} في أجل أقصاه ${e(t.delay||"سبعة أيام")} ابتداء من تاريخ ${p.reach} بهذه الرسالة.</p>
+    <p class="j">وبعد، فنظرا ${p.cut} عن العمل بتاريخ ${m(t.stopDate)}، الشيء الذي يتنافى والقوانين الجاري بها العمل ويعد إخلالا بالتزاماتك المهنية، أوجه إليك رسالة الإنذار هذه طالبا ${p.ask} ${p.resume} في أجل أقصاه ${e(t.delay||"سبعة أيام")} ابتداء من تاريخ ${p.reach} بهذه الرسالة.</p>
     <p class="j">كما أثير انتباهك إلى أنه في حالة عدم ${p.join} ب${p.post} داخل الأجل المشار إليه أعلاه، ${e(t.sanction||"فسيتم تطبيق مسطرة ترك الوظيفة في حقك طبقا للنصوص التشريعية والتنظيمية الجاري بها العمل، ولا سيما الفصل 75 مكرر من النظام الأساسي العام للوظيفة العمومية")}.</p>
     <p class="c b mt">والسلام</p>
     <div class="l b mt2 sigw">${e(s.director||"")}<br>توقيع وخاتم مدير(ة) المؤسسة</div>
     ${l.length?`<div class="mt2 small2">${l.map(d=>`<div>- ${e(d)}</div>`).join("")}</div>`:""}
-    ${t.receipt==="no"?"":`<div class="sep"></div><p class="b u">إشعار بالتوصل :</p><p>${r?"تشهد السيدة":"يشهد السيد"} ${a(m(i))} ${r?"أنها تسلمت":"أنه تسلم"} هذا الإنذار بتاريخ : ${a("")} &nbsp; التوقيع : ${a("")}</p>`}`},v.absInform=({s,e:i,f:t})=>{const r=`<div class="ab-cp">
+    ${t.receipt==="no"?"":`<div class="sep"></div><p class="b u">إشعار بالتوصل :</p><p>${r?"تشهد السيدة":"يشهد السيد"} ${a(b(i))} ${r?"أنها تسلمت":"أنه تسلم"} هذا الإنذار بتاريخ : ${a("")} &nbsp; التوقيع : ${a("")}</p>`}`},v.absInform=({s,e:i,f:t})=>{const r=`<div class="ab-cp">
       <div class="ab-h">${c(s)}</div>
       <div class="ab-t">إشعار بتغيب</div>
-      <p class="ab-r"><span>الاسم والنسب : ${a(m(i))}</span><span>رقم التأجير : ${a(i.ppr)}</span></p>
+      <p class="ab-r"><span>الاسم والنسب : ${a(b(i))}</span><span>رقم التأجير : ${a(i.ppr)}</span></p>
       <p class="ab-r"><span>الإطار : ${a(i.cadre)}</span><span>الدرجة : ${a(i.grade)}</span><span>الرتبة : ${a(i.echelon)}</span><span>المهمة : ${a(t.task||i.task)}</span></p>
       <p>مقر العمل : ${a(t.post||i.unit||s.school)}</p>
-      <p>تاريخ الانقطاع عن العمل : ${b(t.stopDate,"b")}${t.toDate?` &nbsp; إلى غاية : ${b(t.toDate,"b")}`:""}</p>
+      <p>تاريخ الانقطاع عن العمل : ${m(t.stopDate,"b")}${t.toDate?` &nbsp; إلى غاية : ${m(t.toDate,"b")}`:""}</p>
       <p>سبب التغيب : ${a(t.reason)}</p>
       <p>ملاحظات رئيس المؤسسة : ${a(t.notes)}</p>
-      <div class="ab-s"><div>${e(t.city||s.city||"")} في : ${b(t.date)}</div><div class="b">خاتم وتوقيع رئيس المؤسسة</div></div>
+      <div class="ab-s"><div>${e(t.city||s.city||"")} في : ${m(t.date)}</div><div class="b">خاتم وتوقيع رئيس المؤسسة</div></div>
     </div>`;return`<div class="ab2">${r}${t.copies==="1"?"":`<div class="ab-cut">✂</div>${r}`}</div>`},v.inquiryDir=({s,e:i,f:t})=>`
     ${c(s)}
     <div class="row2"><div>الرقم : ${a(t.ref)}</div><div class="l">${e(s.city)} في : ${n(t.date)}</div></div>
     <div class="addr-l c2 b">
       <div class="big">مدير المؤسسة</div>
       <div>الى</div>
-      <div>السيد(ة) : ${a(m(i))} ( ر.ت: ${a(i.ppr)} )</div>
+      <div>السيد(ة) : ${a(b(i))} ( ر.ت: ${a(i.ppr)} )</div>
       <div>الاطار: ${a(i.cadre)}</div>
       <div class="small2">${e(s.directorate)}</div>
     </div>
@@ -448,7 +448,7 @@
     <p class="j mt">لذا، و قبل اتخاذ قرار في حقك، يشرفني أن أطلب منك موافاتي بالبيانات المفصلة في الموضوع مصحوبة بالوثائق المبررة و ذلك في أجل لا يتعدى <b><u>${e(t.deadline||3)} أيام</u></b> من تاريخ توصلك بهذا الكتاب. &nbsp; و السلام</p>
     <div class="sep"></div>
     <p class="b u">اشعار باستلام :</p>
-    <p>(ت)يشهد السيد (ة) ${a(m(i))} أنه(ا) تسلم(ت) هذا الاستفسار بتاريخ: ${n(t.receiptDate)} التوقيع: ${a("")}</p>
+    <p>(ت)يشهد السيد (ة) ${a(b(i))} أنه(ا) تسلم(ت) هذا الاستفسار بتاريخ: ${n(t.receiptDate)} التوقيع: ${a("")}</p>
     <div class="sep"></div>
     <p class="b u">جواب المعني(ة) بالأمر :</p><div class="dls">${j(3)}</div>
     <p class="b u mt">رأي مدير المؤسسة:</p><div class="dls">${j(2)}</div>
@@ -478,11 +478,11 @@
         <div class="tx-b"><i style="right:60%"></i><i style="right:72%"></i><table class="tx-i"><colgroup><col style="width:60%"><col style="width:12%"><col></colgroup><tbody>${r}</tbody></table></div>
       </div>
     </div>
-    ${l?`<div class="tx-ft">${l}</div>`:""}`};const Y=s=>/ة$|أستاذة|مديرة|ملحقة|متصرفة/.test(s&&s.cadre||"");v.permission=({s,e:i,f:t})=>{const r=!t.to||t.to===t.from,p=r?1:Math.round((new Date(t.to)-new Date(t.from))/864e5)+1,o=r?`يوم ${b(t.from,"b")}`:`من ${b(t.from,"b")} إلى ${b(t.to,"b")} (${p} أيام)`,l=t.timeFrom||t.timeTo?` من الساعة ${a(t.timeFrom,"b")} إلى الساعة ${a(t.timeTo,"b")}`:"";return`
+    ${l?`<div class="tx-ft">${l}</div>`:""}`};const Y=s=>/ة$|أستاذة|مديرة|ملحقة|متصرفة/.test(s&&s.cadre||"");v.permission=({s,e:i,f:t})=>{const r=!t.to||t.to===t.from,p=r?1:Math.round((new Date(t.to)-new Date(t.from))/864e5)+1,o=r?`يوم ${m(t.from,"b")}`:`من ${m(t.from,"b")} إلى ${m(t.to,"b")} (${p} أيام)`,l=t.timeFrom||t.timeTo?` من الساعة ${a(t.timeFrom,"b")} إلى الساعة ${a(t.timeTo,"b")}`:"";return`
     ${c(s)}
     <div class="row2 small2"><div></div><div class="l">${e(t.city||s.city)} في: ${n(t.date)}</div></div>
     <div class="tight mt">
-      <p class="row2x"><span>الاسم الكامل: ${a(m(i),"b")}</span><span>رقم التأجير: ${a(i.ppr)}</span></p>
+      <p class="row2x"><span>الاسم الكامل: ${a(b(i),"b")}</span><span>رقم التأجير: ${a(i.ppr)}</span></p>
       <p class="row2x"><span>الإطار: ${a(i.cadre)}</span><span>المهمة: ${a(i.task||i.subject)}</span></p>
     </div>
     <div class="addr-l b c2 mt"><div>إلى</div><div>السيد(ة) مدير(ة) ${e(s.school||"المؤسسة")}</div></div>
@@ -504,7 +504,7 @@
     <table class="vis-info"><tr>
       <td>
         <p>قام بها السيد(ة) : ${a(t.visitor,"b")} &nbsp; بصفته : ${a(t.visitorRole,"b")}</p>
-        ${d("اسم الأستاذ (ة)",m(i))}${d("رقم التأجير",i.ppr)}${d("الوحدة المدرسية",t.unit)}
+        ${d("اسم الأستاذ (ة)",b(i))}${d("رقم التأجير",i.ppr)}${d("الوحدة المدرسية",t.unit)}
         <p>آخر نقطة التفتيش : ${a(t.lastMark)} &nbsp; تاريخها : ${n(t.lastMarkDate)}</p>
         ${d("الشهادات",t.diplomas)}${d("نسبة المواظبة الشهرية",t.attendance)}
       </td>
