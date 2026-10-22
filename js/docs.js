@@ -1,98 +1,95 @@
-"use strict";(function(){const N=["يناير","فبراير","مارس","أبريل","ماي","يونيو","يوليوز","غشت","شتنبر","أكتوبر","نونبر","دجنبر"],m=t=>String(t??"").replace(/[&<>"']/g,i=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[i]),$=t=>{if(!t)return"";const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(t);return i?`${i[3]}/${i[2]}/${i[1]}`:t},S=t=>{const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(t||"");return i?new Date(Date.UTC(+i[1],i[2]-1,+i[3])):null},_=t=>t.toISOString().slice(0,10),U=(t,i)=>{const e=S(t),d=S(i);return!e||!d||d<e?0:Math.round((d-e)/864e5)+1},W=t=>(t=+t||0,t<=0?"":t===1?"يوم واحد":t===2?"يومان":t<=10?`${t} أيام`:`${t} يوما`),w=t=>t?`${t.firstAr||""} ${t.lastAr||""}`.trim():"",P=()=>{const t=new Date;return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`},s=(t,i="")=>{const e=String(t??"").trim();return e?`<span class="v ${i}">${m(e)}</span>`:`<span class="v empty ${i}"></span>`},h=(t,i)=>s($(t),i),a=t=>`<span class="lb">${t}</span>`,z=t=>`<span class="cb">${t?"✕":""}</span>`,x=t=>`<span dir="ltr" class="ltr">${t}</span>`,g={kingdom:"ⵜⴰⴳⵍⴷⵉⵜ ⵏ ⵍⵎⵖⵔⵉⴱ",ministry:"ⵜⴰⵎⴰⵡⴰⵙⵜ ⵏ ⵓⵙⴳⵎⵉ ⴰⵏⴰⵎⵓⵔ ⴷ ⵓⵙⵍⵎⴷ ⴰⵎⵣⵡⴰⵔⵓ ⴷ ⵜⵓⵏⵏⵓⴼⴰ",academy:"ⵜⴰⴽⴰⴷⵉⵎⵉⵜ ⵜⴰⵏⴳⵎⴰⵢⵜ ⵏ ⵓⵙⴳⵎⵉ ⴷ ⵓⵙⵎⴰⵢⵏ",directorate:"ⵜⴰⵎⵀⵍⴰ ⵜⴰⵙⴳⴰⵡⴰⵏⵜ"},D=(t,i,e)=>{const d=Math.max(6,String(t||"").length)*(e?.53:i?.36:.47);return`<div class="${i?"k":""}" style="font-size:min(var(${i?"--fsk":"--fs"}), calc(100cqw / ${d.toFixed(2)}))">${m(t||"")}</div>`},C={ا:"ⴰ",أ:"ⴰ",إ:"ⵉ",آ:"ⴰ",ب:"ⴱ",ت:"ⵜ",ث:"ⵜ",ج:"ⵊ",ح:"ⵃ",خ:"ⵅ",د:"ⴷ",ذ:"ⴷ",ر:"ⵔ",ز:"ⵣ",س:"ⵙ",ش:"ⵛ",ص:"ⵚ",ض:"ⴹ",ط:"ⵟ",ظ:"ⴹ",ع:"ⵄ",غ:"ⵖ",ف:"ⴼ",ق:"ⵇ",ك:"ⴽ",ڭ:"ⴳ",گ:"ⴳ",ل:"ⵍ",م:"ⵎ",ن:"ⵏ",ه:"ⵀ",ة:"ⴰ",و:"ⵓ",ي:"ⵉ",ى:"ⴰ",ئ:"ⵉ",ؤ:"ⵓ",ء:""},k={"سوس ماسة":"ⵙⵓⵙ ⵎⴰⵙⵙⴰ","اكادير اداوتنان":"ⴰⴳⴰⴷⵉⵔ ⵉⴷⴰⵡⵜⴰⵏⴰⵏ","انزكان ايت ملول":"ⵉⵏⵣⴳⴳⴰⵏ ⴰⵢⵜ ⵎⵍⵍⵓⵍ","اشتوكة ايت باها":"ⵛⵜⵓⴽⴰ ⴰⵢⵜ ⴱⴰⵀⴰ","شتوكة ايت باها":"ⵛⵜⵓⴽⴰ ⴰⵢⵜ ⴱⴰⵀⴰ",تارودانت:"ⵜⴰⵔⵓⴷⴰⵏⵜ",تيزنيت:"ⵜⵉⵣⵏⵉⵜ",طاطا:"ⵟⴰⵟⴰ","مراكش اسفي":"ⵎⵕⵕⴰⴽⵛ ⴰⵙⴼⵉ","كلميم واد نون":"ⴳⵍⵎⵉⵎ ⵡⴰⴷ ⵏⵓⵏ","درعة تافيلالت":"ⴷⵔⵄⴰ ⵜⴰⴼⵉⵍⴰⵍⵜ","الرباط سلا القنيطرة":"ⵕⵕⴱⴰⵟ ⵙⵍⴰ ⵇⵏⵉⵟⵕⴰ","الدار البيضاء سطات":"ⴰⵏⴼⴰ ⵙⵟⵟⴰⵜ","فاس مكناس":"ⴼⴰⵙ ⵎⴽⵏⴰⵙ","بني ملال خنيفرة":"ⴰⵢⵜ ⵎⵍⵍⴰⵍ ⵅⵏⵉⴼⵕⴰ",الشرق:"ⴰⴳⵎⵎⵓⴹ","طنجة تطوان الحسيمة":"ⵟⴰⵏⵊⴰ ⵜⵉⵟⵟⴰⵡⵉⵏ ⵍⵃⵓⵙⵉⵎⴰ","العيون الساقية الحمراء":"ⵍⵄⵢⵓⵏ ⵙⴰⴳⵉⵢⵜ ⵍⵃⴰⵎⵔⴰ","الداخلة وادي الذهب":"ⴷⴷⴰⵅⵍⴰ ⵡⴰⴷ ⴷⴷⴰⵀⴰⴱ",ورزازات:"ⵡⴰⵔⵣⴰⵣⴰⵜ",زاكورة:"ⵣⴰⴳⵓⵔⴰ",تنغير:"ⵜⵉⵏⵖⵉⵔ",الرشيدية:"ⵔⵔⴰⵛⵉⴷⵉⵢⴰ",ميدلت:"ⵎⵉⴷⵍⵜ",كلميم:"ⴳⵍⵎⵉⵎ","سيدي افني":"ⵙⵉⴷⵉ ⵉⴼⵏⵉ",طانطان:"ⵟⴰⵏⵟⴰⵏ",الحوز:"ⵍⵃⴰⵡⵣ"},I=t=>String(t||"").replace(/[ًٌٍَُِّْـ]/g,"").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/\s+/g," ").trim(),M=t=>{const i=I(t).replace(/^(جهة|لجهة|بجهة|اقليم|عمالة|مديرية)\s+/,"");if(!i)return"";if(k[i])return k[i];const e=Object.keys(k).find(d=>d.replace(/\s/g,"")===i.replace(/\s/g,"").replace(/^ال/,"")||d.replace(/\s/g,"")===i.replace(/\s/g,""));return e?k[e]:i.split(" ").map(d=>Array.from(d.replace(/^ال(?=..)/,"")).map(r=>C[r]!=null?C[r]:r).join("")).join(" ")},j=t=>{t=String(t||"").trim();const i=/^(.*?(?:والتكوين|و التكوين))\s*[-–:،,]?\s*(?:ل?جهة\s*:?\s*|ل)?(.*)$/.exec(t);return i?[i[1].trim(),i[2].trim()]:[t,""]},K=t=>j(t)[1],R=t=>String(t||"").replace(/^\s*(?:ال)?مديرية\s+(?:ال)?إ?ا?قليمية\s*(?:ل|ب|-|–|:)?\s*/,"").replace(/^(?:عمالة|إقليم|اقليم)\s+/,"").trim(),V=t=>{if(t=String(t||"").trim(),t.length<=26)return[t];const i=[],e=/\sو(?=\S)/g;let d;for(;d=e.exec(t);)i.push(d.index);if(!i.length)return[t];const r=t.length/2,c=i.reduce((n,l)=>Math.abs(l-r)<Math.abs(n-r)?l:n,i[0]);return[t.slice(0,c).trim(),t.slice(c).trim()]},A=t=>String(t||"").split(/\s*(?:\n|\/|\|)\s*/).map(i=>i.trim()).filter(Boolean);function E(t){const i=(f,lt)=>t[f]==null||String(t[f]).trim()===""?lt:t[f],[e,d]=j(t.academy),r=["المملكة المغربية"].concat(V(t.ministry),[e],d?["جهة "+d.replace(/^جهة\s+/,"")]:[],[String(t.directorate||"").trim()]).filter(Boolean),c=i("tifMinistry",g.ministry),n=[i("tifKingdom",g.kingdom)];n.push(...c===g.ministry?["ⵜⴰⵎⴰⵡⴰⵙⵜ ⵏ ⵓⵙⴳⵎⵉ ⴰⵏⴰⵎⵓⵔ","ⴷ ⵓⵙⵍⵎⴷ ⴰⵎⵣⵡⴰⵔⵓ ⴷ ⵜⵓⵏⵏⵓⴼⴰ"]:A(c)),n.push(...A(i("tifAcademy",g.academy)));const l=String(t.tifRegion||"").trim();l?n.push(...A(l)):d&&n.push("ⵜⴰⵎⵏⴰⴹⵜ "+M(d));const o=i("tifDirectorate",g.directorate),p=R(t.directorate);return n.push(...o===g.directorate&&p?[o+" "+M(p)]:A(o)),{ar:r,tf:n.filter(Boolean)}}const O=(t,i,e,d)=>{const r=Math.max(8,...t.map(c=>String(c).length))*i;return`<div class="hdr-txt ${e}"${d||""} style="--fit:calc(100cqw / ${r.toFixed(2)})">${t.map(c=>`<div>${m(c)}</div>`).join("")}</div>`},Y='<svg class="hdr-wave" viewBox="0 0 1000 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 29H120C142 29 146 11 168 11H866C888 11 892 30 914 30H990" fill="none" stroke="#183c8c" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>',Z=[["ruqaa","الشكل الجديد: موجة زرقاء وخط بني (مثل الرأسية الرسمية)"],["classic","الشكل الكلاسيكي (خط أميري، 4 أسطر)"]],F=t=>String(t||"").replace(/["'<>;{}\\\n]/g,"").trim().slice(0,60),G=t=>{const i=F(t&&t.hdrFont);return(i?"'"+i+"',":"")+"'MAJT','Amiri',serif"};function X(t,i,e){const d=E(t),r=!!F(t.hdrFont);return`<div class="hdr hv2" style="--hf:${G(t).replace(/"/g,"&quot;")}">${Y}
+"use strict";(function(){const _=["يناير","فبراير","مارس","أبريل","ماي","يونيو","يوليوز","غشت","شتنبر","أكتوبر","نونبر","دجنبر"],m=t=>String(t??"").replace(/[&<>"']/g,i=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[i]),S=t=>{if(!t)return"";const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(t);return i?`${i[3]}/${i[2]}/${i[1]}`:t},C=t=>{const i=/^(\d{4})-(\d{2})-(\d{2})/.exec(t||"");return i?new Date(Date.UTC(+i[1],i[2]-1,+i[3])):null},tt=t=>t.toISOString().slice(0,10),it=(t,i)=>{const e=C(t),s=C(i);return!e||!s||s<e?0:Math.round((s-e)/864e5)+1},et=t=>(t=+t||0,t<=0?"":t===1?"يوم واحد":t===2?"يومان":t<=10?`${t} أيام`:`${t} يوما`),T=t=>t?`${t.firstAr||""} ${t.lastAr||""}`.trim():"",at=()=>{const t=new Date;return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`},r=(t,i="")=>{const e=String(t??"").trim();return e?`<span class="v ${i}">${m(e)}</span>`:`<span class="v empty ${i}"></span>`},p=(t,i)=>r(S(t),i),a=t=>`<span class="lb">${t}</span>`,L=t=>`<span class="cb">${t?"✕":""}</span>`,N=t=>`<span dir="ltr" class="ltr">${t}</span>`,w={kingdom:"ⵜⴰⴳⵍⴷⵉⵜ ⵏ ⵍⵎⵖⵔⵉⴱ",ministry:"ⵜⴰⵎⴰⵡⴰⵙⵜ ⵏ ⵓⵙⴳⵎⵉ ⴰⵏⴰⵎⵓⵔ ⴷ ⵓⵙⵍⵎⴷ ⴰⵎⵣⵡⴰⵔⵓ ⴷ ⵜⵓⵏⵏⵓⴼⴰ",academy:"ⵜⴰⴽⴰⴷⵉⵎⵉⵜ ⵜⴰⵏⴳⵎⴰⵢⵜ ⵏ ⵓⵙⴳⵎⵉ ⴷ ⵓⵙⵎⴰⵢⵏ",directorate:"ⵜⴰⵎⵀⵍⴰ ⵜⴰⵙⴳⴰⵡⴰⵏⵜ"},J=(t,i,e)=>{const s=Math.max(6,String(t||"").length)*(e?.53:i?.36:.47);return`<div class="${i?"k":""}" style="font-size:min(var(${i?"--fsk":"--fs"}), calc(100cqw / ${s.toFixed(2)}))">${m(t||"")}</div>`},P={ا:"ⴰ",أ:"ⴰ",إ:"ⵉ",آ:"ⴰ",ب:"ⴱ",ت:"ⵜ",ث:"ⵜ",ج:"ⵊ",ح:"ⵃ",خ:"ⵅ",د:"ⴷ",ذ:"ⴷ",ر:"ⵔ",ز:"ⵣ",س:"ⵙ",ش:"ⵛ",ص:"ⵚ",ض:"ⴹ",ط:"ⵟ",ظ:"ⴹ",ع:"ⵄ",غ:"ⵖ",ف:"ⴼ",ق:"ⵇ",ك:"ⴽ",ڭ:"ⴳ",گ:"ⴳ",ل:"ⵍ",م:"ⵎ",ن:"ⵏ",ه:"ⵀ",ة:"ⴰ",و:"ⵓ",ي:"ⵉ",ى:"ⴰ",ئ:"ⵉ",ؤ:"ⵓ",ء:""},E={"سوس ماسة":"ⵙⵓⵙ ⵎⴰⵙⵙⴰ","اكادير اداوتنان":"ⴰⴳⴰⴷⵉⵔ ⵉⴷⴰⵡⵜⴰⵏⴰⵏ","انزكان ايت ملول":"ⵉⵏⵣⴳⴳⴰⵏ ⴰⵢⵜ ⵎⵍⵍⵓⵍ","اشتوكة ايت باها":"ⵛⵜⵓⴽⴰ ⴰⵢⵜ ⴱⴰⵀⴰ","شتوكة ايت باها":"ⵛⵜⵓⴽⴰ ⴰⵢⵜ ⴱⴰⵀⴰ",تارودانت:"ⵜⴰⵔⵓⴷⴰⵏⵜ",تيزنيت:"ⵜⵉⵣⵏⵉⵜ",طاطا:"ⵟⴰⵟⴰ","مراكش اسفي":"ⵎⵕⵕⴰⴽⵛ ⴰⵙⴼⵉ","كلميم واد نون":"ⴳⵍⵎⵉⵎ ⵡⴰⴷ ⵏⵓⵏ","درعة تافيلالت":"ⴷⵔⵄⴰ ⵜⴰⴼⵉⵍⴰⵍⵜ","الرباط سلا القنيطرة":"ⵕⵕⴱⴰⵟ ⵙⵍⴰ ⵇⵏⵉⵟⵕⴰ","الدار البيضاء سطات":"ⴰⵏⴼⴰ ⵙⵟⵟⴰⵜ","فاس مكناس":"ⴼⴰⵙ ⵎⴽⵏⴰⵙ","بني ملال خنيفرة":"ⴰⵢⵜ ⵎⵍⵍⴰⵍ ⵅⵏⵉⴼⵕⴰ",الشرق:"ⴰⴳⵎⵎⵓⴹ","طنجة تطوان الحسيمة":"ⵟⴰⵏⵊⴰ ⵜⵉⵟⵟⴰⵡⵉⵏ ⵍⵃⵓⵙⵉⵎⴰ","العيون الساقية الحمراء":"ⵍⵄⵢⵓⵏ ⵙⴰⴳⵉⵢⵜ ⵍⵃⴰⵎⵔⴰ","الداخلة وادي الذهب":"ⴷⴷⴰⵅⵍⴰ ⵡⴰⴷ ⴷⴷⴰⵀⴰⴱ",ورزازات:"ⵡⴰⵔⵣⴰⵣⴰⵜ",زاكورة:"ⵣⴰⴳⵓⵔⴰ",تنغير:"ⵜⵉⵏⵖⵉⵔ",الرشيدية:"ⵔⵔⴰⵛⵉⴷⵉⵢⴰ",ميدلت:"ⵎⵉⴷⵍⵜ",كلميم:"ⴳⵍⵎⵉⵎ","سيدي افني":"ⵙⵉⴷⵉ ⵉⴼⵏⵉ",طانطان:"ⵟⴰⵏⵟⴰⵏ",الحوز:"ⵍⵃⴰⵡⵣ"},st=t=>String(t||"").replace(/[ًٌٍَُِّْـ]/g,"").replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/\s+/g," ").trim(),F=t=>{const i=st(t).replace(/^(جهة|لجهة|بجهة|اقليم|عمالة|مديرية)\s+/,"");if(!i)return"";if(E[i])return E[i];const e=Object.keys(E).find(s=>s.replace(/\s/g,"")===i.replace(/\s/g,"").replace(/^ال/,"")||s.replace(/\s/g,"")===i.replace(/\s/g,""));return e?E[e]:i.split(" ").map(s=>Array.from(s.replace(/^ال(?=..)/,"")).map(n=>P[n]!=null?P[n]:n).join("")).join(" ")},O=t=>{t=String(t||"").trim();const i=/^(.*?(?:والتكوين|و التكوين))\s*[-–:،,]?\s*(?:ل?جهة\s*:?\s*|ل)?(.*)$/.exec(t);return i?[i[1].trim(),i[2].trim()]:[t,""]},rt=t=>O(t)[1],nt=t=>(t=String(t||"").trim(),t?t.startsWith("ال")?"لل"+t.slice(2):"ل"+t:"");function W(t,i,e,s){s=s||{};const n=String(t.academy||"").trim(),c=R(t.directorate),o=[`${s.noTo?"":"إلى "}السيد المدير الإقليمي ${n?nt(n):"للأكاديمية الجهوية للتربية والتكوين .........."}`.trim(),`بالمديرية الإقليمية ${c||".........."}`],d=String(i||"").trim(),l=String(e||"").trim();return d&&o.push(/^(مصلحة|قسم|المركز|مركز|خلية|الكتابة|وحدة)/.test(d)?d:"مصلحة "+d),l&&o.push(/^(مكتب|وحدة)/.test(l)?l:"مكتب "+l),o}const R=t=>String(t||"").replace(/^\s*(?:ال)?مديرية\s+(?:ال)?إ?ا?قليمية\s*(?:ل|ب|-|–|:)?\s*/,"").replace(/^(?:عمالة|إقليم|اقليم)\s+/,"").trim(),ot=t=>{if(t=String(t||"").trim(),t.length<=26)return[t];const i=[],e=/\sو(?=\S)/g;let s;for(;s=e.exec(t);)i.push(s.index);if(!i.length)return[t];const n=t.length/2,c=i.reduce((o,d)=>Math.abs(d-n)<Math.abs(o-n)?d:o,i[0]);return[t.slice(0,c).trim(),t.slice(c).trim()]},D=t=>String(t||"").split(/\s*(?:\n|\/|\|)\s*/).map(i=>i.trim()).filter(Boolean);function U(t){const i=(v,f)=>t[v]==null||String(t[v]).trim()===""?f:t[v],[e,s]=O(t.academy),n=["المملكة المغربية"].concat(ot(t.ministry),[e],s?["جهة "+s.replace(/^جهة\s+/,"")]:[],[String(t.directorate||"").trim()]).filter(Boolean),c=i("tifMinistry",w.ministry),o=[i("tifKingdom",w.kingdom)];o.push(...c===w.ministry?["ⵜⴰⵎⴰⵡⴰⵙⵜ ⵏ ⵓⵙⴳⵎⵉ ⴰⵏⴰⵎⵓⵔ","ⴷ ⵓⵙⵍⵎⴷ ⴰⵎⵣⵡⴰⵔⵓ ⴷ ⵜⵓⵏⵏⵓⴼⴰ"]:D(c)),o.push(...D(i("tifAcademy",w.academy)));const d=String(t.tifRegion||"").trim();d?o.push(...D(d)):s&&o.push("ⵜⴰⵎⵏⴰⴹⵜ "+F(s));const l=i("tifDirectorate",w.directorate),h=R(t.directorate);return o.push(...l===w.directorate&&h?[l+" "+F(h)]:D(l)),{ar:n,tf:o.filter(Boolean)}}const I=(t,i,e,s)=>{const n=Math.max(8,...t.map(c=>String(c).length))*i;return`<div class="hdr-txt ${e}"${s||""} style="--fit:calc(100cqw / ${n.toFixed(2)})">${t.map(c=>`<div>${m(c)}</div>`).join("")}</div>`},dt='<svg class="hdr-wave" viewBox="0 0 1000 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 29H120C142 29 146 11 168 11H866C888 11 892 30 914 30H990" fill="none" stroke="#183c8c" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>',lt=[["ruqaa","الشكل الجديد: موجة زرقاء وخط بني (مثل الرأسية الرسمية)"],["classic","الشكل الكلاسيكي (خط أميري، 4 أسطر)"]],q=t=>String(t||"").replace(/["'<>;{}\\\n]/g,"").trim().slice(0,60),ct=t=>{const i=q(t&&t.hdrFont);return(i?"'"+i+"',":"")+"'MAJT','Amiri',serif"},mt=t=>{const i=q(t&&t.hdrFont);return(i?"'"+i+"',":"")+"'Tif',sans-serif"};function ht(t,i,e){const s=U(t),n=!!q(t.hdrFont);return`<div class="hdr hv2" style="--hf:${ct(t).replace(/"/g,"&quot;")};--hft:${mt(t).replace(/"/g,"&quot;")}">${dt}
       <div class="hdr-g">
-        ${O(d.ar,r?.5:.36,"hdr-ar")}
+        ${I(s.ar,n?.5:.36,"hdr-ar")}
         <div class="hdr-emb"><img src="assets/emblem.png"></div>
-        ${O(d.tf,.56,"hdr-tif",' lang="zgh" dir="ltr"')}
+        ${I(s.tf,.56,"hdr-tif",' lang="zgh" dir="ltr"')}
       </div>
       ${t.school&&!e?`<div class="hdr-sch2">${m(t.school)}</div>`:""}
       ${i?`<div class="srv">${m(i)}</div>`:""}
-    </div>`}function b(t,i,e){const d=!!(e&&e.dirOnly);if(!d&&t.headerMode==="image"&&t.letterhead){const l=i?`<div class="srv-l">${m(i)}</div>`:"";if(t.letterheadP&&t.lhNorm!==!1){const p=t.letterheadL?`<img class="lh-l" src="${m(t.letterheadL)}" width="${+t.llW}" height="${+t.llH}">`:"";return`<div class="hdr-img lhn${p?"":" one"}"><img class="lh-p" src="${m(t.letterheadP)}" width="${+t.lpW}" height="${+t.lpH}">${p}</div>${l}`}const o=t.letterheadW&&t.letterheadH?` width="${+t.letterheadW}" height="${+t.letterheadH}"`:"";return`<div class="hdr-img"><img src="${m(t.letterhead)}"${o}></div>${l}`}if((t.headerStyle||"ruqaa")!=="classic")return X(t,i,d);const r=(l,o)=>t[l]==null||String(t[l]).trim()===""?o:t[l],c=["المملكة المغربية",t.ministry,t.academy,t.directorate],n=[r("tifKingdom",g.kingdom),r("tifMinistry",g.ministry),r("tifAcademy",g.academy),r("tifDirectorate",g.directorate)];return`<div class="hdr">
+    </div>`}function z(t,i,e){const s=!!(e&&e.dirOnly);if(!s&&t.headerMode==="image"&&t.letterhead){const d=i?`<div class="srv-l">${m(i)}</div>`:"";if(t.letterheadP&&t.lhNorm!==!1){const h=!!(e&&e.transparent&&t.letterheadT),v=h?t.letterheadT:t.letterheadP,f=h?t.letterheadLT||"":t.letterheadL,g=f?`<img class="lh-l" src="${m(f)}" width="${+t.llW}" height="${+t.llH}">`:"";return`<div class="hdr-img lhn${g?"":" one"}${h?" tr":""}"><img class="lh-p" src="${m(v)}" width="${+t.lpW}" height="${+t.lpH}">${g}</div>${d}`}const l=t.letterheadW&&t.letterheadH?` width="${+t.letterheadW}" height="${+t.letterheadH}"`:"";return`<div class="hdr-img"><img src="${m(t.letterhead)}"${l}></div>${d}`}if((t.headerStyle||"ruqaa")!=="classic")return ht(t,i,s);const n=(d,l)=>t[d]==null||String(t[d]).trim()===""?l:t[d],c=["المملكة المغربية",t.ministry,t.academy,t.directorate],o=[n("tifKingdom",w.kingdom),n("tifMinistry",w.ministry),n("tifAcademy",w.academy),n("tifDirectorate",w.directorate)];return`<div class="hdr">
       <div class="hdr-g">
-        <div class="hdr-txt">${c.map((l,o)=>D(l,o===0,!1)).join("")}</div>
+        <div class="hdr-txt">${c.map((d,l)=>J(d,l===0,!1)).join("")}</div>
         <div class="hdr-emb"><img src="assets/emblem.png"></div>
-        <div class="hdr-txt hdr-tif" lang="zgh">${n.map((l,o)=>D(l,o===0,!0)).join("")}</div>
+        <div class="hdr-txt hdr-tif" lang="zgh">${o.map((d,l)=>J(d,l===0,!0)).join("")}</div>
       </div>
-      ${t.school&&!d?`<div class="hdr-sch2">${m(t.school)}</div>`:""}
+      ${t.school&&!s?`<div class="hdr-sch2">${m(t.school)}</div>`:""}
       ${i?`<div class="srv">${m(i)}</div>`:""}
-    </div>`}const v={};v.inquiry=({s:t,e:i,f:e})=>`
-    ${b(t)}
+    </div>`}const k={};k.inquiry=({s:t,e:i,f:e})=>`
+    ${z(t)}
     <div class="row2 mt2">
-      <div>${a("المؤسسة :")} ${s(t.school,"b")}</div>
+      <div>${a("المؤسسة :")} ${r(t.school,"b")}</div>
       <div class="to">
         <div>${a("إلى :")}</div>
-        <div>${a("السيد (ة) :")} ${s(w(i),"b")}</div>
-        <div>${a("رقم التأجير :")} ${s(i.ppr)}</div>
+        <div>${a("السيد (ة) :")} ${r(T(i),"b")}</div>
+        <div>${a("رقم التأجير :")} ${r(i.ppr)}</div>
       </div>
     </div>
     <p class="mt">${a("<u>الموضوع</u> :")} <b>استفسار.</b></p>
     <p>${a("<u>المرجع</u> :")} المرسوم رقم 2.99.1216 الصادر في 6 صفر 1421 (2000/05/10).</p>
     <p class="c b mt">سلام تام بوجود مولانا الإمام المؤيد بالله،</p>
-    <p class="j">وبعد، لقد بلغ إلى علمي أنك(م) تغيبت(م) عن عملك(م) خلال الفترة المتراوحة ما بين: ${a("من")} ${h(e.from,"b")} ${a("إلى")} ${h(e.to,"b")}
+    <p class="j">وبعد، لقد بلغ إلى علمي أنك(م) تغيبت(م) عن عملك(م) خلال الفترة المتراوحة ما بين: ${a("من")} ${p(e.from,"b")} ${a("إلى")} ${p(e.to,"b")}
       بدون إشعار أو إذن سابق، الشيء الذي يتنافى والقوانين الجاري بها العمل.</p>
     <p class="j">لذا، وقبل اتخاذ قرار الخصم من مرتبك(م) طبقا لمقتضيات المرسوم المشار إليه في المرجع أعلاه ولاسيما المادة 4 منه،
       يشرفني أن أطلب منك(م) موافاتي بالبيانات المفصلة في الموضوع مصحوبة بالوثائق المبررة وذلك في أجل لا يتعدى
       <b>${m(e.deadline||15)}</b> يوما ابتداء من تاريخ توصلك(م) بهذا الاستفسار.</p>
     <p class="l b">والسلام.</p>
     <div class="row2">
-      <div>${a("التاريخ :")} ${h(e.date)}</div>
+      <div>${a("التاريخ :")} ${p(e.date)}</div>
       <div class="c b">توقيع الرئيس المباشر :</div>
     </div>
     <div class="spacer"></div>
     <div class="cut"><span>✂</span></div>
     <div class="subtitle">إشعار باستلام استفسار</div>
-    <p>${a("يشهد السيد (ة) :")} ${s(w(i),"b")} &nbsp; ${a("رقم التأجير :")} ${s(i.ppr)}</p>
-    <p>أنه توصل(ت) باستفسار عن التغيب خلال الفترة المتراوحة ${a("من :")} ${h(e.from)} ${a("إلى :")} ${h(e.to)}</p>
+    <p>${a("يشهد السيد (ة) :")} ${r(T(i),"b")} &nbsp; ${a("رقم التأجير :")} ${r(i.ppr)}</p>
+    <p>أنه توصل(ت) باستفسار عن التغيب خلال الفترة المتراوحة ${a("من :")} ${p(e.from)} ${a("إلى :")} ${p(e.to)}</p>
     <div class="row2 mt">
-      <div>${a("التاريخ :")} ${h(e.receiptDate)}</div>
+      <div>${a("التاريخ :")} ${p(e.receiptDate)}</div>
       <div class="c b">التوقيع :</div>
-    </div>`,v.leave=({s:t,e:i,f:e,history:d})=>{const r=["مرضية","أغراض شخصية","استثنائية","ولادة"],c=(d||[]).slice(0,4);for(;c.length<4;)c.push(null);return`
-    ${b(t,"مصلحة الموارد البشرية ـ مكتب الرخص الإدارية والتغيبات")}
+    </div>`,k.leave=({s:t,e:i,f:e,history:s})=>{const n=["مرضية","أغراض شخصية","استثنائية","ولادة"],c=(s||[]).slice(0,4);for(;c.length<4;)c.push(null);return`
+    ${z(t,"مصلحة الموارد البشرية ـ مكتب الرخص الإدارية والتغيبات")}
     <div class="title-box">طلب رخصة</div>
     <div class="grid2">
-      <div>${a("الاسم الكامل :")} ${s(w(i),"b")}</div><div>${a("ر.ت :")} ${s(i.ppr)}</div>
-      <div>${a("الإطار :")} ${s(i.cadre)}</div><div>${a("تاريخ الازدياد :")} ${h(i.birth)}</div>
+      <div>${a("الاسم الكامل :")} ${r(T(i),"b")}</div><div>${a("ر.ت :")} ${r(i.ppr)}</div>
+      <div>${a("الإطار :")} ${r(i.cadre)}</div><div>${a("تاريخ الازدياد :")} ${p(i.birth)}</div>
     </div>
-    <div class="types">${a("نوع الرخصة :")} ${r.map(n=>`<span class="opt">${z(e.leaveType===n)} ${n}</span>`).join("")}</div>
-    <p>${a("مدتها :")} ${s(e.duration,"b")} &nbsp; ${a("من :")} ${h(e.from,"b")} &nbsp; ${a("إلى :")} ${h(e.to,"b")}</p>
-    <p>${a("العنوان الشخصي للموظف :")} ${s(e.address)}</p>
+    <div class="types">${a("نوع الرخصة :")} ${n.map(o=>`<span class="opt">${L(e.leaveType===o)} ${o}</span>`).join("")}</div>
+    <p>${a("مدتها :")} ${r(e.duration,"b")} &nbsp; ${a("من :")} ${p(e.from,"b")} &nbsp; ${a("إلى :")} ${p(e.to,"b")}</p>
+    <p>${a("العنوان الشخصي للموظف :")} ${r(e.address)}</p>
     <div class="row2 mt">
       <div class="b">توقيع الموظف :</div>
-      <div>${a("حرر ب :")} ${s(e.city)} ${a("في :")} ${h(e.date)}</div>
+      <div>${a("حرر ب :")} ${r(e.city)} ${a("في :")} ${p(e.date)}</div>
     </div>
     <div class="spacer-s"></div>
-    <p class="mt">${a("رأي السيد المدير :")} ${s(e.opinion)}</p>
-    <p>${a("تاريخ توقيف الموظف عن العمل :")} ${h(e.stopDate)}</p>
+    <p class="mt">${a("رأي السيد المدير :")} ${r(e.opinion)}</p>
+    <p>${a("تاريخ توقيف الموظف عن العمل :")} ${p(e.stopDate)}</p>
     <div class="tcap">جدول الرخص والتغيبات التي استفاد منها الموظف خلال 12 شهرا الأخيرة</div>
     <table class="tbl">
       <thead><tr><th style="width:22%">المدة</th><th style="width:20%">من</th><th style="width:20%">إلى</th><th>السبب</th></tr></thead>
-      <tbody>${c.map(n=>`<tr><td>${n?m(n.duration):""}</td><td>${n?$(n.from):""}</td><td>${n?$(n.to):""}</td><td>${n?m(n.reason):""}</td></tr>`).join("")}</tbody>
+      <tbody>${c.map(o=>`<tr><td>${o?m(o.duration):""}</td><td>${o?S(o.from):""}</td><td>${o?S(o.to):""}</td><td>${o?m(o.reason):""}</td></tr>`).join("")}</tbody>
     </table>
     <div class="row2 mt">
-      <div>${a("حرر ب :")} ${s(e.city)} ${a("في :")} ${h(e.date2)}</div>
+      <div>${a("حرر ب :")} ${r(e.city)} ${a("في :")} ${p(e.date2)}</div>
       <div class="c"><div class="b">توقيع رئيس المؤسسة :</div><div class="sigbox"></div></div>
-    </div>`},v.certificate=({s:t,e:i,f:e})=>{const d=/الفرنسية/.test(e.certType||""),r=(c,n,l,o)=>`<tr><td class="lbc">${c}</td><td class="vc">${n}</td>${l!==void 0?`<td class="frc">${d?x(`${l} : <b>${m(o||"")}</b>`):""}</td>`:"<td></td>"}</tr>`;return`
+    </div>`},k.certificate=({s:t,e:i,f:e})=>{const s=/الفرنسية/.test(e.certType||""),n=(c,o,d,l)=>`<tr><td class="lbc">${c}</td><td class="vc">${o}</td>${d!==void 0?`<td class="frc">${s?N(`${d} : <b>${m(l||"")}</b>`):""}</td>`:"<td></td>"}</tr>`;return`
     <div class="row2 top">
       <div class="b">الحمد لله وحده</div>
-      <div>${s(e.city)} ${a("في :")} ${h(e.date)}</div>
+      <div>${r(e.city)} ${a("في :")} ${p(e.date)}</div>
     </div>
     <table class="kv mt">
-      ${r("الاسم العائلي :",s(i.lastAr,"b"),"Nom",i.lastFr)}
-      ${r("الاسم الشخصي :",s(i.firstAr,"b"),"Prénom",i.firstFr)}
-      ${r("الرقم المالي :",s(i.ppr))}
-      ${r("تاريخ الازدياد :",h(i.birth))}
-      ${r("رقم ب.ت.و :",s(i.cin,"ltr"))}
-      ${r("تاريخ التوظيف :",h(i.hire))}
-      ${r("الإطار :",s(i.cadre))}
-      ${r("المهمة :",s(i.task))}
-      ${r("مقر العمل الأصلي :",s(i.origin))}
-      ${r("مؤسسة التكليف <sup>(1)</sup> :",s(i.assigned))}
+      ${n("الاسم العائلي :",r(i.lastAr,"b"),"Nom",i.lastFr)}
+      ${n("الاسم الشخصي :",r(i.firstAr,"b"),"Prénom",i.firstFr)}
+      ${n("الرقم المالي :",r(i.ppr))}
+      ${n("تاريخ الازدياد :",p(i.birth))}
+      ${n("رقم ب.ت.و :",r(i.cin,"ltr"))}
+      ${n("تاريخ التوظيف :",p(i.hire))}
+      ${n("الإطار :",r(i.cadre))}
+      ${n("المهمة :",r(i.task))}
+      ${n("مقر العمل الأصلي :",r(i.origin))}
+      ${n("مؤسسة التكليف <sup>(1)</sup> :",r(i.assigned))}
     </table>
     <div class="addr">
       <div class="c b">إلــى</div>
-      <div class="c">السيد المدير الإقليمي ل${m(t.ministry)}</div>
-      <div class="c">مصلحة الموارد البشرية</div>
-      <div class="c">مكتب تتبع الحياة الإدارية للموظفين</div>
-      <div class="c">${m(t.directorate)}</div>
+      ${W(t,"مصلحة الموارد البشرية","مكتب تتبع الحياة الإدارية للموظفين",{noTo:!0}).map(c=>`<div class="c">${m(c)}</div>`).join("")}
       <div class="c">تحت إشراف السيد مدير : <b>${m(t.school)}</b></div>
     </div>
     <p class="mt">${a("الموضوع <sup>(2)</sup> :")} <b>طلب ${m(e.certType||"")}</b></p>
@@ -106,63 +103,63 @@
     <div class="spacer"></div>
     <div class="row2 small">
       <div></div>
-      <div><div>${a("أرسل بتاريخ :")} ${h(e.sentDate)}</div><div>${a("تحت عدد :")} ${s(e.sentNo)}</div></div>
+      <div><div>${a("أرسل بتاريخ :")} ${p(e.sentDate)}</div><div>${a("تحت عدد :")} ${r(e.sentNo)}</div></div>
     </div>
     <div class="notes">
       <div>(1): ضرورة الإشارة إلى مؤسسة التكليف إذا كان المعني مكلفا خارج مقر عمله الأصلي.</div>
       <div>(2): في حالة طلب وثيقة باللغة الفرنسية ينبغي الإشارة إلى ذلك في الموضوع مع كتابة الاسم الكامل بالحروف اللاتينية.</div>
       <div>* يعتمد هذا المطبوع لطلب شهادة إدارية واحدة.</div>
-    </div>`};const q=["استئناف العمل بعد الاستيداع","استئناف العمل بعد الإلحاق","استئناف العمل بعد رخصة الأبوة","استئناف العمل بعد رخصة الولادة","استئناف العمل بعد رخصة استثنائية","استئناف العمل بعد رخصة مرض قصيرة الأمد","استئناف العمل بعد رخصة مرض متوسطة الأمد","استئناف العمل بعد رخصة مرض طويلة الأمد","استئناف العمل بعد انهاء تكليف بمهمة","استئناف العمل بعد تغيب أو انقطاع عن العمل"],B=["رخصة أغراض شخصية","غياب غير مبرر","إذن بالتغيب","رخصة سنوية","رخصة الحج","رخصة الدراسة","رخصة التكوين أو التداريب","المشاركة في امتحان أو مباراة","التوقيف عن العمل","الإضراب عن العمل"],Q=["رخصة استثنائية للزواج","رخصة استثنائية لوفاة قريب","رخصة استثنائية لزواج أحد الأبناء","رخصة استثنائية لختان الابن","رخصة التبني","حادثة شغل","حادثة مصلحة"],L=t=>"استئناف العمل بعد "+t,J=(t,i)=>{const e=t.concat(B.map(L));return i&&i.case&&!e.includes(i.case)&&e.push(i.case),e},y=t=>J(q,t);v.resume=({s:t,e:i,f:e})=>`
-    ${b(t)}
+    </div>`};const K=["استئناف العمل بعد الاستيداع","استئناف العمل بعد الإلحاق","استئناف العمل بعد رخصة الأبوة","استئناف العمل بعد رخصة الولادة","استئناف العمل بعد رخصة استثنائية","استئناف العمل بعد رخصة مرض قصيرة الأمد","استئناف العمل بعد رخصة مرض متوسطة الأمد","استئناف العمل بعد رخصة مرض طويلة الأمد","استئناف العمل بعد انهاء تكليف بمهمة","استئناف العمل بعد تغيب أو انقطاع عن العمل"],V=["رخصة أغراض شخصية","غياب غير مبرر","إذن بالتغيب","رخصة سنوية","رخصة الحج","رخصة الدراسة","رخصة التكوين أو التداريب","المشاركة في امتحان أو مباراة","التوقيف عن العمل","الإضراب عن العمل"],pt=["رخصة استثنائية للزواج","رخصة استثنائية لوفاة قريب","رخصة استثنائية لزواج أحد الأبناء","رخصة استثنائية لختان الابن","رخصة التبني","حادثة شغل","حادثة مصلحة"],Y=t=>"استئناف العمل بعد "+t,Z=(t,i)=>{const e=t.concat(V.map(Y));return i&&i.case&&!e.includes(i.case)&&e.push(i.case),e},j=t=>Z(K,t);k.resume=({s:t,e:i,f:e})=>`
+    ${z(t)}
     <div class="title-box">محضر استئناف العمل</div>
-    <div class="airy${y(e).length>16?" tt":""}">
-    <p>${a("أنا الموقع أسفله :")} ${s(t.director,"b")}</p>
+    <div class="airy${j(e).length>16?" tt":""}">
+    <p>${a("أنا الموقع أسفله :")} ${r(t.director,"b")}</p>
     <p>${a("أشهد أن السيد (ة) :")}</p>
     <div class="grid2 ind">
-      <div>${a("الاسم الشخصي :")} ${s(i.firstAr,"b")}</div><div>${x(`Prénom : <b>${m(i.firstFr||"")}</b>`)}</div>
-      <div>${a("الاسم العائلي :")} ${s(i.lastAr,"b")}</div><div>${x(`Nom : <b>${m(i.lastFr||"")}</b>`)}</div>
-      <div>${a("الإطار :")} ${s(i.cadre)}</div><div>${a("الدرجة :")} ${s(i.grade)}</div>
-      <div>${a("رقم التأجير :")} ${s(i.ppr)}</div><div>${a("بطاقة التعريف الوطنية :")} ${s(i.cin,"ltr")}</div>
+      <div>${a("الاسم الشخصي :")} ${r(i.firstAr,"b")}</div><div>${N(`Prénom : <b>${m(i.firstFr||"")}</b>`)}</div>
+      <div>${a("الاسم العائلي :")} ${r(i.lastAr,"b")}</div><div>${N(`Nom : <b>${m(i.lastFr||"")}</b>`)}</div>
+      <div>${a("الإطار :")} ${r(i.cadre)}</div><div>${a("الدرجة :")} ${r(i.grade)}</div>
+      <div>${a("رقم التأجير :")} ${r(i.ppr)}</div><div>${a("بطاقة التعريف الوطنية :")} ${r(i.cin,"ltr")}</div>
     </div>
-    <p class="mt">${a("قد استأنف(ت) عمله(ها) بتاريخ :")} ${h(e.resumeDate,"b")} &nbsp; ${a("بعد :")} ${s(e.afterType,"b")}</p>
+    <p class="mt">${a("قد استأنف(ت) عمله(ها) بتاريخ :")} ${p(e.resumeDate,"b")} &nbsp; ${a("بعد :")} ${r(e.afterType,"b")}</p>
     ${e.sundayNote?`<p class="mt"><b>${m(e.sundayNote)}</b></p>`:""}
-    <p>${a("لمدة :")} ${s(e.duration)} &nbsp; ${a("من :")} ${h(e.from)} &nbsp; ${a("إلى :")} ${h(e.to)}</p>
-    <p>${a("المهام الإدارية أو التربوية :")} ${s(i.task)}</p>
-    <p>${a("العنوان الشخصي :")} ${s(i.address)}</p>
-    <p>${a("الهاتف :")} ${s(i.phone,"ltr")}</p>
-    <p class="l">${a("حرر في :")} ${s(e.city)} &nbsp; ${a("بتاريخ :")} ${h(e.date)}</p>
+    <p>${a("لمدة :")} ${r(e.duration)} &nbsp; ${a("من :")} ${p(e.from)} &nbsp; ${a("إلى :")} ${p(e.to)}</p>
+    <p>${a("المهام الإدارية أو التربوية :")} ${r(i.task)}</p>
+    <p>${a("العنوان الشخصي :")} ${r(i.address)}</p>
+    <p>${a("الهاتف :")} ${r(i.phone,"ltr")}</p>
+    <p class="l">${a("حرر في :")} ${r(e.city)} &nbsp; ${a("بتاريخ :")} ${p(e.date)}</p>
     </div>
-    <div class="boxes grow${y(e).length>16?" sm":""}">
+    <div class="boxes grow${j(e).length>16?" sm":""}">
       <div class="box"><div class="b">توقيع المعني (ة) بالأمر :</div></div>
       <div class="box"><div class="b">توقيع وملاحظة الرئيس المباشر :</div></div>
     </div>
     <div class="b mt small">مختلف الحالات :</div>
-    <div class="cases${y(e).length>16?" c3":""}">${y(e).map(d=>`<div>${z(e.case===d)} ${d}</div>`).join("")}</div>`,v.medical=({s:t,e:i,f:e})=>`
-    ${b(t)}
+    <div class="cases${j(e).length>16?" c3":""}">${j(e).map(s=>`<div>${L(e.case===s)} ${s}</div>`).join("")}</div>`,k.medical=({s:t,e:i,f:e})=>`
+    ${z(t)}
     <div class="title-box">وصل استلام شهادة(ات) طبية</div>
     <div class="airy2">
-    <p>${a("أنا الممضي أسفله :")} ${s(t.director,"b")}</p>
-    <p>${a("مدير مؤسسة :")} ${s(t.school,"b")}</p>
-    <p>${a("أشهد أني تسلمت بتاريخ :")} ${h(e.receivedDate,"b")} &nbsp; ${a("من طرف السيد (ة) :")} ${s(e.deliveredBy)}</p>
-    <p>${a("شهادة طبية مسلمة من الطبيب السيد (ة) :")} ${s(e.doctor)}</p>
-    <p>${a("مدتها :")} ${s(e.duration,"b")} &nbsp; ${a("ابتداء من :")} ${h(e.from,"b")} &nbsp; ${a("إلى :")} ${h(e.to,"b")}</p>
+    <p>${a("أنا الممضي أسفله :")} ${r(t.director,"b")}</p>
+    <p>${a("مدير مؤسسة :")} ${r(t.school,"b")}</p>
+    <p>${a("أشهد أني تسلمت بتاريخ :")} ${p(e.receivedDate,"b")} &nbsp; ${a("من طرف السيد (ة) :")} ${r(e.deliveredBy)}</p>
+    <p>${a("شهادة طبية مسلمة من الطبيب السيد (ة) :")} ${r(e.doctor)}</p>
+    <p>${a("مدتها :")} ${r(e.duration,"b")} &nbsp; ${a("ابتداء من :")} ${p(e.from,"b")} &nbsp; ${a("إلى :")} ${p(e.to,"b")}</p>
     <div class="grid2">
-      <div>${a("تتعلق بالسيد (ة) :")} ${s(w(i),"b")}</div><div>${a("الرقم المالي :")} ${s(i.ppr)}</div>
-      <div>${a("الإطار :")} ${s(i.cadre)}</div><div>${a("مادة التدريس :")} ${s(i.subject)}</div>
+      <div>${a("تتعلق بالسيد (ة) :")} ${r(T(i),"b")}</div><div>${a("الرقم المالي :")} ${r(i.ppr)}</div>
+      <div>${a("الإطار :")} ${r(i.cadre)}</div><div>${a("مادة التدريس :")} ${r(i.subject)}</div>
     </div>
-    <p>${a("العنوان الشخصي أثناء فترة المرض :")} ${s(e.sickAddress)}</p>
-    <p class="mt">${a("ملاحظات :")} ${s(e.notes)}</p>
-    <p class="l">${a("حرر بتاريخ :")} ${h(e.date)}</p>
+    <p>${a("العنوان الشخصي أثناء فترة المرض :")} ${r(e.sickAddress)}</p>
+    <p class="mt">${a("ملاحظات :")} ${r(e.notes)}</p>
+    <p class="l">${a("حرر بتاريخ :")} ${p(e.date)}</p>
     </div>
     <div class="boxes tall">
       <div class="box"><div class="b">توقيع وخاتم الرئيس المباشر :</div></div>
       <div class="box"><div class="b">توقيع المدلي بالشهادة (ات) الطبية :</div>
-        <div class="foot">${a("رقم بطاقة تعريفه الوطنية :")} ${s(e.delivererCin,"ltr")}</div></div>
-    </div>`,v.monthly=({s:t,f:i,rows:e})=>{const d=(e||[]).slice(),r=Math.max(20,d.length);let c="";for(let l=0;l<r;l++){const o=d[l];c+=`<tr><td>${l+1}</td><td>${o?m(o.ppr):""}</td><td class="nm">${o?m(o.name):""}</td><td class="cd">${o?m(o.cadre):""}</td>
-        <td>${o?$(o.from):""}</td><td>${o?$(o.to):""}</td><td>${o?m(o.days):""}</td><td class="rs">${o?m(o.reason):""}</td></tr>`}const n=+(i.month||1)-1;return`
-    ${b(t,"مصلحة الموارد البشرية")}
-    <div class="title-box wide">لائحة التتبع الشهري للغياب خلال شهر : ${N[n]||""} ${m(i.year||"")}</div>
-    <p>${a("المؤسسة :")} ${s(t.school,"b")}</p>
+        <div class="foot">${a("رقم بطاقة تعريفه الوطنية :")} ${r(e.delivererCin,"ltr")}</div></div>
+    </div>`,k.monthly=({s:t,f:i,rows:e})=>{const s=(e||[]).slice(),n=Math.max(20,s.length);let c="";for(let d=0;d<n;d++){const l=s[d];c+=`<tr><td>${d+1}</td><td>${l?m(l.ppr):""}</td><td class="nm">${l?m(l.name):""}</td><td class="cd">${l?m(l.cadre):""}</td>
+        <td>${l?S(l.from):""}</td><td>${l?S(l.to):""}</td><td>${l?m(l.days):""}</td><td class="rs">${l?m(l.reason):""}</td></tr>`}const o=+(i.month||1)-1;return`
+    ${z(t,"مصلحة الموارد البشرية")}
+    <div class="title-box wide">لائحة التتبع الشهري للغياب خلال شهر : ${_[o]||""} ${m(i.year||"")}</div>
+    <p>${a("المؤسسة :")} ${r(t.school,"b")}</p>
     <table class="tbl mtab">
       <thead>
         <tr><th rowspan="2" style="width:6%">ر.ت</th><th rowspan="2" style="width:11%">رقم التأجير</th><th rowspan="2">الاسم الكامل</th><th rowspan="2" style="width:17%">الإطار</th>
@@ -171,16 +168,16 @@
       </thead>
       <tbody>${c}</tbody>
     </table>
-    ${d.length===0?'<p class="c b mt">لا شيء يذكر</p>':""}
+    ${s.length===0?'<p class="c b mt">لا شيء يذكر</p>':""}
     <div class="row2 mt2">
       <div class="small">
         <div>* ملحوظة : ترسل هذه اللائحة إلى المديرية في اليوم الرابع من الشهر الموالي${t.email?`، وعبر البريد الإلكتروني : <span dir="ltr">${m(t.email)}</span> في اليوم الأخير من كل شهر`:""}.</div>
       </div>
       <div class="c">
-        <div>${a("وحرر في :")} ${s(i.city)} ${a("بتاريخ :")} ${h(i.date)}</div>
+        <div>${a("وحرر في :")} ${r(i.city)} ${a("بتاريخ :")} ${p(i.date)}</div>
         <div class="b mt">توقيع وطابع السيد مدير المؤسسة :</div>
       </div>
-    </div>`};const u={leave:{title:"طلب رخصة",icon:"📝",desc:"رخصة مرضية، أغراض شخصية، استثنائية أو ولادة",absence:!0,cat:"leave",quick:!0},medical:{title:"وصل استلام شهادة طبية",icon:"🩺",desc:"تسلم الشهادة الطبية من الموظف",absence:"رخصة مرضية",cat:"leave",quick:!0},monthly:{title:"لائحة التتبع الشهري للغياب",icon:"📅",desc:"تُحتسب تلقائيا من سجل الغياب",page:"a4",cat:"leave",quick:!0},inquiry:{title:"استفسار",icon:"❓",desc:"استفسار عن التغيب بدون إشعار",absence:"غياب غير مبرر",cat:"work",quick:!0},resume:{title:"محضر استئناف العمل",icon:"✅",desc:"بعد انتهاء رخصة أو تغيب",cat:"work",quick:!0},certificate:{title:"طلب شهادة",icon:"📄",desc:"شهادة العمل أو بيان الالتزام",cat:"cert",quick:!0}},H=`
+    </div>`};const M={leave:{title:"طلب رخصة",icon:"📝",desc:"رخصة مرضية، أغراض شخصية، استثنائية أو ولادة",absence:!0,cat:"leave",quick:!0},medical:{title:"وصل استلام شهادة طبية",icon:"🩺",desc:"تسلم الشهادة الطبية من الموظف",absence:"رخصة مرضية",cat:"leave",quick:!0},monthly:{title:"لائحة التتبع الشهري للغياب",icon:"📅",desc:"تُحتسب تلقائيا من سجل الغياب",page:"a4",cat:"leave",quick:!0},inquiry:{title:"استفسار",icon:"❓",desc:"استفسار عن التغيب بدون إشعار",absence:"غياب غير مبرر",cat:"work",quick:!0},resume:{title:"محضر استئناف العمل",icon:"✅",desc:"بعد انتهاء رخصة أو تغيب",cat:"work",quick:!0},certificate:{title:"طلب شهادة",icon:"📄",desc:"شهادة العمل أو بيان الالتزام",cat:"cert",quick:!0}},X=`
   @font-face{font-family:'NSA';src:url('fonts/NotoSansArabic-Regular.ttf');font-weight:400}
   @font-face{font-family:'NSA';src:url('fonts/NotoSansArabic-Medium.ttf');font-weight:500}
   @font-face{font-family:'NSA';src:url('fonts/NotoSansArabic-SemiBold.ttf');font-weight:600}
@@ -220,7 +217,7 @@
   .page-a4 .hdr-g{grid-template-columns:1fr 24mm 1fr}.page-a4 .hdr-emb img{width:24mm}.page-a4 .hdr-txt{--fs:9pt;--fsk:11pt;--lh:4.5mm;--lhk:5.8mm}.page-a4 .hdr-tif{--fs:8.6pt;--fsk:10pt}.page-a4 .hdr-sch2{font-size:12pt}.page-a4 .hdr .srv{font-size:8.5pt}
   .hdr-img{margin:-7mm -8mm 2mm}.srv-l{text-align:center;font-weight:600;font-size:8pt;margin:-1mm 0 1.5mm;border-bottom:1px solid #000;padding-bottom:1mm}.hdr-img img{width:100%;height:auto;display:block}
   /* 1.9: the letterhead image always spans the whole width of the page (right to left), whatever the page type */
-  .page-a4 .hdr-img{margin:-10mm -12mm 2mm}.page-a4 .hdr-img img{width:100%;height:auto;max-height:80mm;object-fit:fill}
+  .page-a4 .hdr-img{margin:-10mm -12mm 2mm}.page-a4 .hdr-img img{width:100%;height:auto;max-height:80mm;object-fit:contain}
   /* 1.9.2 header (wave + brown line); 1.9.3: font chosen in the settings */
   .hdr-img.lhn .lh-l{display:none!important}.page-a4l .hdr-img.lhn:not(.one) .lh-p{display:none!important}.page-a4l .hdr-img.lhn .lh-l{display:block!important}
   .hdr-img.lhn img.lh-p,.hdr-img.lhn img.lh-l{object-fit:contain!important;margin:0 auto}
@@ -232,7 +229,7 @@
   .hv2 .hdr-txt{font-weight:700;color:#2c4c76;--lh:3.06mm;--fs:9.2pt}
   .hv2 .hdr-txt>div{white-space:nowrap;overflow:hidden;height:var(--lh);line-height:var(--lh);font-size:min(var(--fs),var(--fit))}
   .hv2 .hdr-ar{font-family:var(--hf,'MAJT','Amiri',serif)}
-  .hv2 .hdr-tif{font-family:'Tif',sans-serif;font-weight:700;--fs:7.2pt;direction:ltr;-webkit-text-stroke:.012em currentColor}
+  .hv2 .hdr-tif{font-family:var(--hft,'Tif',sans-serif);font-weight:700;--fs:7.2pt;direction:ltr;-webkit-text-stroke:.012em currentColor}
   .hv2 .hdr-sch2{font-family:var(--hf,'MAJT','Amiri',serif);color:#1d3f86;font-weight:700;font-size:10.5pt;margin-top:.4mm}
   .hv2 .srv{color:#1d3f86}
   .page-a4 .hv2 .hdr-g{grid-template-columns:1fr 31mm 1fr}.page-a4 .hv2 .hdr-emb img{width:31mm}.page-a4 .hv2 .hdr-txt{--lh:5.25mm;--fs:15.5pt}.page-a4 .hv2 .hdr-tif{--fs:11.6pt}.page-a4 .hv2 .hdr-sch2{font-size:14pt}
@@ -279,6 +276,6 @@
   .cases.c3{grid-template-columns:1fr 1fr 1fr;column-gap:2mm;font-size:6.9pt;line-height:1.5}.cases.c3 .cb{width:2.8mm;height:2.8mm;line-height:2.5mm;font-size:6pt}
   sup{font-size:65%}
   @page{size:A4 landscape;margin:0}
-  `;function tt(t,i,e){e=e||{};const d=e.base||"",r=v[t],c=u[t].page==="a4";let n,l;if(c&&e.mode==="two"){const o=p=>`<div class="copy-a4"><div class="page-a4 ${u[t].pageClass||""}">${r(Object.assign({},i,{copy:p}))}</div></div>`;n=`<div class="sheet two-a4">${o(0)}${o(1)}</div>`,l="@page{size:A4 landscape;margin:0}"}else c?(n=`<div class="page-a4 ${u[t].pageClass||""}">${r(i)}</div>`,l="@page{size:A4 portrait;margin:0}"):e.mode==="single"?(n=`<div class="sheet single"><div class="copy">${r(Object.assign({},i,{copy:0}))}</div></div>`,l="@page{size:A4 portrait;margin:0}"):(n=`<div class="sheet"><div class="copy">${r(Object.assign({},i,{copy:0}))}</div><div class="copy">${r(Object.assign({},i,{copy:1}))}</div></div>`,l="@page{size:A4 landscape;margin:0}");return`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">${d?`<base href="${d}">`:""}
-      <title>${m(u[t].title)}</title><style>${H}${window.Docs.fontCss||""}${window.Docs.extraCss||""}${l}</style></head><body>${n}</body></html>`}const it=(t,i)=>u[t].page==="a4"?!!(i&&i.mode==="two"):!(i&&i.mode==="single"),T="(?:[A-Za-z]{0,4}\\d+(?:[.,/-]\\d+)*[A-Za-z]?)",et=new RegExp(`(?<![\\w\\u0600-\\u06FF])(?:[+\\u2212-]?\\(?${T}\\)?(?:[ \\u00A0]\\(?${T}\\)?)+|[+\\u2212-]${T})(?!\\w)`,"g"),at=/(<!--[\s\S]*?-->|<(style|script|title|textarea)\b[\s\S]*?<\/\2>)|<(\/?)([a-zA-Z][\w:-]*)[^>]*>|(&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);)|([^<&]+)|[<&]/gi,st='<span style="direction:ltr;unicode-bidi:isolate">';function dt(t){if(typeof t!="string"||!/\d/.test(t))return t;let i=0;return t.replace(at,(e,d,r,c,n,l,o)=>d||l?e:n?(n.toLowerCase()==="svg"&&(c?i=Math.max(0,i-1):/\/>$/.test(e)||i++),e):o===void 0||i?e:o.replace(et,p=>st+p+"</span>"))}function rt(t){const i=t.page||"a4",e=t.cls||"",d=t.pages&&t.pages.length?t.pages:[""],r=(p,f)=>typeof p=="function"?p(f):p,c=p=>{const f=typeof p=="string"&&/^<!--cls:([\w -]+)-->/.exec(p);return f?" "+f[1]:""};let n,l;return i==="a4"||i==="a4l"?(n=d.map(p=>`<div class="${i==="a4"?"page-a4":"page-a4l"} ${e}${c(p)}">${r(p,0)}</div>`).join(""),l=`@page{size:A4 ${i==="a4"?"portrait":"landscape"};margin:0}`):i==="single"?(n=d.map(p=>`<div class="sheet single"><div class="copy ${e}">${r(p,0)}</div></div>`).join(""),l="@page{size:A4 portrait;margin:0}"):(n=d.map(p=>`<div class="sheet"><div class="copy ${e}">${r(p,0)}</div><div class="copy ${e}">${r(p,1)}</div></div>`).join(""),l="@page{size:A4 landscape;margin:0}"),`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">${t.base?`<base href="${t.base}">`:""}
-      <title>${m(t.title||"")}</title><style>${H}${window.Docs.fontCss||""}${window.Docs.extraCss||""}${window.Docs.modCss||""}${l}</style></head><body>${n}</body></html>`}const nt=t=>t==="a4l"||t==="two";window.Docs={MONTHS:N,TYPES:u,RESUME_CASES:q,RESUME_EXTRA_REASONS:B,RESUME_MORE_REASONS:Q,extraCase:L,casesWith:J,resumeCases:y,buildDocHtml:tt,isLandscape:it,bidi:dt,fmtDate:$,toDate:S,isoOf:_,daysBetween:U,durationText:W,fullName:w,todayIso:P,esc:m,T:v,V:s,D:h,L:a,CB:z,LTR:x,header:b,buildRaw:rt,rawLandscape:nt,headerLines:E,tifName:M,splitAcademy:j,regionOf:K,placeOfDir:R,HDR_STYLES:Z,TIF:g}})();
+  `;function gt(t,i,e){e=e||{};const s=e.base||"",n=k[t],c=M[t].page==="a4";let o,d;if(c&&e.mode==="two"){const l=h=>`<div class="copy-a4"><div class="page-a4 ${M[t].pageClass||""}">${n(Object.assign({},i,{copy:h}))}</div></div>`;o=`<div class="sheet two-a4">${l(0)}${l(1)}</div>`,d="@page{size:A4 landscape;margin:0}"}else c?(o=`<div class="page-a4 ${M[t].pageClass||""}">${n(i)}</div>`,d="@page{size:A4 portrait;margin:0}"):e.mode==="single"?(o=`<div class="sheet single"><div class="copy">${n(Object.assign({},i,{copy:0}))}</div></div>`,d="@page{size:A4 portrait;margin:0}"):(o=`<div class="sheet"><div class="copy">${n(Object.assign({},i,{copy:0}))}</div><div class="copy">${n(Object.assign({},i,{copy:1}))}</div></div>`,d="@page{size:A4 landscape;margin:0}");return`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">${s?`<base href="${s}">`:""}
+      <title>${m(M[t].title)}</title><style>${X}${window.Docs.fontCss||""}${window.Docs.extraCss||""}${d}</style></head><body>${o}</body></html>`}const vt=(t,i)=>M[t].page==="a4"?!!(i&&i.mode==="two"):!(i&&i.mode==="single"),H="(?:[A-Za-z]{0,4}\\d+(?:[.,/-]\\d+)*[A-Za-z]?)",ft=new RegExp(`(?<![\\w\\u0600-\\u06FF])(?:[+\\u2212-]?\\(?${H}\\)?(?:[ \\u00A0]\\(?${H}\\)?)+|[+\\u2212-]${H})(?!\\w)`,"g"),$t=/(<!--[\s\S]*?-->|<(style|script|title|textarea)\b[\s\S]*?<\/\2>)|<(\/?)([a-zA-Z][\w:-]*)[^>]*>|(&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);)|([^<&]+)|[<&]/gi,bt='<span style="direction:ltr;unicode-bidi:isolate">',ut=/(^|[\s(\/،:-])(الاسم|الإسم|اسم|الأسماء|أسماء|النسب|ونسب|nom|prénom|prenom|noms)(?=$|[\s)\/،:-])/i,wt=/(المؤسسة|الوحدة|المادة|النادي|الجمعية|الشريك|الممون|القسم|المستوى|المركز|المجموعة|الجماعة|الوثيقة|الملف|المشروع|النشاط|المسلك|الشعبة|الدواء|العتاد|السلعة|الشركة|المقاولة|الحساب|البنك|الوكالة|الدورة|الامتحان|établissement|école|matière|classe)/i,G=t=>{const i=(t.textContent||"").replace(/\s+/g," ").trim();return i.length>0&&i.length<60&&ut.test(i)&&!wt.test(i)};function Q(t){if(typeof t!="string"||!/<table/i.test(t)||typeof DOMParser>"u")return t;const i=/^\s*<!doctype/i.test(t);let e;try{e=new DOMParser().parseFromString(t,"text/html")}catch{return t}let s=0;const n=c=>{c&&c.style&&!c.querySelector("table")&&(c.style.textAlign="center",s++)};return e.querySelectorAll("table").forEach(c=>{if(c.classList.contains("no-nc")||c.closest(".no-nc"))return;const o=Array.from(c.rows).filter(f=>f.closest("table")===c),d=[],l=new Map,h=[];o.forEach((f,g)=>{const b=Array.from(f.cells);h[g]=!!f.closest("thead")||b.length>0&&b.every(u=>u.tagName==="TH"),d[g]=d[g]||[];let $=0;b.forEach(u=>{for(;d[g][$];)$++;const y=Math.max(1,u.colSpan||1),B=Math.max(1,u.rowSpan||1);l.set(u,[$,y]);for(let x=0;x<B&&g+x<o.length;x++){d[g+x]=d[g+x]||[];for(let A=0;A<y;A++)d[g+x][$+A]=1}$+=y})});const v=new Set;o.forEach((f,g)=>{h[g]&&Array.from(f.cells).forEach(b=>{if(G(b)){const[$,u]=l.get(b);for(let y=0;y<u;y++)v.add($+y)}})}),o.forEach((f,g)=>{if(h[g])return;const b=Array.from(f.cells);b.forEach(($,u)=>{const[y,B]=l.get($);if(v.size){let x=!0;for(let A=0;A<B;A++)v.has(y+A)||(x=!1);if(x){n($);return}}($.tagName==="TH"||$.classList.contains("k"))&&G($)&&b[u+1]&&b[u+1].tagName==="TD"&&!b[u+1].classList.contains("k")&&n(b[u+1])})})}),s?i?"<!doctype html>"+e.documentElement.outerHTML:e.body.innerHTML:t}function yt(t){if(t=Q(t),typeof t!="string"||!/\d/.test(t))return t;let i=0;return t.replace($t,(e,s,n,c,o,d,l)=>s||d?e:o?(o.toLowerCase()==="svg"&&(c?i=Math.max(0,i-1):/\/>$/.test(e)||i++),e):l===void 0||i?e:l.replace(ft,h=>bt+h+"</span>"))}function xt(t){const i=t.page||"a4",e=t.cls||"",s=t.pages&&t.pages.length?t.pages:[""],n=(h,v)=>typeof h=="function"?h(v):h,c=h=>{const v=typeof h=="string"&&/^<!--cls:([\w -]+)-->/.exec(h);return v?" "+v[1]:""};let o,d;return i==="a4"||i==="a4l"?(o=s.map(h=>`<div class="${i==="a4"?"page-a4":"page-a4l"} ${e}${c(h)}">${n(h,0)}</div>`).join(""),d=`@page{size:A4 ${i==="a4"?"portrait":"landscape"};margin:0}`):i==="single"?(o=s.map(h=>`<div class="sheet single"><div class="copy ${e}">${n(h,0)}</div></div>`).join(""),d="@page{size:A4 portrait;margin:0}"):(o=s.map(h=>`<div class="sheet"><div class="copy ${e}">${n(h,0)}</div><div class="copy ${e}">${n(h,1)}</div></div>`).join(""),d="@page{size:A4 landscape;margin:0}"),`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">${t.base?`<base href="${t.base}">`:""}
+      <title>${m(t.title||"")}</title><style>${X}${window.Docs.fontCss||""}${window.Docs.extraCss||""}${window.Docs.modCss||""}${d}</style></head><body>${o}</body></html>`}const kt=t=>t==="a4l"||t==="two";window.Docs={MONTHS:_,TYPES:M,RESUME_CASES:K,RESUME_EXTRA_REASONS:V,RESUME_MORE_REASONS:pt,extraCase:Y,casesWith:Z,resumeCases:j,buildDocHtml:gt,isLandscape:vt,bidi:yt,centerNames:Q,fmtDate:S,toDate:C,isoOf:tt,daysBetween:it,durationText:et,fullName:T,todayIso:at,esc:m,T:k,V:r,D:p,L:a,CB:L,LTR:N,header:z,buildRaw:xt,rawLandscape:kt,headerLines:U,tifName:F,splitAcademy:O,regionOf:rt,placeOfDir:R,dirTo:W,HDR_STYLES:lt,TIF:w}})();
